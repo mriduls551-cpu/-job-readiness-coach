@@ -1,5 +1,19 @@
 # Deployment
 
+This project now has two intended operating modes:
+
+- `Local completion mode`: finish UX, copy, interactions, and deployment polish using mock auth plus in-memory data.
+- `Real deployment mode`: switch to Supabase for persistence and OpenRouter for live AI once the product is complete.
+
+GitHub tracks the code, scripts, and migrations in both modes. It does not track live user data. Until Supabase is configured, any registrations, plans, applications, or chat history you create locally should be treated as disposable test data.
+
+## Recommended Workflow
+
+1. Copy [.env.local.example](</C:/Users/mridul/Documents/Job-startup - Copy/New folder/Job-startup/nextjs-migration/.env.local.example>) into your real `.env.local` while the product is still being finished.
+2. Run `npm run local:check` before local QA. This verifies that local auth and in-memory persistence are set up correctly.
+3. Push code to GitHub as normal while product work continues.
+4. When the product is ready, switch to [.env.production.example](</C:/Users/mridul/Documents/Job-startup - Copy/New folder/Job-startup/nextjs-migration/.env.production.example>), configure Supabase and OpenRouter, then run `npm run deploy:check`.
+
 The app is configured for Vercel. Its deployment build runs:
 
 ```sh
@@ -20,6 +34,16 @@ npm run build
 - `ALLOW_IN_MEMORY_DB=false`
 
 Apply the migrations in `supabase/migrations` before serving production traffic.
+
+## Cutover From Local Mode
+
+When you are ready to move from local completion mode to real infrastructure:
+
+1. Create the Supabase project and set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`.
+2. Run the SQL in `supabase/migrations` so the production schema exists before user traffic arrives.
+3. Set `ENABLE_LOCAL_AUTH=false` and `ALLOW_IN_MEMORY_DB=false`.
+4. Add `OPENROUTER_API_KEY` when you want live AI responses instead of deterministic fallback behavior.
+5. Run `npm run deploy:check` and confirm `/api/health` returns `status: "ok"` after deploy.
 
 ## Optional integrations
 
