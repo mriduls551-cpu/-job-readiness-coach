@@ -1,0 +1,466 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import {
+  getStoredLocale,
+} from '@/lib/client-session';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useAssessmentState } from '@/hooks/useAssessmentState';
+import {
+  ROLE_DEFINITIONS,
+  getLocaleValue,
+  type Locale,
+  type LocalizedText,
+  type RoleId,
+} from '@/lib/product';
+import { FullPageLoader } from '@/components/FullPageLoader';
+
+interface ApplicationItem {
+  id: string;
+  companyName: string;
+  roleTitle: string;
+  status: 'applied' | 'interview' | 'offered' | 'rejected';
+  applicationDate: string;
+  notes: string;
+}
+
+interface InterviewPack {
+  focus: LocalizedText;
+  questions: LocalizedText[];
+  stories: LocalizedText[];
+  checklist: LocalizedText[];
+}
+
+function t(en: string, hi: string): LocalizedText {
+  return { en, hi };
+}
+
+function getInterviewPack(roleId: RoleId): InterviewPack {
+  const peopleFacingRoles: RoleId[] = [
+    'customer-support',
+    'sales-support',
+    'academic-counsellor',
+    'hr-coordinator',
+    'telemedicine-coordinator',
+  ];
+  const operationsRoles: RoleId[] = [
+    'data-entry-mis',
+    'back-office-operations',
+    'operations-analyst',
+  ];
+  const accuracyRoles: RoleId[] = [
+    'accounting-finance-assistant',
+    'legal-compliance-operations',
+  ];
+  const growthRoles: RoleId[] = [
+    'digital-marketing-executive',
+    'content-writer',
+  ];
+
+  if (peopleFacingRoles.includes(roleId)) {
+    return {
+      focus: t(
+        'Show calm communication, follow-through, and trust-building.',
+        'शांत communication, follow-through और trust-building दिखाइए।'
+      ),
+      questions: [
+        t('How do you handle an upset customer, student, or patient?', 'अगर कोई customer, student या patient परेशान हो तो आप कैसे handle करेंगे?'),
+        t('Tell us about a time you explained something clearly.', 'ऐसा समय बताइए जब आपने कुछ साफ तरीके से समझाया हो।'),
+        t('How do you follow up when someone does not respond?', 'अगर कोई जवाब न दे तो आप follow-up कैसे करते हैं?'),
+      ],
+      stories: [
+        t('One example of calming someone down.', 'किसी को शांत करने का एक example।'),
+        t('One example of solving a small issue with patience.', 'धैर्य के साथ छोटी समस्या हल करने का एक example।'),
+        t('One example of staying organized while talking to people.', 'लोगों से बात करते हुए organized रहने का एक example।'),
+      ],
+      checklist: [
+        t('Practice a 60-second introduction out loud.', '60-second introduction ज़ोर से बोलकर practice करें।'),
+        t('Prepare 3 examples that prove communication strength.', 'communication strength साबित करने वाले 3 examples तैयार करें।'),
+        t('Keep one short reason ready for why this role fits you.', 'यह role आपके लिए क्यों fit है, इसका एक short reason तैयार रखें।'),
+      ],
+    };
+  }
+
+  if (operationsRoles.includes(roleId)) {
+    return {
+      focus: t(
+        'Show process clarity, ownership, and attention to detail.',
+        'process clarity, ownership और detail पर ध्यान दिखाइए।'
+      ),
+      questions: [
+        t('How do you keep track of repetitive tasks without missing details?', 'बार-बार होने वाले tasks को आप detail miss किए बिना कैसे track करते हैं?'),
+        t('Tell us about a time you improved a process or organized work better.', 'ऐसा समय बताइए जब आपने किसी process को बेहतर किया हो या काम organize किया हो।'),
+        t('What would you do if a report or tracker had wrong information?', 'अगर किसी report या tracker में गलत information हो तो आप क्या करेंगे?'),
+      ],
+      stories: [
+        t('One example of cleaning up a messy process.', 'messy process को साफ करने का एक example।'),
+        t('One example of working with accuracy under deadlines.', 'deadline के साथ accuracy बनाए रखने का एक example।'),
+        t('One example of following a system consistently.', 'किसी system को consistently follow करने का एक example।'),
+      ],
+      checklist: [
+        t('Review one tracker, spreadsheet, or reporting example from your background.', 'अपने background का एक tracker, spreadsheet या reporting example review करें।'),
+        t('Prepare to explain your work step by step.', 'अपने काम को step by step explain करने की तैयारी करें।'),
+        t('Use simple language when describing process ownership.', 'process ownership समझाते समय simple language इस्तेमाल करें।'),
+      ],
+    };
+  }
+
+  if (accuracyRoles.includes(roleId)) {
+    return {
+      focus: t(
+        'Show accuracy, documentation discipline, and careful review habits.',
+        'accuracy, documentation discipline और careful review habits दिखाइए।'
+      ),
+      questions: [
+        t('How do you make sure your work stays accurate?', 'आप कैसे सुनिश्चित करते हैं कि आपका काम accurate रहे?'),
+        t('Tell us about a time you checked records or caught an error.', 'ऐसा समय बताइए जब आपने records check किए हों या error पकड़ी हो।'),
+        t('How do you handle confidential or sensitive information?', 'confidential या sensitive information को आप कैसे handle करते हैं?'),
+      ],
+      stories: [
+        t('One example of careful checking or reconciliation.', 'careful checking या reconciliation का एक example।'),
+        t('One example of working with rules or documentation.', 'rules या documentation के साथ काम करने का एक example।'),
+        t('One example of staying calm with detail-heavy work.', 'detail-heavy work में शांत रहने का एक example।'),
+      ],
+      checklist: [
+        t('Be ready to explain how you double-check your work.', 'अपने काम को double-check कैसे करते हैं, यह बताने के लिए ready रहें।'),
+        t('Use examples that show trustworthiness and consistency.', 'trustworthiness और consistency दिखाने वाले examples इस्तेमाल करें।'),
+        t('Keep answers structured and short.', 'answers structured और short रखें।'),
+      ],
+    };
+  }
+
+  if (growthRoles.includes(roleId)) {
+    return {
+      focus: t(
+        'Show audience understanding, ideas, and practical execution.',
+        'audience understanding, ideas और practical execution दिखाइए।'
+      ),
+      questions: [
+        t('How would you create content or campaigns for the right audience?', 'सही audience के लिए content या campaign कैसे बनाएंगे?'),
+        t('Tell us about something you wrote, promoted, or improved.', 'ऐसी चीज़ बताइए जिसे आपने लिखा, promote किया या बेहतर बनाया हो।'),
+        t('How do you know if a piece of content or campaign worked?', 'आप कैसे जानेंगे कि content या campaign काम किया या नहीं?'),
+      ],
+      stories: [
+        t('One example of writing or communication work you are proud of.', 'ऐसा writing या communication work जिसका आपको गर्व हो।'),
+        t('One example of learning from feedback quickly.', 'feedback से जल्दी सीखने का एक example।'),
+        t('One example of turning an idea into an outcome.', 'किसी idea को outcome में बदलने का एक example।'),
+      ],
+      checklist: [
+        t('Keep 2 work samples or project examples ready.', '2 work samples या project examples ready रखें।'),
+        t('Talk about audience, message, and result in one flow.', 'audience, message और result को एक flow में बताइए।'),
+        t('Avoid vague creative answers and stay practical.', 'बहुत vague creative answers से बचें और practical रहें।'),
+      ],
+    };
+  }
+
+  return {
+    focus: t(
+      'Show steady judgment, practical examples, and clear communication.',
+      'steady judgment, practical examples और clear communication दिखाइए।'
+    ),
+    questions: [
+      t('Why does this role fit your strengths right now?', 'यह role अभी आपकी strengths के लिए क्यों fit है?'),
+      t('Tell us about a time you stayed responsible and consistent.', 'ऐसा समय बताइए जब आप responsible और consistent रहे हों।'),
+      t('How do you learn quickly in a new environment?', 'नए environment में आप जल्दी कैसे सीखते हैं?'),
+    ],
+    stories: [
+      t('One example of taking ownership.', 'ownership लेने का एक example।'),
+      t('One example of problem-solving calmly.', 'शांत तरीके से problem-solving का एक example।'),
+      t('One example of learning and improving fast.', 'जल्दी सीखने और improve करने का एक example।'),
+    ],
+    checklist: [
+      t('Prepare short answers, not long speeches.', 'लंबी speeches नहीं, short answers तैयार करें।'),
+      t('Stay close to real examples from study, internship, or projects.', 'study, internship या projects के real examples के करीब रहें।'),
+      t('Connect your answers back to the selected role.', 'अपने answers को selected role से जोड़कर रखें।'),
+    ],
+  };
+}
+
+export default function InterviewPage() {
+  const { user, loading } = useCurrentUser({ requireAuth: true });
+  const {
+    assessment,
+    selectedRoleId,
+    loading: assessmentLoading,
+  } = useAssessmentState();
+  const [locale, setLocale] = useState<Locale>('en');
+  const [applications, setApplications] = useState<ApplicationItem[]>([]);
+
+  useEffect(() => {
+    setLocale(getStoredLocale());
+
+    if (!user) {
+      return;
+    }
+
+    const loadApplications = async () => {
+      const response = await fetch('/api/applications');
+      if (!response.ok) return;
+      const payload = (await response.json()) as {
+        data?: { applications: ApplicationItem[] };
+      };
+      setApplications(payload.data?.applications || []);
+    };
+
+    void loadApplications();
+  }, [user]);
+
+  const selectedRole = selectedRoleId ? ROLE_DEFINITIONS[selectedRoleId] : null;
+  const pack = selectedRole ? getInterviewPack(selectedRole.id) : null;
+  const interviewApplications = applications.filter((item) => item.status === 'interview');
+  const topMatch = assessment?.topRoles?.find((item) => item.roleId === selectedRoleId) || assessment?.topRoles?.[0] || null;
+
+  const introPrompt = useMemo(() => {
+    if (!selectedRole) {
+      return locale === 'en'
+        ? 'I am a graduate looking for an entry-level role where I can learn fast, stay reliable, and contribute consistently.'
+        : 'मैं एक graduate हूँ और ऐसा entry-level role ढूंढ रहा/रही हूँ जहाँ मैं जल्दी सीख सकूँ, reliable रहूँ और consistently contribute कर सकूँ।';
+    }
+
+    return locale === 'en'
+      ? `I am preparing for ${selectedRole.shortLabel.en} roles. My strengths are ${selectedRole.strengths
+          .slice(0, 2)
+          .map((item) => item.en.toLowerCase())
+          .join(' and ')}, and I work best when expectations are clear and I can keep work moving.`
+      : `मैं ${selectedRole.shortLabel.hi} roles के लिए तैयारी कर रहा/रही हूँ। मेरी strengths ${selectedRole.strengths
+          .slice(0, 2)
+          .map((item) => item.hi)
+          .join(' और ')} हैं, और मैं तब सबसे अच्छा काम करता/करती हूँ जब expectations clear हों और मैं काम को आगे बढ़ा सकूँ।`;
+  }, [locale, selectedRole]);
+
+  if (loading || assessmentLoading) {
+    return (
+      <FullPageLoader
+        eyebrow="Interview prep"
+        title="Loading your prep workspace…"
+        message="We’re checking your selected role, assessment context, and applications."
+      />
+    );
+  }
+
+  if (!user) {
+    return (
+      <FullPageLoader
+        eyebrow="Interview prep"
+        title="Redirecting to sign in…"
+        message="Your prep workspace is saved inside your account."
+      />
+    );
+  }
+
+  if (!selectedRole || !pack) {
+    return (
+      <main className="section-shell">
+        <div className="container-main max-w-3xl">
+          <section className="workspace-hero">
+            <p className="eyebrow-copy">
+              {locale === 'en' ? 'Interview prep' : 'Interview prep'}
+            </p>
+            <h1 className="mt-4 text-4xl leading-tight text-slate-950">
+              {locale === 'en'
+                ? 'Choose a role first so your interview prep stays specific.'
+                : 'पहले एक role चुनिए ताकि आपकी interview prep specific रहे।'}
+            </h1>
+            <p className="mt-4 max-w-2xl text-base leading-8 text-slate-600">
+              {locale === 'en'
+                ? 'This prep workspace works best after your fit check and role selection.'
+                : 'यह prep workspace fit check और role selection के बाद सबसे अच्छा काम करता है।'}
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link className="btn-primary" href="/results">
+                {locale === 'en' ? 'Choose a role from results' : 'Results से role चुनिए'}
+              </Link>
+              <Link className="btn-outline" href="/career-fit-check">
+                {locale === 'en' ? 'Go to fit check' : 'Fit check पर जाएँ'}
+              </Link>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="section-shell">
+      <div className="container-main space-y-6">
+        <section className="workspace-hero">
+          <div className="flex flex-wrap items-start justify-between gap-5">
+            <div>
+              <p className="eyebrow-copy">
+                {locale === 'en' ? 'Interview prep' : 'Interview prep'}
+              </p>
+              <h1 className="mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
+                {locale === 'en'
+                  ? `Prepare for ${selectedRole.shortLabel.en} interviews with one clear story.`
+                  : `${selectedRole.shortLabel.hi} interviews के लिए एक clear story तैयार करें।`}
+              </h1>
+              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+                {pack.focus[locale]}
+              </p>
+            </div>
+
+            <div className="story-card max-w-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                {locale === 'en' ? 'Selected role' : 'Selected role'}
+              </p>
+              <p className="mt-3 text-2xl font-semibold text-[#0a5a60]">
+                {getLocaleValue(selectedRole.shortLabel, locale)}
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                {topMatch ? `${locale === 'en' ? 'Match score' : 'Match score'}: ${topMatch.score}` : '--'}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <div className="metric-tile p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                {locale === 'en' ? 'Interview-stage applications' : 'Interview-stage applications'}
+              </p>
+              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+                {interviewApplications.length}
+              </p>
+            </div>
+            <div className="metric-tile p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                {locale === 'en' ? 'Stories to prepare' : 'Stories to prepare'}
+              </p>
+              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+                {pack.stories.length}
+              </p>
+            </div>
+            <div className="metric-tile p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                {locale === 'en' ? 'Role strengths' : 'Role strengths'}
+              </p>
+              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+                {selectedRole.strengths.length}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[1fr,1fr]">
+          <div className="space-y-5">
+            <div className="route-shell bg-[#fffefb]">
+              <p className="eyebrow-copy">
+                {locale === 'en' ? '60-second introduction' : '60-second introduction'}
+              </p>
+              <p className="step-panel mt-4 text-sm leading-7 text-slate-700">
+                {introPrompt}
+              </p>
+            </div>
+
+            <div className="route-shell space-y-4 bg-[#fffefb]">
+              <h2 className="text-2xl text-slate-950">
+                {locale === 'en' ? 'Questions to practice' : 'Questions to practice'}
+              </h2>
+              {pack.questions.map((question) => (
+                <div
+                  className="step-panel"
+                  key={question.en}
+                >
+                  <p className="font-semibold text-slate-900">{question[locale]}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="route-shell space-y-4 bg-[#fffefb]">
+              <h2 className="text-2xl text-slate-950">
+                {locale === 'en' ? 'Stories to prepare' : 'Stories to prepare'}
+              </h2>
+              {pack.stories.map((story, index) => (
+                <div className="flex gap-3" key={story.en}>
+                  <span className="mt-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#0a5a60] text-xs font-semibold text-white">
+                    {index + 1}
+                  </span>
+                  <p className="text-sm leading-7 text-slate-700">{story[locale]}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            <div className="route-shell bg-white/90">
+              <p className="eyebrow-copy">
+                {locale === 'en' ? 'What to emphasize' : 'What to emphasize'}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {selectedRole.strengths.map((strength) => (
+                  <span className="accent-chip" key={strength.en}>
+                    {getLocaleValue(strength, locale)}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-4 text-sm leading-7 text-slate-600">
+                {getLocaleValue(selectedRole.summary, locale)}
+              </p>
+            </div>
+
+            <div className="route-shell bg-white/90">
+              <h2 className="text-2xl text-slate-950">
+                {locale === 'en' ? 'Before the interview' : 'Before the interview'}
+              </h2>
+              <div className="mt-4 space-y-3">
+                {pack.checklist.map((item, index) => (
+                  <div
+                    className="step-panel flex gap-3"
+                    key={item.en}
+                  >
+                    <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-[#d97b2f] text-xs font-semibold text-white">
+                      {index + 1}
+                    </span>
+                    <p className="text-sm leading-7 text-slate-700">{item[locale]}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="route-shell bg-white/90">
+              <h2 className="text-2xl text-slate-950">
+                {locale === 'en' ? 'Interview pipeline' : 'Interview pipeline'}
+              </h2>
+              {interviewApplications.length ? (
+                <div className="mt-4 space-y-3">
+                  {interviewApplications.map((application) => (
+                    <div
+                      className="step-panel"
+                      key={application.id}
+                    >
+                      <p className="font-semibold text-slate-900">{application.companyName}</p>
+                      <p className="mt-1 text-sm text-slate-600">{application.roleTitle}</p>
+                      {application.notes ? (
+                        <p className="mt-2 text-sm leading-7 text-slate-500">
+                          {application.notes}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-4 text-sm leading-7 text-slate-600">
+                  {locale === 'en'
+                    ? 'No applications are marked as interview-stage yet. Use this page to prepare before that first recruiter call or interview round.'
+                    : 'अभी कोई application interview-stage में marked नहीं है। इस page का उपयोग पहले recruiter call या interview round से पहले तैयारी के लिए करें।'}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Link className="btn-primary" href="/applications">
+                {locale === 'en' ? 'Open applications tracker' : 'Applications tracker खोलें'}
+              </Link>
+              <Link className="btn-outline" href="/resume">
+                {locale === 'en' ? 'Refine resume' : 'Resume refine करें'}
+              </Link>
+              <Link className="btn-secondary" href="/plan">
+                {locale === 'en' ? 'Continue weekly plan' : 'Weekly plan पर जाएँ'}
+              </Link>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}

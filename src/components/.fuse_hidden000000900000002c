@@ -1,0 +1,126 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { BrandWordmark } from '@/components/BrandWordmark';
+import { getStoredUser, refreshStoredUserFromSession } from '@/lib/client-session';
+import { FullPageLoader } from '@/components/FullPageLoader';
+
+const PROTECTED_PREFIXES = [
+  '/career-fit-check',
+  '/results',
+  '/resume',
+  '/dashboard',
+  '/plan',
+  '/applications',
+  '/interview',
+  '/profile',
+];
+
+export function AuthGate({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const isProtected = useMemo(
+    () => PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix)),
+    [pathname]
+  );
+  const [status, setStatus] = useState<'checking' | 'ready' | 'needs-auth'>(
+    isProtected ? 'needs-auth' : 'checking'
+  );
+
+  const isAuthScreen = pathname === '/login' || pathname === '/register';
+
+  useEffect(() => {
+    let active = true;
+
+    const sync = async () => {
+      const localUser = getStoredUser();
+      const user = localUser || (await refreshStoredUserFromSession());
+      if (!active) return;
+
+      if (isAuthScreen && user) {
+        router.replace('/');
+        return;
+      }
+
+      if (isProtected && !user) {
+        setStatus('needs-auth');
+        return;
+      }
+
+      setStatus('ready');
+    };
+
+    void sync();
+
+    return () => {
+      active = false;
+    };
+  }, [isAuthScreen, isProtected, pathname, router]);
+
+  if (status === 'needs-auth') {
+    return (
+      <main className="section-shell">
+        <div className="container-main max-w-5xl">
+          <section className="route-shell space-y-7 px-6 py-7 sm:px-8 sm:py-8">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <BrandWordmark compact />
+              <div className="heritage-quote">
+                <p className="text-xl text-[var(--brand-ink)]">Save your progress. Keep moving.</p>
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-[1.08fr,0.92fr]">
+              <div className="space-y-4">
+                <p className="eyebrow-copy">Protected workspace</p>
+                <h1 className="text-4xl leading-tight text-[var(--brand-ink)] sm:text-5xl">
+                  Create an account to unlock your full job-readiness journey.
+                </h1>
+                <p className="max-w-2xl text-base leading-8 text-[var(--ink-soft)]">
+                  Your fit-check answers, role matches, resume draft, weekly plan, applications,
+                  and interview prep all stay connected inside one calm workspace.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <Link className="btn-primary" href={`/register?next=${encodeURIComponent(pathname)}`}>
+                    Create free account
+                  </Link>
+                  <Link className="btn-outline" href={`/login?next=${encodeURIComponent(pathname)}`}>
+                    Sign in
+                  </Link>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[
+                  ['1', 'Career fit check', 'Structured guidance instead of vague career exploration.'],
+                  ['2', 'Top role matches', 'Clear rankings with practical reasons, not abstract advice.'],
+                  ['3', 'Resume co-writer', 'Build a role-aware draft that reflects your direction.'],
+                  ['4', 'Weekly plan', 'Know what to do next without juggling disconnected tools.'],
+                ].map(([index, title, body]) => (
+                  <article className="story-card" key={title}>
+                    <span className="story-card__index">{index}</span>
+                    <p className="mt-4 text-xl text-[var(--brand-ink)]">{title}</p>
+                    <p className="mt-3 text-sm leading-7 text-[var(--ink-soft)]">{body}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  if (isProtected && status !== 'ready') {
+    return (
+      <FullPageLoader
+        eyebrow="Opening your workspace"
+        title="Checking your session..."
+        message="We are confirming your saved progress and getting the next step ready."
+      />
+    );
+  }
+
+  return <>{children}</>;
+}

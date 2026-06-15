@@ -1,0 +1,879 @@
+'use client';
+
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import Link from 'next/link';
+import {
+  getStoredLocale,
+  getStoredResumeDraft,
+  persistSelectedRole,
+  setStoredResumeDraft,
+} from '@/lib/client-session';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useAssessmentState } from '@/hooks/useAssessmentState';
+import {
+  ROLE_DEFINITIONS,
+  buildStarterResume,
+  getLocaleValue,
+  type Locale,
+  type ResumeDraft,
+} from '@/lib/product';
+import { FullPageLoader } from '@/components/FullPageLoader';
+
+type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+function emptyResume(): ResumeDraft {
+  return {
+    title: '',
+    summary: '',
+    email: '',
+    phone: '',
+    location: '',
+    skills: [],
+    experience: [
+      {
+        company: '',
+        role: '',
+        duration: '',
+        description: '',
+      },
+    ],
+    education: [
+      {
+        school: '',
+        degree: '',
+        field: '',
+        year: '',
+      },
+    ],
+    certifications: [],
+  };
+}
+
+export default function ResumePage() {
+  const { user, loading } = useCurrentUser({ requireAuth: true });
+  const {
+    assessment,
+    selectedRoleId,
+    loading: assessmentLoading,
+  } = useAssessmentState();
+  const [locale, setLocale] = useState<Locale>('en');
+  const [resume, setResume] = useState<ResumeDraft | null>(null);
+  const [step, setStep] = useState<'edit' | 'preview'>('edit');
+  const [newSkill, setNewSkill] = useState('');
+  const [newCertification, setNewCertification] = useState('');
+  const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [isPending, startTransition] = useTransition();
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    const nextLocale = getStoredLocale();
+
+    setLocale(nextLocale);
+
+    if (!user) {
+      return;
+    }
+
+    const initialize = async () => {
+      const existingResponse = await fetch('/api/resumes');
+
+        if (existingResponse.ok) {
+          const existingPayload = (await existingResponse.json()) as {
+            data?: { resume: ResumeDraft | null };
+          };
+          if (existingPayload.data?.resume) {
+            setResume(existingPayload.data.resume);
+            setStoredResumeDraft(existingPayload.data.resume);
+            setSaveState('saved');
+            setStatusMessage(
+              nextLocale === 'en'
+                ? 'Saved to your workspace.'
+                : 'आपके कार्यस्थल में सुरक्षित हो गया।'
+            );
+            setIsLoaded(true);
+            return;
+          }
+        }
+
+      if (assessment && selectedRoleId) {
+          const initResponse = await fetch('/api/resumes', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              roleId: selectedRoleId,
+              profile: {
+                ...assessment.profile,
+                locale: nextLocale,
+              },
+              user: {
+                name: user.name,
+                email: user.email,
+              },
+            }),
+          });
+
+          if (initResponse.ok) {
+            const initPayload = (await initResponse.json()) as {
+              data?: { resume: ResumeDraft };
+            };
+            if (initPayload.data?.resume) {
+              setResume(initPayload.data.resume);
+              setStoredResumeDraft(initPayload.data.resume);
+              setSaveState('saved');
+              setStatusMessage(
+                nextLocale === 'en'
+                  ? 'Role-aware starter draft is ready.'
+                  : 'चुनी हुई भूमिका के अनुसार प्रारंभिक जीवनवृत्त तैयार है।'
+              );
+              setIsLoaded(true);
+              return;
+            }
+          }
+      }
+
+      const localDraft = getStoredResumeDraft();
+      if (localDraft) {
+        setResume(localDraft);
+        setIsLoaded(true);
+        return;
+      }
+
+      if (assessment && selectedRoleId) {
+        const starter = buildStarterResume(selectedRoleId, assessment.profile, {
+          name: user.name || assessment.profile.fullName,
+          email: user.email,
+        });
+        setResume(starter);
+        setStoredResumeDraft(starter);
+        setIsLoaded(true);
+        return;
+      }
+
+      setResume(emptyResume());
+      setIsLoaded(true);
+    };
+
+    void initialize();
+  }, [assessment, selectedRoleId, user]);
+
+  useEffect(() => {
+    if (!resume || !isLoaded) return;
+
+    setStoredResumeDraft(resume);
+
+    if (!user) return;
+
+    setSaveState('saving');
+    setStatusMessage(
+      locale === 'en' ? 'Saving changes...' : 'बदलाव सेव किए जा रहे हैं...'
+    );
+
+    const timer = window.setTimeout(() => {
+      startTransition(async () => {
+        const response = await fetch('/api/resumes', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(resume),
+        });
+
+        if (!response.ok) {
+          setSaveState('error');
+          setStatusMessage(
+            locale === 'en'
+              ? 'Could not save right now, but your local draft is safe.'
+              : 'अभी खाते में सुरक्षित नहीं हो सका, लेकिन इस उपकरण पर आपका प्रारूप सुरक्षित है।'
+          );
+          return;
+        }
+
+        setSaveState('saved');
+        setStatusMessage(
+          locale === 'en'
+            ? 'Saved to your workspace.'
+            : 'आपके कार्यस्थल में सुरक्षित हो गया।'
+        );
+      });
+    }, 450);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [isLoaded, locale, resume, user]);
+
+  const selectedRole = selectedRoleId ? ROLE_DEFINITIONS[selectedRoleId] : null;
+  const topMatches = assessment?.topRoles || [];
+  const scoreLabel =
+    selectedRoleId && topMatches.find((item) => item.roleId === selectedRoleId)?.score;
+
+  const experienceCount = resume?.experience.filter(
+    (item) => item.company || item.role || item.description
+  ).length;
+  const educationCount = resume?.education.filter(
+    (item) => item.school || item.degree || item.field
+  ).length;
+
+  const headerTitle = useMemo(() => {
+    if (selectedRole) {
+      return getLocaleValue(selectedRole.shortLabel, locale);
+    }
+
+    return locale === 'en' ? 'Starter resume draft' : 'जीवनवृत्त का प्रारंभिक रूप';
+  }, [locale, selectedRole]);
+
+  if (loading || assessmentLoading || !isLoaded || !resume) {
+    return (
+      <FullPageLoader
+        eyebrow="Resume workspace"
+        title="Loading your resume draft…"
+        message="We’re restoring your latest draft and selected role context."
+      />
+    );
+  }
+
+  if (!user) {
+    return (
+      <FullPageLoader
+        eyebrow="Resume workspace"
+        title="Redirecting to sign in…"
+        message="Your resume draft is saved in your account workspace."
+      />
+    );
+  }
+
+  const updateResume = <K extends keyof ResumeDraft>(field: K, value: ResumeDraft[K]) => {
+    setResume((current) => (current ? { ...current, [field]: value } : current));
+  };
+
+  const updateExperience = (
+    index: number,
+    field: keyof ResumeDraft['experience'][number],
+    value: string
+  ) => {
+    setResume((current) => {
+      if (!current) return current;
+      const next = current.experience.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      );
+      return { ...current, experience: next };
+    });
+  };
+
+  const updateEducation = (
+    index: number,
+    field: keyof ResumeDraft['education'][number],
+    value: string
+  ) => {
+    setResume((current) => {
+      if (!current) return current;
+      const next = current.education.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      );
+      return { ...current, education: next };
+    });
+  };
+
+  const addSkill = () => {
+    if (!newSkill.trim()) return;
+    updateResume('skills', [...resume.skills, newSkill.trim()]);
+    setNewSkill('');
+  };
+
+  const removeSkill = (skill: string) => {
+    updateResume(
+      'skills',
+      resume.skills.filter((item) => item !== skill)
+    );
+  };
+
+  const addCertification = () => {
+    if (!newCertification.trim()) return;
+    updateResume('certifications', [...resume.certifications, newCertification.trim()]);
+    setNewCertification('');
+  };
+
+  const removeCertification = (itemToRemove: string) => {
+    updateResume(
+      'certifications',
+      resume.certifications.filter((item) => item !== itemToRemove)
+    );
+  };
+
+  const addExperience = () => {
+    updateResume('experience', [
+      ...resume.experience,
+      { company: '', role: '', duration: '', description: '' },
+    ]);
+  };
+
+  const removeExperience = (index: number) => {
+    updateResume(
+      'experience',
+      resume.experience.filter((_, itemIndex) => itemIndex !== index)
+    );
+  };
+
+  const addEducation = () => {
+    updateResume('education', [
+      ...resume.education,
+      { school: '', degree: '', field: '', year: '' },
+    ]);
+  };
+
+  const removeEducation = (index: number) => {
+    updateResume(
+      'education',
+      resume.education.filter((_, itemIndex) => itemIndex !== index)
+    );
+  };
+
+  const downloadResume = async () => {
+    const response = await fetch('/api/resume/download', {
+      headers: {},
+    });
+
+    if (!response.ok) {
+      setSaveState('error');
+      setStatusMessage(
+        locale === 'en'
+          ? 'Could not create the PDF right now.'
+          : 'अभी पीडीएफ़ तैयार नहीं हो सका।'
+      );
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'job-readiness-resume.pdf';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <main className="section-shell">
+      <div className="container-main space-y-6">
+        <section className="workspace-hero">
+          <div className="flex flex-wrap items-start justify-between gap-5">
+            <div>
+              <p className="eyebrow-copy">
+                {locale === 'en' ? 'Resume co-writer' : 'रिज्यूमे को-राइटर'}
+              </p>
+              <h1 className="mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
+                {locale === 'en'
+                  ? 'Build a role-aware resume from your fit-check.'
+                  : 'योग्यता जाँच के आधार पर भूमिका-केंद्रित जीवनवृत्त बनाएँ।'}
+              </h1>
+              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+                {selectedRole
+                  ? locale === 'en'
+                    ? `${headerTitle} is selected right now, so the draft is tuned for that path instead of a generic fresher resume.`
+                    : `${headerTitle} अभी selected है, इसलिए draft generic fresher resume की जगह उसी path के लिए tuned है।`
+                  : locale === 'en'
+                    ? 'This draft becomes much stronger after you complete the fit-check and pick a role.'
+                    : 'योग्यता जाँच पूरी करके भूमिका चुनने के बाद यह प्रारूप और अधिक उपयोगी हो जाता है।'}
+              </p>
+            </div>
+
+            <div className="story-card max-w-md">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`h-3 w-3 rounded-full ${
+                    saveState === 'error'
+                      ? 'bg-red-500'
+                      : saveState === 'saved'
+                        ? 'bg-emerald-500'
+                        : 'bg-amber-400'
+                  }`}
+                />
+                <p className="text-sm font-medium text-slate-700">
+                  {statusMessage ||
+                    (locale === 'en'
+                      ? 'Ready to save to your workspace.'
+                      : 'कार्यस्थल में सुरक्षित करने के लिए तैयार।')}
+                </p>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  className={`rounded-full px-4 py-2 text-sm transition ${
+                    step === 'edit' ? 'bg-[#0a5a60] text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                  onClick={() => setStep('edit')}
+                  type="button"
+                >
+                  {locale === 'en' ? 'Edit' : 'एडिट'}
+                </button>
+                <button
+                  className={`rounded-full px-4 py-2 text-sm transition ${
+                    step === 'preview'
+                      ? 'bg-[#0a5a60] text-white'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                  onClick={() => setStep('preview')}
+                  type="button"
+                >
+                  {locale === 'en' ? 'Preview' : 'प्रीव्यू'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
+            <div className="route-shell">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                {locale === 'en' ? 'Current direction' : 'वर्तमान दिशा'}
+              </p>
+              <h2 className="mt-2 text-2xl text-slate-950">{headerTitle}</h2>
+              {selectedRole ? (
+                <p className="mt-3 text-sm leading-7 text-slate-600">
+                  {getLocaleValue(selectedRole.summary, locale)}
+                </p>
+              ) : null}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {topMatches.map((match) => (
+                  <button
+                    className={`rounded-full border px-3 py-2 text-sm transition ${
+                      selectedRoleId === match.roleId
+                        ? 'border-[#0a5a60] bg-[#ebf7f5] text-[#0a5a60]'
+                        : 'border-slate-200 bg-white text-slate-600'
+                    }`}
+                    key={match.roleId}
+                    onClick={() => {
+                      void persistSelectedRole(match.roleId);
+                    }}
+                    type="button"
+                  >
+                    {getLocaleValue(match.role.shortLabel, locale)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="metric-tile p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  {locale === 'en' ? 'Match strength' : 'भूमिका से मेल'}
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+                  {scoreLabel ?? '--'}
+                </p>
+              </div>
+              <div className="metric-tile p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  {locale === 'en' ? 'Experience sections' : 'अनुभव के भाग'}
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+                  {experienceCount || 0}
+                </p>
+              </div>
+              <div className="metric-tile p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  {locale === 'en' ? 'Education sections' : 'शिक्षा के भाग'}
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+                  {educationCount || 0}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[0.98fr,1.02fr]">
+          <div className={`${step === 'preview' ? 'hidden xl:block' : ''} space-y-5`}>
+            <div className="route-shell space-y-5 bg-[#fffefb]">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-2xl text-slate-950">
+                  {locale === 'en' ? 'Edit your resume' : 'अपना जीवनवृत्त संपादित करें'}
+                </h2>
+                <button className="btn-outline" onClick={downloadResume} type="button">
+                  {locale === 'en'
+                    ? 'Download PDF'
+                    : 'पीडीएफ़ डाउनलोड करें'}
+                </button>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-sm font-semibold text-slate-700">
+                    {locale === 'en' ? 'Resume title' : 'जीवनवृत्त का शीर्षक'}
+                  </span>
+                  <input
+                    className="input-field"
+                    onChange={(event) => updateResume('title', event.target.value)}
+                    value={resume.title}
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-semibold text-slate-700">
+                    {locale === 'en' ? 'Location' : 'स्थान'}
+                  </span>
+                  <input
+                    className="input-field"
+                    onChange={(event) => updateResume('location', event.target.value)}
+                    value={resume.location}
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-semibold text-slate-700">
+                    {locale === 'en' ? 'Email' : 'ईमेल'}
+                  </span>
+                  <input
+                    className="input-field"
+                    onChange={(event) => updateResume('email', event.target.value)}
+                    value={resume.email}
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-semibold text-slate-700">
+                    {locale === 'en' ? 'Phone' : 'फोन'}
+                  </span>
+                  <input
+                    className="input-field"
+                    onChange={(event) => updateResume('phone', event.target.value)}
+                    value={resume.phone}
+                  />
+                </label>
+              </div>
+
+              <label className="space-y-2">
+                <span className="text-sm font-semibold text-slate-700">
+                  {locale === 'en' ? 'Professional summary' : 'व्यावसायिक परिचय'}
+                </span>
+                <textarea
+                  className="input-field min-h-[130px]"
+                  onChange={(event) => updateResume('summary', event.target.value)}
+                  value={resume.summary}
+                />
+              </label>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-950">
+                    {locale === 'en' ? 'Skills' : 'कौशल'}
+                  </h3>
+                  <div className="flex gap-2">
+                    <input
+                      className="input-field"
+                      onChange={(event) => setNewSkill(event.target.value)}
+                      value={newSkill}
+                    />
+                    <button className="btn-outline" onClick={addSkill} type="button">
+                      {locale === 'en' ? 'Add' : 'जोड़ें'}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {resume.skills.map((skill) => (
+                    <button
+                      className="accent-chip"
+                      key={skill}
+                      onClick={() => removeSkill(skill)}
+                      type="button"
+                    >
+                      {skill} ×
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-950">
+                    {locale === 'en' ? 'Experience' : 'अनुभव'}
+                  </h3>
+                  <button className="btn-outline" onClick={addExperience} type="button">
+                    {locale === 'en' ? 'Add block' : 'ब्लॉक जोड़ें'}
+                  </button>
+                </div>
+                {resume.experience.map((item, index) => (
+                  <div className="step-panel" key={`experience-${index}`}>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <input
+                        className="input-field"
+                        onChange={(event) =>
+                          updateExperience(index, 'role', event.target.value)
+                        }
+                        placeholder={locale === 'en' ? 'Role' : 'भूमिका'}
+                        value={item.role}
+                      />
+                      <input
+                        className="input-field"
+                        onChange={(event) =>
+                          updateExperience(index, 'company', event.target.value)
+                        }
+                        placeholder={locale === 'en' ? 'Company / project' : 'कंपनी / परियोजना'}
+                        value={item.company}
+                      />
+                      <input
+                        className="input-field"
+                        onChange={(event) =>
+                          updateExperience(index, 'duration', event.target.value)
+                        }
+                        placeholder={locale === 'en' ? 'Duration' : 'समय अवधि'}
+                        value={item.duration}
+                      />
+                      <button
+                        className="btn-outline"
+                        disabled={resume.experience.length === 1}
+                        onClick={() => removeExperience(index)}
+                        type="button"
+                      >
+                        {locale === 'en' ? 'Remove block' : 'ब्लॉक हटाएं'}
+                      </button>
+                    </div>
+                    <textarea
+                      className="input-field mt-3 min-h-[100px]"
+                      onChange={(event) =>
+                        updateExperience(index, 'description', event.target.value)
+                      }
+                      placeholder={
+                        locale === 'en'
+                          ? 'Describe impact, responsibility, or outcomes.'
+                          : 'अपने योगदान, जिम्मेदारी और परिणामों का वर्णन करें।'
+                      }
+                      value={item.description}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-950">
+                    {locale === 'en' ? 'Education' : 'शिक्षा'}
+                  </h3>
+                  <button className="btn-outline" onClick={addEducation} type="button">
+                    {locale === 'en' ? 'Add block' : 'ब्लॉक जोड़ें'}
+                  </button>
+                </div>
+                {resume.education.map((item, index) => (
+                  <div className="step-panel" key={`education-${index}`}>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <input
+                        className="input-field"
+                        onChange={(event) =>
+                          updateEducation(index, 'school', event.target.value)
+                        }
+                        placeholder={locale === 'en' ? 'College / school' : 'कॉलेज / स्कूल'}
+                        value={item.school}
+                      />
+                      <input
+                        className="input-field"
+                        onChange={(event) =>
+                          updateEducation(index, 'degree', event.target.value)
+                        }
+                        placeholder={locale === 'en' ? 'Degree' : 'डिग्री'}
+                        value={item.degree}
+                      />
+                      <input
+                        className="input-field"
+                        onChange={(event) =>
+                          updateEducation(index, 'field', event.target.value)
+                        }
+                        placeholder={locale === 'en' ? 'Field' : 'विषय'}
+                        value={item.field}
+                      />
+                      <div className="flex gap-3">
+                        <input
+                          className="input-field"
+                          onChange={(event) =>
+                            updateEducation(index, 'year', event.target.value)
+                          }
+                          placeholder={locale === 'en' ? 'Year' : 'वर्ष'}
+                          value={item.year}
+                        />
+                        <button
+                          className="btn-outline"
+                          disabled={resume.education.length === 1}
+                          onClick={() => removeEducation(index)}
+                          type="button"
+                        >
+                          {locale === 'en' ? 'Remove' : 'हटाएं'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-950">
+                    {locale === 'en' ? 'Certifications' : 'प्रमाणपत्र'}
+                  </h3>
+                  <div className="flex gap-2">
+                    <input
+                      className="input-field"
+                      onChange={(event) => setNewCertification(event.target.value)}
+                      value={newCertification}
+                    />
+                    <button
+                      className="btn-outline"
+                      onClick={addCertification}
+                      type="button"
+                    >
+                      {locale === 'en' ? 'Add' : 'जोड़ें'}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {resume.certifications.map((item) => (
+                    <button
+                      className="accent-chip"
+                      key={item}
+                      onClick={() => removeCertification(item)}
+                      type="button"
+                    >
+                      {item} ×
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside className={`${step === 'edit' ? 'hidden xl:block' : ''} space-y-5`}>
+            <div className="card bg-white">
+              <p className="eyebrow-copy">
+                {locale === 'en' ? 'Live preview' : 'तुरंत दिखाई देने वाला रूप'}
+              </p>
+              <h2 className="mt-4 text-3xl leading-tight text-slate-950">
+                {resume.title || (locale === 'en' ? 'Your name - selected role' : 'आपका नाम - चुनी हुई भूमिका')}
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                {[resume.location, resume.phone].filter(Boolean).join(' • ')}
+              </p>
+              <p className="text-sm text-slate-600">{resume.email}</p>
+
+              <div className="mt-6 space-y-5">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    {locale === 'en' ? 'Summary' : 'परिचय'}
+                  </h3>
+                  <p className="mt-2 text-sm leading-7 text-slate-700">{resume.summary}</p>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    {locale === 'en' ? 'Skills' : 'कौशल'}
+                  </h3>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {resume.skills.map((item) => (
+                      <span className="accent-chip" key={item}>
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    {locale === 'en' ? 'Experience' : 'अनुभव'}
+                  </h3>
+                  <div className="mt-3 space-y-4">
+                    {resume.experience.map((item, index) => (
+                      <div key={`preview-exp-${index}`}>
+                        <p className="font-semibold text-slate-950">
+                          {[item.role, item.company].filter(Boolean).join(' • ')}
+                        </p>
+                        <p className="text-sm text-slate-500">{item.duration}</p>
+                        <p className="mt-1 text-sm leading-7 text-slate-700">
+                          {item.description}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    {locale === 'en' ? 'Education' : 'शिक्षा'}
+                  </h3>
+                  <div className="mt-3 space-y-4">
+                    {resume.education.map((item, index) => (
+                      <div key={`preview-edu-${index}`}>
+                        <p className="font-semibold text-slate-950">
+                          {[item.degree, item.school].filter(Boolean).join(' • ')}
+                        </p>
+                        <p className="text-sm text-slate-500">
+                          {[item.field, item.year].filter(Boolean).join(' • ')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {resume.certifications.length ? (
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      {locale === 'en' ? 'Certifications' : 'प्रमाणपत्र'}
+                    </h3>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {resume.certifications.map((item) => (
+                        <span className="accent-chip" key={item}>
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {selectedRole ? (
+              <div className="rounded-[1.6rem] border border-[rgba(10,90,96,0.14)] bg-[rgba(255,255,255,0.78)] p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0a5a60]">
+                  {locale === 'en' ? 'Role-specific cues' : 'भूमिका के अनुसार सुझाव'}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {selectedRole.strengths.map((item) => (
+                    <span className="accent-chip" key={`${selectedRole.id}-${item.en}`}>
+                      {getLocaleValue(item, locale)}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-4 space-y-3">
+                  {selectedRole.starterTasks.map((task, index) => (
+                    <div className="flex gap-3" key={`${selectedRole.id}-cue-${index + 1}`}>
+                      <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-[#0a5a60] text-xs font-semibold text-white">
+                        {index + 1}
+                      </span>
+                      <p className="text-sm leading-7 text-slate-700">
+                        {getLocaleValue(task, locale)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap gap-3">
+              <button className="btn-primary" disabled={isPending} onClick={downloadResume} type="button">
+                {locale === 'en'
+                  ? 'Download PDF'
+                  : 'पीडीएफ़ डाउनलोड करें'}
+              </button>
+              <Link className="btn-outline" href="/results">
+                {locale === 'en' ? 'Back to matches' : 'भूमिकाओं पर वापस जाएँ'}
+              </Link>
+              <Link className="btn-secondary" href="/plan">
+                {locale === 'en'
+                  ? 'Continue to weekly plan'
+                  : 'साप्ताहिक योजना पर जाएँ'}
+              </Link>
+            </div>
+          </aside>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+

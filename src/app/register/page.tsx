@@ -1,0 +1,30 @@
+import { Suspense } from 'react';
+import { AuthScaffold } from '@/components/auth/AuthScaffold';
+import { RegisterForm } from '@/components/auth/RegisterForm';
+
+export const metadata = {
+  title: 'Register - Job Readiness Coach',
+  description: 'Create a new Job Readiness Coach account',
+};
+
+export default function RegisterPage() {
+  return (
+    <AuthScaffold
+      eyebrow="Keep your progress"
+      title="Start with one free account, then move from confusion to a realistic first role."
+      subtitle="Create your account to unlock the fit check, top role matches, a role-aware resume draft, and a weekly plan that stays saved."
+    >
+      <div className="w-full">
+        <div className="mb-8 text-center">
+          <p className="eyebrow-copy">Keep your progress</p>
+          <h1 className="mt-3 text-4xl text-[var(--brand-ink)]">Create account</h1>
+          <p className="mt-2 text-[var(--ink-soft)]">Build your job-readiness workspace once</p>
+        </div>
+
+        <Suspense fallback={<div>Loading...</div>}>
+          <RegisterForm />
+        </Suspense>
+      </div>
+    </AuthScaffold>
+  );
+}

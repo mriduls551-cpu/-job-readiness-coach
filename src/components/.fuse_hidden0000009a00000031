@@ -1,0 +1,161 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { BrandWordmark } from '@/components/BrandWordmark';
+import {
+  clearStoredUser,
+  getStoredLocale,
+  getStoredUser,
+  refreshStoredUserFromSession,
+  setStoredLocale,
+  type StoredUser,
+} from '@/lib/client-session';
+import type { Locale } from '@/lib/product';
+
+const HIDE_PATHS = new Set(['/', '/login', '/register']);
+
+export function Navigation() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [user, setUser] = useState<StoredUser | null>(null);
+  const [locale, setLocale] = useState<Locale>('en');
+  const [showMenu, setShowMenu] = useState(false);
+
+  useEffect(() => {
+    const sync = () => {
+      setUser(getStoredUser());
+      setLocale(getStoredLocale());
+    };
+
+    sync();
+    void refreshStoredUserFromSession();
+    window.addEventListener('auth-change', sync);
+    window.addEventListener('locale-change', sync);
+
+    return () => {
+      window.removeEventListener('auth-change', sync);
+      window.removeEventListener('locale-change', sync);
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } finally {
+      clearStoredUser();
+      router.push('/');
+    }
+  };
+
+  const toggleLocale = (nextLocale: Locale) => {
+    setStoredLocale(nextLocale);
+    setLocale(nextLocale);
+  };
+
+  if (HIDE_PATHS.has(pathname)) {
+    return null;
+  }
+
+  return (
+    <nav className="sticky top-0 z-40 border-b border-[rgba(17,63,69,0.08)] bg-[rgba(250,246,239,0.86)] backdrop-blur-xl">
+      <div className="container-main flex min-h-[4.8rem] items-center justify-between gap-4 py-3">
+        <BrandWordmark compact href="/" locale={locale} />
+
+        <div className="hidden items-center gap-5 md:flex">
+          <Link className="text-sm text-[var(--ink-soft)] transition hover:text-[var(--brand-ink)]" href="/career-fit-check">
+            {locale === 'en' ? 'Fit Check' : 'Fit Check'}
+          </Link>
+          <Link className="text-sm text-[var(--ink-soft)] transition hover:text-[var(--brand-ink)]" href="/results">
+            {locale === 'en' ? 'Results' : 'Results'}
+          </Link>
+          {user ? (
+            <>
+              <Link className="text-sm text-[var(--ink-soft)] transition hover:text-[var(--brand-ink)]" href="/dashboard">
+                {locale === 'en' ? 'Dashboard' : 'Dashboard'}
+              </Link>
+              <Link className="text-sm text-[var(--ink-soft)] transition hover:text-[var(--brand-ink)]" href="/resume">
+                {locale === 'en' ? 'Resume' : 'Resume'}
+              </Link>
+              <Link className="text-sm text-[var(--ink-soft)] transition hover:text-[var(--brand-ink)]" href="/profile">
+                {locale === 'en' ? 'Account' : 'Account'}
+              </Link>
+            </>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="rounded-full bg-white/78 p-1 shadow-sm">
+            <button
+              className={`rounded-full px-3 py-1 text-xs ${
+                locale === 'en' ? 'bg-[var(--brand-ink)] text-white' : 'text-[var(--ink-soft)]'
+              }`}
+              onClick={() => toggleLocale('en')}
+              type="button"
+            >
+              EN
+            </button>
+            <button
+              className={`rounded-full px-3 py-1 text-xs ${
+                locale === 'hi' ? 'bg-[var(--brand-ink)] text-white' : 'text-[var(--ink-soft)]'
+              }`}
+              onClick={() => toggleLocale('hi')}
+              type="button"
+            >
+              HI
+            </button>
+          </div>
+
+          {user ? (
+            <div className="relative">
+              <button
+                className="rounded-full border border-white/60 bg-white/82 px-4 py-2 text-sm font-semibold text-[var(--brand-ink)]"
+                onClick={() => setShowMenu((current) => !current)}
+                type="button"
+              >
+                {user.name}
+              </button>
+              {showMenu ? (
+                <div className="absolute right-0 mt-3 w-56 rounded-3xl border border-white/70 bg-white/95 p-3 shadow-2xl">
+                  <p className="px-3 py-2 text-xs text-[var(--ink-muted)]">{user.email}</p>
+                  <Link className="block rounded-2xl px-3 py-2 text-sm text-[var(--brand-ink)] hover:bg-slate-100" href="/applications">
+                    Applications
+                  </Link>
+                  <Link className="block rounded-2xl px-3 py-2 text-sm text-[var(--brand-ink)] hover:bg-slate-100" href="/profile">
+                    Account
+                  </Link>
+                  <Link className="block rounded-2xl px-3 py-2 text-sm text-[var(--brand-ink)] hover:bg-slate-100" href="/plan">
+                    Weekly Plan
+                  </Link>
+                  <Link className="block rounded-2xl px-3 py-2 text-sm text-[var(--brand-ink)] hover:bg-slate-100" href="/interview">
+                    Interview Prep
+                  </Link>
+                  <button
+                    className="mt-1 w-full rounded-2xl px-3 py-2 text-left text-sm text-[var(--brand-ink)] hover:bg-slate-100"
+                    onClick={handleLogout}
+                    type="button"
+                  >
+                    Log out
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <Link className="text-sm font-semibold text-[var(--brand-ink)]" href="/login">
+                Sign in
+              </Link>
+              <Link className="btn-primary" href="/register">
+                Create free account
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+    </nav>
+  );
+}

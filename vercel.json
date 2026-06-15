@@ -1,0 +1,18 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/daily-digest",
+      "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-plan-reminder",
+      "schedule": "30 3 * * 1"
+    },
+    {
+      "path": "/api/cron/app-followup",
+      "schedule": "30 3 * * 3"
+    }
+  ],
+  "buildCommand": "npm run deploy:check && npm run build",
+  "outputDirectory": ".next"
+}

@@ -1,0 +1,270 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  getStoredLocale,
+  persistSelectedRole,
+} from '@/lib/client-session';
+import { useAssessmentState } from '@/hooks/useAssessmentState';
+import { getLocaleValue, type Locale, type RoleId } from '@/lib/product';
+import { FullPageLoader } from '@/components/FullPageLoader';
+
+export default function ResultsPage() {
+  const router = useRouter();
+  const [locale, setLocale] = useState<Locale>('en');
+  const [selectedRoleId, setSelectedRoleId] = useState<RoleId | null>(null);
+  const { assessment, selectedRoleId: persistedSelectedRoleId, loading } = useAssessmentState();
+
+  useEffect(() => {
+    setLocale(getStoredLocale());
+  }, []);
+
+  useEffect(() => {
+    setSelectedRoleId(persistedSelectedRoleId);
+  }, [persistedSelectedRoleId]);
+
+  const selectedMatch = useMemo(() => {
+    if (!assessment?.topRoles?.length) return null;
+    return (
+      assessment.topRoles.find((match) => match.roleId === selectedRoleId) ||
+      assessment.topRoles[0]
+    );
+  }, [assessment, selectedRoleId]);
+
+  if (loading) {
+    return (
+      <FullPageLoader
+        eyebrow="Fit-check results"
+        title="Loading your role matches…"
+        message="We’re restoring your saved assessment and current role selection."
+      />
+    );
+  }
+
+  if (!assessment?.topRoles?.length) {
+    return (
+      <main className="section-shell">
+        <div className="container-main max-w-3xl">
+          <section className="workspace-hero">
+            <p className="eyebrow-copy">
+              {locale === 'en' ? 'Results unavailable' : 'Results unavailable'}
+            </p>
+            <h1 className="mt-4 text-4xl leading-tight text-slate-950">
+              {locale === 'en'
+                ? 'Complete your fit check to unlock role matches.'
+                : 'अपना fit check पूरा करके role matches अनलॉक करें।'}
+            </h1>
+            <p className="mt-4 max-w-2xl text-base leading-8 text-slate-600">
+              {locale === 'en'
+                ? 'We could not find a saved assessment in this session yet.'
+                : 'इस session में अभी कोई saved assessment नहीं मिला।'}
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link className="btn-primary" href="/career-fit-check">
+                {locale === 'en' ? 'Start fit check' : 'Fit check शुरू करें'}
+              </Link>
+              <Link className="btn-outline" href="/">
+                {locale === 'en' ? 'Back to home' : 'होम पर वापस जाएं'}
+              </Link>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="section-shell">
+      <div className="container-main space-y-6">
+        <section className="workspace-hero">
+          <div className="flex flex-wrap items-start justify-between gap-5">
+            <div>
+              <p className="eyebrow-copy">
+                {locale === 'en' ? 'Your fit-check results' : 'आपके fit-check results'}
+              </p>
+              <h1 className="mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
+                {assessment.summary[locale]}
+              </h1>
+              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+                {locale === 'en'
+                  ? 'Choose the role you want to build around next. Your selected role will carry into the resume, plan, and dashboard.'
+                  : 'अब वह role चुनें जिसके आधार पर आप आगे बढ़ना चाहते हैं। आपका selected role resume, plan और dashboard में आगे चलेगा।'}
+              </p>
+            </div>
+
+            <div className="story-card max-w-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                {locale === 'en' ? 'Selected direction' : 'Selected direction'}
+              </p>
+              <p className="mt-3 text-2xl font-semibold text-[#0a5a60]">
+                {selectedMatch ? getLocaleValue(selectedMatch.role.shortLabel, locale) : '--'}
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                {selectedMatch ? getLocaleValue(selectedMatch.strengthLabel, locale) : '--'}
+              </p>
+            </div>
+          </div>
+
+          {assessment.warning ? (
+            <div className="mt-6 rounded-[1.4rem] border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-7 text-amber-900">
+              {assessment.warning[locale]}
+            </div>
+          ) : null}
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-4">
+            <div className="metric-tile p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                People
+              </p>
+              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+                {assessment.dimensionSnapshot.people}%
+              </p>
+            </div>
+            <div className="metric-tile p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Analytical
+              </p>
+              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+                {assessment.dimensionSnapshot.analytical}%
+              </p>
+            </div>
+            <div className="metric-tile p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Structure
+              </p>
+              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+                {assessment.dimensionSnapshot.structure}%
+              </p>
+            </div>
+            <div className="metric-tile p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Creative
+              </p>
+              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+                {assessment.dimensionSnapshot.creative}%
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-5 lg:grid-cols-[1.08fr,0.92fr]">
+          <div className="space-y-4">
+            {assessment.topRoles.map((match, index) => {
+              const isSelected = selectedMatch?.roleId === match.roleId;
+              return (
+                <article
+                  className={`match-card ${isSelected ? 'match-card--active' : ''}`}
+                  key={match.roleId}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d97b2f] text-base font-semibold text-white">
+                        {index + 1}
+                      </span>
+                      <div>
+                        <h2 className="text-2xl text-[#103f44]">
+                          {getLocaleValue(match.role.name, locale)}
+                        </h2>
+                        <p className="text-sm text-slate-500">
+                          {getLocaleValue(match.role.salaryRange, locale)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="rounded-full bg-[#e8f7ed] px-3 py-1 text-xs font-semibold text-[#18794e]">
+                        {getLocaleValue(match.strengthLabel, locale)}
+                      </span>
+                      <p className="mt-2 text-sm font-semibold text-slate-600">
+                        Match score: {match.score}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="step-panel mt-4">
+                    <p className="text-sm font-semibold text-[#103f44]">
+                      {locale === 'en' ? 'Why this fits' : 'यह role क्यों फिट है'}
+                    </p>
+                    <p className="mt-2 text-sm leading-7 text-slate-700">
+                      {match.rationale[locale]}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {match.supportingSignals.map((signal) => (
+                      <span className="accent-chip" key={`${match.roleId}-${signal.en}`}>
+                        {getLocaleValue(signal, locale)}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button
+                      className={isSelected ? 'btn-outline' : 'btn-primary'}
+                      onClick={async () => {
+                        setSelectedRoleId(match.roleId);
+                        try {
+                          await persistSelectedRole(match.roleId);
+                        } catch {
+                          setSelectedRoleId(persistedSelectedRoleId);
+                        }
+                      }}
+                      type="button"
+                    >
+                      {isSelected
+                        ? locale === 'en'
+                          ? 'Selected role'
+                          : 'Selected role'
+                        : locale === 'en'
+                          ? 'Choose this role'
+                          : 'यह role चुनें'}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <aside className="space-y-5">
+            <div className="route-shell bg-white/90">
+              <p className="eyebrow-copy">
+                {locale === 'en' ? 'Next step' : 'अगला कदम'}
+              </p>
+              <h2 className="mt-4 text-3xl leading-tight text-slate-950">
+                {selectedMatch
+                  ? getLocaleValue(selectedMatch.role.shortLabel, locale)
+                  : locale === 'en'
+                    ? 'Choose a role'
+                    : 'एक role चुनें'}
+              </h2>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                {selectedMatch
+                  ? getLocaleValue(selectedMatch.role.summary, locale)
+                  : locale === 'en'
+                    ? 'Pick one role so your resume and weekly plan can stay consistent.'
+                    : 'एक role चुनें ताकि आपका resume और weekly plan consistent रह सके।'}
+              </p>
+
+              <div className="mt-5 space-y-3">
+                <Link className="btn-primary w-full justify-center" href="/resume">
+                  {locale === 'en' ? 'Continue to resume' : 'Resume पर आगे बढ़ें'}
+                </Link>
+                <Link className="btn-secondary w-full justify-center" href="/dashboard">
+                  {locale === 'en' ? 'Open dashboard' : 'Dashboard खोलें'}
+                </Link>
+                <button
+                  className="btn-outline w-full"
+                  onClick={() => router.push('/career-fit-check')}
+                  type="button"
+                >
+                  {locale === 'en' ? 'Retake fit check' : 'Fit check फिर से करें'}
+                </button>
+              </div>
+            </div>
+          </aside>
+        </section>
+      </div>
+    </main>
+  );
+}

@@ -1,0 +1,49 @@
+import { NextResponse } from 'next/server';
+import type { HealthCheckResponse } from '@/types/api';
+import { isSupabaseConfigured } from '@/lib/supabase';
+import { isLocalAuthEnabled } from '@/lib/auth-mode';
+import { getDB, getPersistenceMode } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(): Promise<NextResponse<HealthCheckResponse>> {
+  const usingSupabase = isSupabaseConfigured();
+  const persistenceMode = getPersistenceMode();
+  const localAuthReady =
+    isLocalAuthEnabled() &&
+    (process.env.NODE_ENV !== 'production' ||
+      Boolean(
+        process.env.MOCK_DEMO_PASSWORD?.trim() &&
+          process.env.MOCK_ADMIN_PASSWORD?.trim()
+      ));
+  let database: 'ok' | 'error' = 'ok';
+
+  try {
+    await getDB().getAllUsers();
+  } catch {
+    database = 'error';
+  }
+
+  const auth: 'ok' | 'error' = usingSupabase || localAuthReady ? 'ok' : 'error';
+  const status: HealthCheckResponse['status'] =
+    database === 'error' || auth === 'error' || persistenceMode === 'unavailable'
+      ? 'error'
+      : persistenceMode === 'memory'
+        ? 'degraded'
+        : 'ok';
+
+  return NextResponse.json({
+    status,
+    checks: {
+      database,
+      auth,
+      persistenceMode,
+      lastMigration: usingSupabase
+        ? 'supabase/migrations/20260602_product_recovery.sql'
+        : persistenceMode === 'memory'
+          ? 'local-memory-mode-enabled'
+          : 'supabase-required-for-deployments',
+      timestamp: new Date().toISOString(),
+    },
+  });
+}

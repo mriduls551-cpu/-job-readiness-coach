@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["@jest/globals"],
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "jest.setup.ts",
+    "node_modules/@testing-library/jest-dom/jest-globals.d.ts"
+  ],
+  "exclude": ["node_modules", "e2e", "playwright.config.ts", "jest.config.ts", "jest.config.js"]
+}

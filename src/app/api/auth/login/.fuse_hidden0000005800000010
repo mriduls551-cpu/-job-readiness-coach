@@ -1,0 +1,199 @@
+import { NextRequest } from 'next/server';
+import { mockAuth } from '@/lib/mock-auth';
+import { success, error } from '@/lib/api-response';
+import { logger } from '@/lib/logger';
+import { z } from 'zod';
+import { HttpStatus } from '@/types/api';
+import { getRateLimiter } from '@/lib/rate-limiter';
+import { getDB } from '@/lib/db';
+import { createLocalSessionToken } from '@/lib/server-auth';
+import { createServerAuthClient, isSupabaseConfigured } from '@/lib/supabase';
+import { isLocalAuthEnabled } from '@/lib/auth-mode';
+
+const loginSchema = z.object({
+  email: z.string().email('Invalid email'),
+  password: z.string().min(1, 'Password required'),
+});
+
+// Rate limiting for login attempts: 5 per minute per IP
+const loginLimiter = getRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 5,
+});
+
+function shouldUseSecureCookies(request: NextRequest) {
+  const override = process.env.AUTH_COOKIE_SECURE;
+  if (override === 'true') return true;
+  if (override === 'false') return false;
+
+  const forwardedProto = request.headers.get('x-forwarded-proto');
+  if (forwardedProto === 'https') {
+    return true;
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL;
+  if (appUrl) {
+    try {
+      const parsed = new URL(appUrl);
+      if (parsed.protocol === 'https:') {
+        return true;
+      }
+
+      if (['localhost', '127.0.0.1'].includes(parsed.hostname)) {
+        return false;
+      }
+    } catch {
+      // Ignore malformed env and fall back below.
+    }
+  }
+
+  return process.env.NODE_ENV === 'production';
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const clientIp =
+      request.headers.get('x-forwarded-for') ||
+      request.headers.get('x-real-ip') ||
+      'unknown';
+
+    const limitCheck = loginLimiter.check(clientIp);
+    if (limitCheck.limited) {
+      logger.warn('Login rate limit exceeded', {
+        clientIp,
+        resetTime: new Date(Date.now() + limitCheck.resetTime).toISOString(),
+      });
+
+      const response = error(
+        'Too many login attempts. Please try again later.',
+        HttpStatus.TOO_MANY_REQUESTS
+      );
+      response.headers.set('Retry-After', Math.ceil(limitCheck.resetTime / 1000).toString());
+      return response;
+    }
+
+    logger.info('Login endpoint called', { clientIp });
+
+    const body = await request.json();
+    const validated = loginSchema.parse(body);
+
+    let userPayload: {
+      id: string;
+      email: string;
+      name: string;
+      role: 'user' | 'admin';
+      createdAt: string;
+    };
+    let token: string;
+    let expiresIn = 3600 * 24 * 7;
+
+    if (isSupabaseConfigured()) {
+      const authClient = createServerAuthClient();
+      if (!authClient) {
+        return error('Supabase is not fully configured', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+
+      const { data, error: authError } = await authClient.auth.signInWithPassword({
+        email: validated.email,
+        password: validated.password,
+      });
+
+      if (authError || !data.user || !data.session) {
+        return error(
+          authError?.message || 'Invalid email or password',
+          HttpStatus.UNAUTHORIZED,
+          'INVALID_CREDENTIALS'
+        );
+      }
+
+      const ensuredUser = await getDB().ensureUser({
+        id: data.user.id,
+        email: data.user.email || validated.email,
+        name:
+          (typeof data.user.user_metadata?.name === 'string' && data.user.user_metadata.name) ||
+          validated.email.split('@')[0] ||
+          'User',
+        role:
+          data.user.app_metadata?.role === 'admin' || data.user.user_metadata?.role === 'admin'
+            ? 'admin'
+            : 'user',
+        createdAt: data.user.created_at || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      userPayload = {
+        ...ensuredUser,
+        createdAt: ensuredUser.createdAt,
+      };
+      token = data.session.access_token;
+      expiresIn = data.session.expires_in || expiresIn;
+    } else {
+      if (!isLocalAuthEnabled()) {
+        return error(
+          'Authentication is not configured for this environment',
+          HttpStatus.SERVICE_UNAVAILABLE
+        );
+      }
+
+      const session = await mockAuth.login(validated.email, validated.password);
+      await getDB().ensureUser({
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name,
+        role: session.user.role,
+        createdAt: session.user.createdAt,
+        updatedAt: new Date().toISOString(),
+      });
+
+      userPayload = session.user;
+      token = await createLocalSessionToken({
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name,
+        role: session.user.role,
+      });
+    }
+
+    logger.info('User logged in', {
+      userId: userPayload.id,
+      clientIp,
+    });
+
+    const response = success(
+      {
+        user: {
+          id: userPayload.id,
+          email: userPayload.email,
+          name: userPayload.name,
+          role: userPayload.role,
+        },
+        expiresIn,
+      },
+      'Login successful'
+    );
+    const secureCookies = shouldUseSecureCookies(request);
+
+    response.cookies.set('auth-token', token, {
+      httpOnly: true,
+      secure: secureCookies,
+      sameSite: secureCookies ? 'strict' : 'lax',
+      maxAge: expiresIn,
+      path: '/',
+    });
+
+    return response;
+  } catch (err) {
+    logger.error('Login error', {
+      error: err instanceof Error ? err.message : 'Unknown error',
+    });
+
+    if (err instanceof z.ZodError) {
+      return error(
+        err.errors[0]?.message || 'Invalid login payload',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    return error('Login failed', HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}

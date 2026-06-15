@@ -1,0 +1,1570 @@
+// ─── Assessment Engine v2 ────────────────────────────────────────────────────
+// 2-phase adaptive assessment: 5 routing questions → cluster → 4 branch questions
+// 6-dimension model replaces previous 8-dimension flat cosine-similarity approach
+// Disqualifier rules prevent impossible role recommendations
+// Public API: scoreAssessment() signature unchanged; new getNextQuestions() helper
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type Locale = 'en' | 'hi';
+
+export type StreamId =
+  | 'open'
+  | 'open-switch'
+  | 'commerce'
+  | 'management'
+  | 'arts-humanities'
+  | 'science'
+  | 'healthcare'
+  | 'law';
+
+export type RoleId =
+  | 'customer-support'
+  | 'sales-support'
+  | 'academic-counsellor'
+  | 'hr-coordinator'
+  | 'data-entry-mis'
+  | 'back-office-operations'
+  | 'operations-analyst'
+  | 'accounting-finance-assistant'
+  | 'digital-marketing-executive'
+  | 'content-writer'
+  | 'telemedicine-coordinator'
+  | 'legal-compliance-operations';
+
+export type ClusterId = 'people-facing' | 'desk-ops' | 'analytical' | 'creative';
+
+export interface LocalizedText {
+  en: string;
+  hi: string;
+}
+
+export interface AssessmentProfile {
+  fullName?: string;
+  city?: string;
+  degreeName?: string;
+  educationStream?: string;
+  englishLevel?: string;
+  speakingConfidence?: string;
+  numbersConfidence?: string;
+  dataConfidence?: string;
+  workStylePreference?: string;
+  writingConfidence?: string;
+  biggestProblem?: string;
+  preferredEnvironment?: string;
+  weeklyAvailability?: string;
+  locale: Locale;
+}
+
+export interface RoleDefinition {
+  id: RoleId;
+  name: LocalizedText;
+  shortLabel: LocalizedText;
+  summary: LocalizedText;
+  whyItFits: LocalizedText;
+  salaryRange: LocalizedText;
+  starterTasks: LocalizedText[];
+  strengths: LocalizedText[];
+  accent: string;
+  streams: StreamId[];
+  // 6-dimension vector: [numerical, people-reactive, people-proactive, process-ops, creative-output, analytical-output]
+  vector: number[];
+  dimensionWeights: number[];
+}
+
+export interface AssessmentOption {
+  id: string;
+  label: LocalizedText;
+  signal: LocalizedText;
+  // 6-dimension vector used for dimensionSnapshot and signal alignment
+  vector: number[];
+  profilePatch?: Partial<AssessmentProfile>;
+  // Phase 1 only: direct cluster score contributions
+  clusterScores?: Partial<Record<ClusterId, number>>;
+  // Phase 2 only: role score contributions within the winning cluster
+  roleScores?: Partial<Record<RoleId, number>>;
+}
+
+export interface AssessmentQuestion {
+  id: string;
+  section: LocalizedText;
+  prompt: LocalizedText;
+  helper: LocalizedText;
+  options: AssessmentOption[];
+}
+
+export interface RoleMatch {
+  roleId: RoleId;
+  role: RoleDefinition;
+  score: number;
+  rationale: LocalizedText;
+  supportingSignals: LocalizedText[];
+  strengthLabel: LocalizedText;
+}
+
+export interface AssessmentResult {
+  profile: AssessmentProfile;
+  cluster: ClusterId;
+  confidenceScore: number;
+  topRoles: RoleMatch[];
+  allScores: Record<RoleId, number>;
+  summary: LocalizedText;
+  warning: LocalizedText | null;
+  dimensionSnapshot: Record<
+    'numerical' | 'people-reactive' | 'people-proactive' | 'process-ops' | 'creative-output' | 'analytical-output',
+    number
+  >;
+}
+
+// ─── Internal constants ───────────────────────────────────────────────────────
+
+const DIMENSION_COUNT = 6;
+// Index map: numerical=0, people-reactive=1, people-proactive=2, process-ops=3, creative-output=4, analytical-output=5
+
+const CLUSTER_ROLES: Record<ClusterId, RoleId[]> = {
+  'people-facing': ['customer-support', 'academic-counsellor', 'telemedicine-coordinator', 'hr-coordinator'],
+  'desk-ops': ['back-office-operations', 'data-entry-mis', 'legal-compliance-operations'],
+  'analytical': ['operations-analyst', 'accounting-finance-assistant'],
+  'creative': ['digital-marketing-executive', 'content-writer', 'sales-support'],
+};
+
+function t(en: string, hi: string): LocalizedText {
+  return { en, hi };
+}
+
+// ─── Role definitions ─────────────────────────────────────────────────────────
+// vectors: [numerical, people-reactive, people-proactive, process-ops, creative-output, analytical-output]
+
+export const ROLE_ORDER: RoleId[] = [
+  'customer-support',
+  'sales-support',
+  'academic-counsellor',
+  'hr-coordinator',
+  'data-entry-mis',
+  'back-office-operations',
+  'operations-analyst',
+  'accounting-finance-assistant',
+  'digital-marketing-executive',
+  'content-writer',
+  'telemedicine-coordinator',
+  'legal-compliance-operations',
+];
+
+export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
+  'customer-support': {
+    id: 'customer-support',
+    name: t('Customer Support Associate', 'कस्टमर सपोर्ट एसोसिएट'),
+    shortLabel: t('Customer Support', 'कस्टमर सपोर्ट'),
+    summary: t(
+      'A steady first role for graduates who stay calm, explain clearly, and enjoy helping people solve day-to-day issues.',
+      'यह उन ग्रेजुएट्स के लिए अच्छा शुरुआती रोल है जो शांत रहते हैं, साफ़ समझाते हैं और लोगों की रोज़मर्रा की समस्याएं हल करना पसंद करते हैं।'
+    ),
+    whyItFits: t(
+      'This direction rewards patience, empathy, and clear follow-through.',
+      'यह दिशा धैर्य, सहानुभूति और साफ़ फॉलो-थ्रू को महत्व देती है।'
+    ),
+    salaryRange: t('Typical starter range: Rs 2.4L to Rs 4.2L annually', 'सामान्य शुरुआती रेंज: Rs 2.4L से Rs 4.2L सालाना'),
+    starterTasks: [
+      t('Practice a 60-second self introduction for recruiter calls.', 'रिक्रूटर कॉल के लिए 60 सेकंड का परिचय तैयार करें।'),
+      t('Write 5 short examples of solving a problem calmly.', 'शांत तरीके से समस्या हल करने के 5 छोटे उदाहरण लिखें।'),
+      t('Highlight communication and consistency on your resume.', 'रिज्यूमे में communication और consistency को साफ़ दिखाएं।'),
+    ],
+    strengths: [t('Empathy', 'सहानुभूति'), t('Clear communication', 'साफ़ संवाद'), t('Patience', 'धैर्य')],
+    accent: '#1d9a8a',
+    streams: ['open'],
+    vector: [1, 9, 3, 5, 2, 1],
+    dimensionWeights: [1, 5, 2, 3, 1, 1],
+  },
+  'sales-support': {
+    id: 'sales-support',
+    name: t('Sales Support Executive', 'सेल्स सपोर्ट एग्जीक्यूटिव'),
+    shortLabel: t('Sales Support', 'सेल्स सपोर्ट'),
+    summary: t(
+      'A practical fit for graduates who can follow up consistently, build comfort with targets, and keep conversations moving.',
+      'यह उन ग्रेजुएट्स के लिए अच्छा रोल है जो लगातार फॉलो-अप कर सकते हैं, targets से सहज हैं और बातचीत को आगे बढ़ा सकते हैं।'
+    ),
+    whyItFits: t(
+      'This path values energy, persistence, and confident communication.',
+      'यह रास्ता ऊर्जा, लगातार प्रयास और आत्मविश्वास भरे संवाद को महत्व देता है।'
+    ),
+    salaryRange: t('Typical starter range: Rs 2.8L to Rs 4.8L annually', 'सामान्य शुरुआती रेंज: Rs 2.8L से Rs 4.8L सालाना'),
+    starterTasks: [
+      t('Prepare a confident pitch about yourself and your strengths.', 'अपने बारे में और अपनी strengths के बारे में एक confident pitch तैयार करें।'),
+      t('Practice objection handling with simple role-play.', 'सरल role-play के साथ objection handling की practice करें।'),
+      t('Track outreach and follow-up dates in one sheet.', 'एक ही sheet में outreach और follow-up dates ट्रैक करें।'),
+    ],
+    strengths: [t('Follow-up discipline', 'फॉलो-अप अनुशासन'), t('Confidence', 'आत्मविश्वास'), t('Relationship building', 'रिश्ते बनाना')],
+    accent: '#d97706',
+    streams: ['open'],
+    vector: [2, 4, 9, 2, 5, 2],
+    dimensionWeights: [1, 2, 5, 1, 2, 1],
+  },
+  'academic-counsellor': {
+    id: 'academic-counsellor',
+    name: t('Academic Counsellor', 'अकादमिक काउंसलर'),
+    shortLabel: t('Academic Counselling', 'अकादमिक काउंसलिंग'),
+    summary: t(
+      'A strong route for graduates who can guide students, explain options clearly, and stay warm without losing structure.',
+      'यह उन ग्रेजुएट्स के लिए अच्छा रास्ता है जो students को guide कर सकते हैं, options साफ़ समझा सकते हैं और warm रहते हुए भी structure बनाए रखते हैं।'
+    ),
+    whyItFits: t(
+      'This role rewards communication, trust-building, and patient guidance.',
+      'यह रोल communication, trust-building और धैर्यपूर्ण guidance को महत्व देता है।'
+    ),
+    salaryRange: t('Typical starter range: Rs 2.6L to Rs 4.8L annually', 'सामान्य शुरुआती रेंज: Rs 2.6L से Rs 4.8L सालाना'),
+    starterTasks: [
+      t('Learn the admission process for 10 common courses or programs.', '10 आम courses या programs का admission process समझें।'),
+      t('Practice explaining the same option in simple language.', 'एक ही option को सरल भाषा में समझाने की practice करें।'),
+      t('Prepare examples that show listening and guidance.', 'listening और guidance दिखाने वाले examples तैयार करें।'),
+    ],
+    strengths: [t('Guidance', 'मार्गदर्शन'), t('Listening', 'ध्यान से सुनना'), t('Structured communication', 'संरचित संवाद')],
+    accent: '#0f766e',
+    streams: ['management', 'arts-humanities', 'open'],
+    vector: [1, 7, 6, 5, 2, 2],
+    dimensionWeights: [1, 4, 3, 3, 1, 2],
+  },
+  'hr-coordinator': {
+    id: 'hr-coordinator',
+    name: t('HR Coordinator', 'एचआर कोऑर्डिनेटर'),
+    shortLabel: t('HR Coordination', 'एचआर कोऑर्डिनेशन'),
+    summary: t(
+      'Good for graduates who like people, scheduling, follow-ups, and keeping hiring or team processes organized.',
+      'यह उन ग्रेजुएट्स के लिए अच्छा है जिन्हें लोगों के साथ काम करना, scheduling, follow-ups और hiring या team processes को organized रखना पसंद है।'
+    ),
+    whyItFits: t(
+      'This role rewards coordination, people comfort, and reliability.',
+      'यह रोल coordination, लोगों के साथ सहजता और reliability को महत्व देता है।'
+    ),
+    salaryRange: t('Typical starter range: Rs 2.8L to Rs 4.8L annually', 'सामान्य शुरुआती रेंज: Rs 2.8L से Rs 4.8L सालाना'),
+    starterTasks: [
+      t('Practice recruiter-style introductions and short screening questions.', 'recruiter-style introductions और short screening questions की practice करें।'),
+      t('Build one clean tracker for candidates or interview schedules.', 'candidates या interview schedules के लिए एक साफ़ tracker बनाएं।'),
+      t('Show coordination or event-management examples on your resume.', 'रिज्यूमे में coordination या event-management examples दिखाएं।'),
+    ],
+    strengths: [t('People comfort', 'लोगों के साथ सहजता'), t('Coordination', 'कोऑर्डिनेशन'), t('Follow-up', 'फॉलो-अप')],
+    accent: '#8b5cf6',
+    streams: ['management', 'arts-humanities', 'commerce', 'open'],
+    vector: [2, 5, 7, 6, 2, 2],
+    dimensionWeights: [1, 3, 4, 4, 1, 1],
+  },
+  'data-entry-mis': {
+    id: 'data-entry-mis',
+    name: t('Data Entry / MIS Executive', 'डेटा एंट्री / एमआईएस एग्जीक्यूटिव'),
+    shortLabel: t('Data Entry / MIS', 'डेटा एंट्री / एमआईएस'),
+    summary: t(
+      'A realistic fit for detail-oriented graduates who prefer desk work, spreadsheets, and accurate reporting.',
+      'यह उन detail-oriented ग्रेजुएट्स के लिए अच्छा फिट है जो desk work, spreadsheets और accurate reporting पसंद करते हैं।'
+    ),
+    whyItFits: t(
+      'This path rewards consistency, accuracy, and comfort with repetitive structured work.',
+      'यह रास्ता consistency, accuracy और repetitive structured work के साथ सहजता को महत्व देता है।'
+    ),
+    salaryRange: t('Typical starter range: Rs 2.2L to Rs 4.0L annually', 'सामान्य शुरुआती रेंज: Rs 2.2L से Rs 4.0L सालाना'),
+    starterTasks: [
+      t('Practice sorting, filters, VLOOKUP, and formatting in Excel.', 'Excel में sorting, filters, VLOOKUP और formatting की practice करें।'),
+      t('Build one clean sample report to show an employer.', 'employer को दिखाने के लिए एक साफ़ sample report बनाएं।'),
+      t('Make accuracy and speed visible on your resume.', 'रिज्यूमे में accuracy और speed को साफ़ दिखाएं।'),
+    ],
+    strengths: [t('Accuracy', 'सटीकता'), t('Spreadsheet comfort', 'स्प्रेडशीट सहजता'), t('Consistency', 'निरंतरता')],
+    accent: '#2563eb',
+    streams: ['open', 'commerce', 'science'],
+    vector: [7, 1, 1, 9, 1, 3],
+    dimensionWeights: [4, 1, 1, 5, 1, 2],
+  },
+  'back-office-operations': {
+    id: 'back-office-operations',
+    name: t('Back-Office Operations Executive', 'बैक-ऑफिस ऑपरेशंस एग्जीक्यूटिव'),
+    shortLabel: t('Back-Office Operations', 'बैक-ऑफिस ऑपरेशंस'),
+    summary: t(
+      'A stable entry route for graduates who like process, documentation, coordination, and keeping work moving quietly in the background.',
+      'यह उन ग्रेजुएट्स के लिए एक स्थिर शुरुआती रास्ता है जिन्हें process, documentation, coordination और बैकग्राउंड में काम को smoothly चलाना पसंद है।'
+    ),
+    whyItFits: t(
+      'This role values reliability, process discipline, and ownership of routine work.',
+      'यह रोल reliability, process discipline और routine work की ownership को महत्व देता है।'
+    ),
+    salaryRange: t('Typical starter range: Rs 2.5L to Rs 4.3L annually', 'सामान्य शुरुआती रेंज: Rs 2.5L से Rs 4.3L सालाना'),
+    starterTasks: [
+      t('Prepare examples of coordination, paperwork, or operational discipline.', 'coordination, paperwork या operational discipline के examples तैयार करें।'),
+      t('Create one simple checklist for a repeated task.', 'किसी repeated task के लिए एक simple checklist बनाएं।'),
+      t('Practice giving short and clear status updates.', 'छोटे और साफ़ status updates देने की practice करें।'),
+    ],
+    strengths: [t('Process discipline', 'प्रोसेस अनुशासन'), t('Documentation', 'डॉक्यूमेंटेशन'), t('Coordination', 'कोऑर्डिनेशन')],
+    accent: '#7c3aed',
+    streams: ['open'],
+    vector: [3, 2, 2, 9, 1, 4],
+    dimensionWeights: [2, 1, 1, 5, 1, 3],
+  },
+  'operations-analyst': {
+    id: 'operations-analyst',
+    name: t('Operations Analyst', 'ऑपरेशंस एनालिस्ट'),
+    shortLabel: t('Operations Analysis', 'ऑपरेशंस एनालिसिस'),
+    summary: t(
+      'A good fit for graduates who enjoy process plus problem-solving, and can turn messy information into clean decisions.',
+      'यह उन ग्रेजुएट्स के लिए अच्छा फिट है जो process और problem-solving दोनों पसंद करते हैं और messy information को clean decisions में बदल सकते हैं।'
+    ),
+    whyItFits: t(
+      'This path rewards analytical thinking, structure, and comfort with reporting.',
+      'यह रास्ता analytical thinking, structure और reporting के साथ सहजता को महत्व देता है।'
+    ),
+    salaryRange: t('Typical starter range: Rs 3.2L to Rs 5.6L annually', 'सामान्य शुरुआती रेंज: Rs 3.2L से Rs 5.6L सालाना'),
+    starterTasks: [
+      t('Build one Excel or Sheets dashboard from raw data.', 'raw data से एक Excel या Sheets dashboard बनाएं।'),
+      t('Practice explaining a process bottleneck and your fix.', 'किसी process bottleneck और उसके fix को समझाने की practice करें।'),
+      t('Highlight reporting, Excel, or project coordination work on your resume.', 'रिज्यूमे में reporting, Excel या project coordination work highlight करें।'),
+    ],
+    strengths: [t('Analytical thinking', 'विश्लेषणात्मक सोच'), t('Structure', 'संरचना'), t('Reporting', 'रिपोर्टिंग')],
+    accent: '#0f766e',
+    streams: ['commerce', 'management', 'science'],
+    vector: [6, 2, 2, 7, 1, 9],
+    dimensionWeights: [3, 1, 1, 3, 1, 5],
+  },
+  'accounting-finance-assistant': {
+    id: 'accounting-finance-assistant',
+    name: t('Accounting & Finance Assistant', 'अकाउंटिंग और फाइनेंस असिस्टेंट'),
+    shortLabel: t('Accounting & Finance', 'अकाउंटिंग और फाइनेंस'),
+    summary: t(
+      'A strong fit for Commerce-oriented graduates who like numbers, records, reconciliation, and careful work.',
+      'यह Commerce-oriented ग्रेजुएट्स के लिए एक मजबूत फिट है जिन्हें numbers, records, reconciliation और careful work पसंद है।'
+    ),
+    whyItFits: t(
+      'This role rewards numerical comfort, accuracy, and trustworthiness.',
+      'यह रोल numerical comfort, accuracy और trustworthiness को महत्व देता है।'
+    ),
+    salaryRange: t('Typical starter range: Rs 2.8L to Rs 5.0L annually', 'सामान्य शुरुआती रेंज: Rs 2.8L से Rs 5.0L सालाना'),
+    starterTasks: [
+      t('Refresh bookkeeping, Tally, and Excel basics.', 'bookkeeping, Tally और Excel basics को मजबूत करें।'),
+      t('Prepare examples that show accuracy with records or budgets.', 'records या budgets में accuracy दिखाने वाले examples तैयार करें।'),
+      t('Highlight Commerce subjects and internships clearly.', 'Commerce subjects और internships को साफ़ highlight करें।'),
+    ],
+    strengths: [t('Numerical comfort', 'नंबर्स में सहजता'), t('Accuracy', 'सटीकता'), t('Record keeping', 'रिकॉर्ड संभालना')],
+    accent: '#115e59',
+    streams: ['commerce'],
+    vector: [9, 1, 1, 7, 1, 5],
+    dimensionWeights: [5, 1, 1, 3, 1, 2],
+  },
+  'digital-marketing-executive': {
+    id: 'digital-marketing-executive',
+    name: t('Digital Marketing Executive', 'डिजिटल मार्केटिंग एग्जीक्यूटिव'),
+    shortLabel: t('Digital Marketing', 'डिजिटल मार्केटिंग'),
+    summary: t(
+      'A useful path for graduates who like growth ideas, campaign thinking, audience understanding, and some data with creativity.',
+      'यह उन ग्रेजुएट्स के लिए अच्छा रास्ता है जिन्हें growth ideas, campaign thinking, audience understanding और creativity के साथ थोड़ा data पसंद है।'
+    ),
+    whyItFits: t(
+      'This direction rewards creativity, communication, and comfort with experiments.',
+      'यह दिशा creativity, communication और experiments के साथ सहजता को महत्व देती है।'
+    ),
+    salaryRange: t('Typical starter range: Rs 2.8L to Rs 5.2L annually', 'सामान्य शुरुआती रेंज: Rs 2.8L से Rs 5.2L सालाना'),
+    starterTasks: [
+      t('Build a sample campaign idea with audience, copy, and metrics.', 'audience, copy और metrics के साथ एक sample campaign idea बनाएं।'),
+      t('Learn Google Ads or GA4 basics from free modules.', 'free modules से Google Ads या GA4 basics सीखें।'),
+      t('Show one project or page where you improved engagement.', 'ऐसा एक project या page दिखाएं जहां आपने engagement बेहतर किया।'),
+    ],
+    strengths: [t('Creativity', 'रचनात्मकता'), t('Audience understanding', 'audience understanding'), t('Experimentation', 'प्रयोग करने की क्षमता')],
+    accent: '#ea580c',
+    streams: ['management', 'arts-humanities', 'open'],
+    vector: [2, 3, 5, 2, 9, 5],
+    dimensionWeights: [1, 2, 3, 1, 5, 3],
+  },
+  'content-writer': {
+    id: 'content-writer',
+    name: t('Content Writer', 'कंटेंट राइटर'),
+    shortLabel: t('Content Writing', 'कंटेंट राइटिंग'),
+    summary: t(
+      'A good first route for graduates who write clearly, enjoy research, and can turn information into useful content.',
+      'यह उन ग्रेजुएट्स के लिए अच्छा शुरुआती रास्ता है जो साफ़ लिखते हैं, research पसंद करते हैं और जानकारी को उपयोगी content में बदल सकते हैं।'
+    ),
+    whyItFits: t(
+      'This role rewards writing clarity, curiosity, and audience awareness.',
+      'यह रोल writing clarity, curiosity और audience awareness को महत्व देता है।'
+    ),
+    salaryRange: t('Typical starter range: Rs 2.4L to Rs 4.8L annually', 'सामान्य शुरुआती रेंज: Rs 2.4L से Rs 4.8L सालाना'),
+    starterTasks: [
+      t('Write 3 short samples: one explain-like-I-am-new, one SEO-style, one social caption.', '3 छोटे samples लिखें: एक simple explain piece, एक SEO-style और एक social caption।'),
+      t('Practice rewriting complex information into plain language.', 'complex information को plain language में rewrite करने की practice करें।'),
+      t('Build a small writing portfolio link or PDF.', 'एक छोटा writing portfolio link या PDF बनाएं।'),
+    ],
+    strengths: [t('Writing clarity', 'स्पष्ट लेखन'), t('Research', 'रिसर्च'), t('Audience awareness', 'दर्शक समझ')],
+    accent: '#be185d',
+    streams: ['arts-humanities', 'management', 'open'],
+    vector: [1, 2, 2, 3, 9, 4],
+    dimensionWeights: [1, 1, 1, 2, 5, 2],
+  },
+  'telemedicine-coordinator': {
+    id: 'telemedicine-coordinator',
+    name: t('Telemedicine Coordinator', 'टेलीमेडिसिन कोऑर्डिनेटर'),
+    shortLabel: t('Telemedicine Coordination', 'टेलीमेडिसिन कोऑर्डिनेशन'),
+    summary: t(
+      'A helpful path for healthcare-adjacent graduates who can coordinate patients, appointments, and communication with care.',
+      'यह healthcare-adjacent ग्रेजुएट्स के लिए अच्छा रास्ता है जो patients, appointments और communication को care के साथ coordinate कर सकते हैं।'
+    ),
+    whyItFits: t(
+      'This role values calm communication, empathy, and organized follow-through.',
+      'यह रोल calm communication, empathy और organized follow-through को महत्व देता है।'
+    ),
+    salaryRange: t('Typical starter range: Rs 2.8L to Rs 4.8L annually', 'सामान्य शुरुआती रेंज: Rs 2.8L से Rs 4.8L सालाना'),
+    starterTasks: [
+      t('Learn how appointment, triage, and follow-up flows work.', 'appointment, triage और follow-up flows कैसे चलते हैं यह सीखें।'),
+      t('Prepare examples that show patient-facing patience and clarity.', 'patient-facing patience और clarity दिखाने वाले examples तैयार करें।'),
+      t('Show healthcare exposure, volunteering, or coordination work clearly.', 'healthcare exposure, volunteering या coordination work को साफ़ दिखाएं।'),
+    ],
+    strengths: [t('Empathy', 'सहानुभूति'), t('Coordination', 'कोऑर्डिनेशन'), t('Calm communication', 'शांत संवाद')],
+    accent: '#0f766e',
+    streams: ['healthcare', 'open'],
+    vector: [2, 8, 2, 7, 1, 2],
+    dimensionWeights: [1, 5, 1, 4, 1, 1],
+  },
+  'legal-compliance-operations': {
+    id: 'legal-compliance-operations',
+    name: t('Legal & Compliance Operations Associate', 'लीगल और कंप्लायंस ऑपरेशंस एसोसिएट'),
+    shortLabel: t('Legal & Compliance Ops', 'लीगल और कंप्लायंस ऑप्स'),
+    summary: t(
+      'A practical route for Law or compliance-oriented graduates who like records, rules, review, and careful documentation.',
+      'यह Law या compliance-oriented ग्रेजुएट्स के लिए अच्छा रास्ता है जिन्हें records, rules, review और careful documentation पसंद है।'
+    ),
+    whyItFits: t(
+      'This role rewards precision, documentation discipline, and rule-based thinking.',
+      'यह रोल precision, documentation discipline और rule-based thinking को महत्व देता है।'
+    ),
+    salaryRange: t('Typical starter range: Rs 3.0L to Rs 5.4L annually', 'सामान्य शुरुआती रेंज: Rs 3.0L से Rs 5.4L सालाना'),
+    starterTasks: [
+      t('Practice reviewing records or clauses with a checklist.', 'records या clauses को checklist के साथ review करने की practice करें।'),
+      t('Build examples that show documentation accuracy.', 'documentation accuracy दिखाने वाले examples बनाएं।'),
+      t('Highlight legal/compliance coursework and internships clearly.', 'legal/compliance coursework और internships को साफ़ highlight करें।'),
+    ],
+    strengths: [t('Precision', 'सटीकता'), t('Documentation', 'डॉक्यूमेंटेशन'), t('Rule-based thinking', 'नियम-आधारित सोच')],
+    accent: '#92400e',
+    streams: ['law', 'commerce'],
+    vector: [6, 1, 1, 9, 1, 5],
+    dimensionWeights: [4, 1, 1, 5, 1, 3],
+  },
+};
+
+// ─── Phase 1: Routing Questions ───────────────────────────────────────────────
+// Same 5 questions for every user. Scenario-based to reduce aspirational answering.
+// vector: [numerical, people-reactive, people-proactive, process-ops, creative-output, analytical-output]
+
+export const ROUTING_QUESTIONS: AssessmentQuestion[] = [
+  {
+    id: 'r1',
+    section: t('How You React', 'आप कैसे react करते हैं'),
+    prompt: t(
+      'A customer contacts you upset about a delayed order. What do you do first?',
+      'एक customer आपको देरी हुए order के बारे में परेशान होकर संपर्क करता है। आप पहले क्या करते हैं?'
+    ),
+    helper: t(
+      'Pick the response that feels most natural — not the most impressive.',
+      'वह response चुनें जो आपको सबसे natural लगे — सबसे impressive नहीं।'
+    ),
+    options: [
+      {
+        id: 'r1_a',
+        label: t('Stay calm, acknowledge how they feel, and walk them through what I can do', 'शांत रहता/रहती हूँ, उनकी feeling acknowledge करता/करती हूँ और बताता/बताती हूँ कि मैं क्या कर सकता/सकती हूँ'),
+        signal: t('Empathy under pressure', 'pressure में empathy'),
+        vector: [0, 3, 1, 0, 0, 0],
+        clusterScores: { 'people-facing': 3 },
+      },
+      {
+        id: 'r1_b',
+        label: t('Look up the order status immediately and give them a clear timeline', 'order status तुरंत देखता/देखती हूँ और एक clear timeline देता/देती हूँ'),
+        signal: t('Quick structured problem-solving', 'तेज़ structured problem-solving'),
+        vector: [1, 0, 0, 2, 0, 2],
+        clusterScores: { 'desk-ops': 1, 'analytical': 2 },
+      },
+      {
+        id: 'r1_c',
+        label: t('Check if there is a written escalation process and follow it step by step', 'देखता/देखती हूँ कि कोई written escalation process है और step by step follow करता/करती हूँ'),
+        signal: t('Process-first approach', 'पहले process देखना'),
+        vector: [0, 0, 0, 3, 0, 0],
+        clusterScores: { 'desk-ops': 3 },
+      },
+      {
+        id: 'r1_d',
+        label: t('Figure out if there is a pattern causing this and flag it to prevent future cases', 'देखता/देखती हूँ कि इसके पीछे कोई pattern है और flag करता/करती हूँ ताकि भविष्य में ऐसा न हो'),
+        signal: t('Root-cause analytical thinking', 'root-cause analytical thinking'),
+        vector: [1, 0, 0, 0, 0, 3],
+        clusterScores: { 'analytical': 3 },
+      },
+    ],
+  },
+  {
+    id: 'r2',
+    section: t('How You Work', 'आप कैसे काम करते हैं'),
+    prompt: t(
+      'You have 2 free hours at work with no meetings. What do you genuinely pick?',
+      'काम पर 2 free hours मिलते हैं जिसमें कोई meetings नहीं। आप सच में क्या चुनते हैं?'
+    ),
+    helper: t(
+      'Choose what you would actually do, not what looks good.',
+      'वह चुनें जो आप सच में करेंगे, वह नहीं जो अच्छा दिखे।'
+    ),
+    options: [
+      {
+        id: 'r2_a',
+        label: t('Call 5 people and move pending conversations forward', '5 लोगों को call करके pending conversations आगे बढ़ाना'),
+        signal: t('Pulled toward active outreach', 'active outreach की तरफ झुकाव'),
+        vector: [0, 1, 3, 0, 0, 0],
+        clusterScores: { 'people-facing': 3 },
+      },
+      {
+        id: 'r2_b',
+        label: t('Fix a broken Excel report that has been giving wrong numbers', 'एक broken Excel report ठीक करना जो गलत numbers दे रही है'),
+        signal: t('Pulled toward spreadsheet accuracy', 'spreadsheet accuracy की तरफ झुकाव'),
+        vector: [2, 0, 0, 2, 0, 1],
+        clusterScores: { 'desk-ops': 2, 'analytical': 1 },
+      },
+      {
+        id: 'r2_c',
+        label: t('Research and write a useful comparison doc or guide', 'research करके एक useful comparison doc या guide लिखना'),
+        signal: t('Pulled toward research and writing', 'research और writing की तरफ झुकाव'),
+        vector: [0, 0, 0, 1, 2, 1],
+        clusterScores: { 'creative': 2, 'analytical': 1 },
+      },
+      {
+        id: 'r2_d',
+        label: t('Clean up a messy process and document a better way to do it', 'एक messy process को साफ़ करके उसे बेहतर तरीके से document करना'),
+        signal: t('Pulled toward process improvement', 'process improvement की तरफ झुकाव'),
+        vector: [0, 0, 0, 3, 0, 1],
+        clusterScores: { 'desk-ops': 3 },
+      },
+    ],
+  },
+  {
+    id: 'r3',
+    section: t('You and Numbers', 'आप और numbers'),
+    prompt: t(
+      'Your manager asks you to check 200 rows of data for errors. You:',
+      'आपका manager आपसे 200 rows का data errors के लिए check करने को कहता है। आप:'
+    ),
+    helper: t(
+      'Be honest. This shapes which roles we recommend.',
+      'ईमानदारी से बताएं। इससे हम तय करते हैं कि कौन-से roles suggest करें।'
+    ),
+    options: [
+      {
+        id: 'r3_a',
+        label: t('Get into it — I find catching mistakes satisfying', 'इसमें लग जाता/जाती हूँ — mistakes पकड़ना मुझे satisfying लगता है'),
+        signal: t('High numerical and detail comfort', 'numerical और detail में उच्च सहजता'),
+        vector: [3, 0, 0, 2, 0, 1],
+        profilePatch: { numbersConfidence: 'high', dataConfidence: 'high' },
+        clusterScores: { 'analytical': 2, 'desk-ops': 2 },
+      },
+      {
+        id: 'r3_b',
+        label: t('Do it carefully but it is not something I would choose', 'ध्यान से करता/करती हूँ पर खुद से नहीं चुनता/चुनती'),
+        signal: t('Moderate comfort with structured data work', 'structured data work में मध्यम सहजता'),
+        vector: [1, 0, 0, 1, 0, 0],
+        profilePatch: { numbersConfidence: 'medium', dataConfidence: 'medium' },
+        clusterScores: { 'desk-ops': 1 },
+      },
+      {
+        id: 'r3_c',
+        label: t('Want someone to explain the pattern first so I can check faster', 'पहले pattern समझना चाहता/चाहती हूँ ताकि जल्दी check कर सकूं'),
+        signal: t('Prefers analytical framing over manual checking', 'manual checking से ज़्यादा analytical framing पसंद'),
+        vector: [1, 0, 0, 0, 0, 2],
+        profilePatch: { numbersConfidence: 'medium' },
+        clusterScores: { 'analytical': 2 },
+      },
+      {
+        id: 'r3_d',
+        label: t('Prefer to delegate this and handle something more people-facing', 'यह काम delegate करना और कोई people-facing काम लेना पसंद है'),
+        signal: t('Avoids number-heavy work', 'number-heavy काम से बचाव'),
+        vector: [0, 2, 1, 0, 0, 0],
+        profilePatch: { numbersConfidence: 'low', dataConfidence: 'low' },
+        clusterScores: { 'people-facing': 2 },
+      },
+    ],
+  },
+  {
+    id: 'r4',
+    section: t('How You Connect', 'आप कैसे जुड़ते हैं'),
+    prompt: t(
+      'You are given a list of 20 potential customers to contact. You:',
+      'आपको 20 potential customers की list दी जाती है जिन्हें contact करना है। आप:'
+    ),
+    helper: t(
+      'Pick the option that sounds most natural for you right now.',
+      'वह विकल्प चुनें जो अभी आपको सबसे natural लगे।'
+    ),
+    options: [
+      {
+        id: 'r4_a',
+        label: t('Call them directly — I am comfortable starting conversations', 'सीधे call करता/करती हूँ — conversations शुरू करने में सहज हूँ'),
+        signal: t('Proactive outbound communication', 'proactive outbound communication'),
+        vector: [0, 1, 3, 0, 0, 0],
+        profilePatch: { speakingConfidence: 'high' },
+        clusterScores: { 'people-facing': 3 },
+      },
+      {
+        id: 'r4_b',
+        label: t('Email them a clear message and follow up on replies', 'एक clear message email करता/करती हूँ और replies पर follow up करता/करती हूँ'),
+        signal: t('Structured follow-up approach', 'structured follow-up approach'),
+        vector: [0, 1, 1, 1, 0, 0],
+        profilePatch: { speakingConfidence: 'medium' },
+        clusterScores: { 'people-facing': 1, 'desk-ops': 1 },
+      },
+      {
+        id: 'r4_c',
+        label: t('Research each one first so I know what to say', 'पहले हर एक के बारे में research करता/करती हूँ ताकि पता हो क्या कहना है'),
+        signal: t('Research-led communication', 'research-led communication'),
+        vector: [1, 0, 0, 0, 0, 2],
+        clusterScores: { 'analytical': 2 },
+      },
+      {
+        id: 'r4_d',
+        label: t('Prefer an inbound role where they come to me', 'inbound role पसंद है जहाँ वे मेरे पास आएं'),
+        signal: t('Prefers lower-intensity interaction', 'कम-intensity interaction की पसंद'),
+        vector: [0, 2, 0, 0, 0, 0],
+        profilePatch: { speakingConfidence: 'low' },
+        clusterScores: { 'people-facing': 1 },
+      },
+    ],
+  },
+  {
+    id: 'r5',
+    section: t('What Drives You', 'आपको क्या प्रेरित करता है'),
+    prompt: t(
+      'Which of these would you find most satisfying to show your manager at end of week?',
+      'हफ्ते के अंत में manager को दिखाने के लिए इनमें से कौन-सा काम आपको सबसे satisfying लगेगा?'
+    ),
+    helper: t(
+      'Think about the next 6 months of actual work, not a distant dream.',
+      'अगले 6 महीने के असल काम के बारे में सोचें, दूर के सपने के बारे में नहीं।'
+    ),
+    options: [
+      {
+        id: 'r5_a',
+        label: t('A campaign or piece of content that got real engagement', 'एक campaign या content piece जिसे real engagement मिली'),
+        signal: t('Creative output satisfaction', 'creative output में satisfaction'),
+        vector: [0, 0, 1, 0, 3, 0],
+        clusterScores: { 'creative': 3 },
+      },
+      {
+        id: 'r5_b',
+        label: t('A clean report or dashboard they can act on', 'एक clean report या dashboard जिस पर वे action ले सकें'),
+        signal: t('Analytical output satisfaction', 'analytical output में satisfaction'),
+        vector: [1, 0, 0, 1, 0, 3],
+        clusterScores: { 'analytical': 3 },
+      },
+      {
+        id: 'r5_c',
+        label: t('A process you improved or documented', 'एक process जिसे आपने बेहतर किया या document किया'),
+        signal: t('Process improvement satisfaction', 'process improvement में satisfaction'),
+        vector: [0, 0, 0, 3, 0, 1],
+        clusterScores: { 'desk-ops': 3 },
+      },
+      {
+        id: 'r5_d',
+        label: t('A set of calls or conversations you moved forward', 'calls या conversations का एक set जिसे आपने आगे बढ़ाया'),
+        signal: t('People progress satisfaction', 'people progress में satisfaction'),
+        vector: [0, 1, 2, 0, 0, 0],
+        clusterScores: { 'people-facing': 3 },
+      },
+    ],
+  },
+];
+
+// ─── Tie-breaker (inserted if cluster margin < 15 points) ────────────────────
+
+export const TIE_BREAKER_QUESTION: AssessmentQuestion = {
+  id: 'rtb',
+  section: t('One More Thing', 'एक और बात'),
+  prompt: t(
+    'Which offer sounds strongest for your first 12 months?',
+    'अपने पहले 12 महीनों के लिए कौन-सा offer आपको सबसे अच्छा लगता है?'
+  ),
+  helper: t(
+    'Pick the one you would accept first, not the one that sounds most glamorous.',
+    'वह चुनें जिसे आप पहले accept करेंगे, न कि सबसे glamorous लगने वाला।'
+  ),
+  options: [
+    {
+      id: 'rtb_a',
+      label: t('Customer or student support — clear goals, training provided', 'Customer या student support — clear goals, training मिलेगी'),
+      signal: t('Leans toward guided support work', 'guided support work की तरफ झुकाव'),
+      vector: [0, 2, 1, 0, 0, 0],
+      clusterScores: { 'people-facing': 3 },
+    },
+    {
+      id: 'rtb_b',
+      label: t('Operations or MIS — reports, trackers, process ownership', 'Operations या MIS — reports, trackers, process ownership'),
+      signal: t('Leans toward operations and reporting', 'operations और reporting की तरफ झुकाव'),
+      vector: [1, 0, 0, 3, 0, 1],
+      clusterScores: { 'desk-ops': 3 },
+    },
+    {
+      id: 'rtb_c',
+      label: t('Marketing or content — campaigns and audience growth', 'Marketing या content — campaigns और audience growth'),
+      signal: t('Leans toward creative output', 'creative output की तरफ झुकाव'),
+      vector: [0, 0, 1, 0, 3, 0],
+      clusterScores: { 'creative': 3 },
+    },
+    {
+      id: 'rtb_d',
+      label: t('Accounts or compliance — records, review, accuracy', 'Accounts या compliance — records, review, accuracy'),
+      signal: t('Leans toward numbers and precision', 'numbers और precision की तरफ झुकाव'),
+      vector: [3, 0, 0, 2, 0, 1],
+      clusterScores: { 'analytical': 3 },
+    },
+  ],
+};
+
+// ─── Phase 2: Branch Questions ────────────────────────────────────────────────
+// 4 questions per cluster. Differentiates roles within the winning cluster.
+// roleScores: partial record of role contributions for this option
+
+export const BRANCH_QUESTIONS: Record<ClusterId, AssessmentQuestion[]> = {
+  'people-facing': [
+    {
+      id: 'b1',
+      section: t('People Style', 'लोगों के साथ आपका style'),
+      prompt: t(
+        'Someone comes to you confused about their options. You naturally:',
+        'कोई व्यक्ति अपने options को लेकर confused होकर आपके पास आता है। आप naturally:'
+      ),
+      helper: t('Pick the one that feels most instinctive.', 'वह चुनें जो सबसे instinctive लगे।'),
+      options: [
+        {
+          id: 'pf_b1_a',
+          label: t('Listen, empathise, and help them feel calm first', 'पहले सुनता/सुनती हूँ, empathise करता/करती हूँ और उन्हें calm feel कराता/कराती हूँ'),
+          signal: t('Calm empathetic support', 'शांत empathetic support'),
+          vector: [0, 3, 0, 1, 0, 0],
+          roleScores: { 'customer-support': 3, 'telemedicine-coordinator': 2 },
+        },
+        {
+          id: 'pf_b1_b',
+          label: t('Walk them through each option clearly and help them decide', 'हर option साफ़ समझाता/समझाती हूँ और decide करने में मदद करता/करती हूँ'),
+          signal: t('Structured guidance and clarity', 'structured guidance और clarity'),
+          vector: [0, 2, 2, 1, 0, 0],
+          roleScores: { 'academic-counsellor': 3, 'customer-support': 1 },
+        },
+        {
+          id: 'pf_b1_c',
+          label: t('Ask what they have already tried and coordinate the next steps', 'पूछता/पूछती हूँ कि उन्होंने क्या try किया और next steps coordinate करता/करती हूँ'),
+          signal: t('Coordination-first approach', 'पहले coordination करना'),
+          vector: [0, 1, 3, 2, 0, 0],
+          roleScores: { 'hr-coordinator': 3, 'academic-counsellor': 1 },
+        },
+      ],
+    },
+    {
+      id: 'b2',
+      section: t('Your Energy', 'आपकी energy'),
+      prompt: t(
+        'End of a long day with back-to-back calls. You feel:',
+        'back-to-back calls के बाद एक लंबे दिन का अंत। आप महसूस करते हैं:'
+      ),
+      helper: t('Be honest — there is no right or wrong here.', 'ईमानदारी से बताएं — यहाँ कोई सही या गलत नहीं है।'),
+      options: [
+        {
+          id: 'pf_b2_a',
+          label: t('Drained but fulfilled — I like helping, I just need recovery time', 'थका/थकी हुआ/हुई पर satisfied — helping पसंद है, बस recovery time चाहिए'),
+          signal: t('Empathetic helper who needs recharge time', 'recharge time चाहने वाला/वाली empathetic helper'),
+          vector: [0, 3, 0, 1, 0, 0],
+          roleScores: { 'customer-support': 2, 'telemedicine-coordinator': 3 },
+        },
+        {
+          id: 'pf_b2_b',
+          label: t('Energised if the conversations went well', 'अगर conversations अच्छी गई हों तो energised'),
+          signal: t('Energy from good conversations', 'अच्छी conversations से energy मिलती है'),
+          vector: [0, 1, 3, 0, 0, 0],
+          roleScores: { 'academic-counsellor': 3, 'customer-support': 1 },
+        },
+        {
+          id: 'pf_b2_c',
+          label: t('Ready for tomorrow\'s coordination and follow-up work', 'कल के coordination और follow-up काम के लिए ready'),
+          signal: t('Process-energy over conversation-energy', 'conversation की जगह process से energy मिलती है'),
+          vector: [0, 1, 2, 3, 0, 0],
+          roleScores: { 'hr-coordinator': 3 },
+        },
+      ],
+    },
+    {
+      id: 'b3',
+      section: t('Your Setting', 'आपका setting'),
+      prompt: t(
+        'Which work setting sounds most natural to you?',
+        'कौन-सा work setting आपको सबसे natural लगता है?'
+      ),
+      helper: t('This is one of the clearest signals we use.', 'यह उन सबसे साफ़ signals में से एक है जिनका हम उपयोग करते हैं।'),
+      options: [
+        {
+          id: 'pf_b3_a',
+          label: t('Handling queries and complaints for a product or service', 'किसी product या service के लिए queries और complaints संभालना'),
+          signal: t('Customer-facing query resolution', 'customer-facing query resolution'),
+          vector: [0, 3, 1, 2, 0, 0],
+          roleScores: { 'customer-support': 3 },
+        },
+        {
+          id: 'pf_b3_b',
+          label: t('Guiding students or families through education decisions', 'students या families को education decisions में guide करना'),
+          signal: t('Education guidance setting', 'education guidance setting'),
+          vector: [0, 2, 3, 2, 0, 0],
+          roleScores: { 'academic-counsellor': 3 },
+        },
+        {
+          id: 'pf_b3_c',
+          label: t('Coordinating hiring, scheduling, or team logistics', 'hiring, scheduling या team logistics coordinate करना'),
+          signal: t('HR and team coordination setting', 'HR और team coordination setting'),
+          vector: [0, 1, 3, 3, 0, 0],
+          roleScores: { 'hr-coordinator': 3 },
+        },
+        {
+          id: 'pf_b3_d',
+          label: t('Supporting patients or healthcare appointments remotely', 'patients या healthcare appointments को remotely support करना'),
+          signal: t('Healthcare coordination setting', 'healthcare coordination setting'),
+          vector: [1, 3, 1, 3, 0, 0],
+          roleScores: { 'telemedicine-coordinator': 3 },
+        },
+      ],
+    },
+    {
+      id: 'b4',
+      section: t('How You Write', 'आप कैसे लिखते हैं'),
+      prompt: t(
+        'Which writing style comes most naturally to you?',
+        'कौन-सी writing style आपको सबसे natural आती है?'
+      ),
+      helper: t('Think about what you can do repeatedly at work, not just once.', 'उसके बारे में सोचें जो आप काम में बार-बार कर सकें।'),
+      options: [
+        {
+          id: 'pf_b4_a',
+          label: t('Short, clear replies to customer questions', 'customer questions के लिए छोटे, clear replies'),
+          signal: t('Concise customer-facing writing', 'concise customer-facing writing'),
+          vector: [0, 2, 1, 2, 1, 0],
+          roleScores: { 'customer-support': 2, 'hr-coordinator': 1 },
+        },
+        {
+          id: 'pf_b4_b',
+          label: t('Structured guidance notes or follow-up summaries', 'structured guidance notes या follow-up summaries'),
+          signal: t('Structured written guidance', 'structured written guidance'),
+          vector: [0, 2, 2, 2, 0, 0],
+          roleScores: { 'academic-counsellor': 2, 'hr-coordinator': 2 },
+        },
+        {
+          id: 'pf_b4_c',
+          label: t('Appointment-related or medical documentation', 'appointment-related या medical documentation'),
+          signal: t('Formal health documentation comfort', 'formal health documentation में सहजता'),
+          vector: [1, 2, 0, 3, 0, 0],
+          roleScores: { 'telemedicine-coordinator': 3 },
+        },
+      ],
+    },
+  ],
+
+  'desk-ops': [
+    {
+      id: 'b1',
+      section: t('When You Find an Error', 'जब आपको error मिले'),
+      prompt: t(
+        'You spot an error in a completed piece of work. You:',
+        'आपको एक completed काम में error मिलती है। आप:'
+      ),
+      helper: t('Pick the most natural response — not the most responsible-sounding.', 'सबसे natural response चुनें — सबसे responsible सुनाई देने वाला नहीं।'),
+      options: [
+        {
+          id: 'do_b1_a',
+          label: t('Fix it immediately and double-check everything around it', 'तुरंत ठीक करता/करती हूँ और उसके आसपास सब कुछ double-check करता/करती हूँ'),
+          signal: t('High accuracy instinct', 'उच्च accuracy instinct'),
+          vector: [2, 0, 0, 3, 0, 1],
+          roleScores: { 'data-entry-mis': 3, 'legal-compliance-operations': 1 },
+        },
+        {
+          id: 'do_b1_b',
+          label: t('Log it, fix it, and add a check to catch it next time', 'log करता/करती हूँ, ठीक करता/करती हूँ और अगली बार पकड़ने के लिए check add करता/करती हूँ'),
+          signal: t('Process improvement instinct', 'process improvement instinct'),
+          vector: [1, 0, 0, 3, 0, 2],
+          roleScores: { 'back-office-operations': 3, 'data-entry-mis': 1 },
+        },
+        {
+          id: 'do_b1_c',
+          label: t('Investigate what caused it before fixing anything', 'कुछ ठीक करने से पहले जांचता/जांचती हूँ कि यह क्यों हुआ'),
+          signal: t('Compliance-minded root-cause investigation', 'compliance-minded root-cause investigation'),
+          vector: [2, 0, 0, 2, 0, 2],
+          roleScores: { 'legal-compliance-operations': 3 },
+        },
+      ],
+    },
+    {
+      id: 'b2',
+      section: t('Your Comfort Zone', 'आपका comfort zone'),
+      prompt: t(
+        'Which of these sounds most like your natural strength?',
+        'इनमें से कौन-सा आपकी natural strength जैसा लगता है?'
+      ),
+      helper: t('Go with your gut — no judgment either way.', 'instinct से जाएं — दोनों तरफ कोई judgment नहीं।'),
+      options: [
+        {
+          id: 'do_b2_a',
+          label: t('Accuracy — entering, verifying, and reporting data cleanly', 'Accuracy — data cleanly enter करना, verify करना और report करना'),
+          signal: t('Data accuracy strength', 'data accuracy strength'),
+          vector: [3, 0, 0, 3, 0, 1],
+          roleScores: { 'data-entry-mis': 3 },
+        },
+        {
+          id: 'do_b2_b',
+          label: t('Process — keeping operational workflows running correctly', 'Process — operational workflows को सही तरीके से चलाना'),
+          signal: t('Operational process strength', 'operational process strength'),
+          vector: [1, 0, 0, 4, 0, 2],
+          roleScores: { 'back-office-operations': 3 },
+        },
+        {
+          id: 'do_b2_c',
+          label: t('Compliance — reviewing documents and records against rules', 'Compliance — documents और records को rules के against review करना'),
+          signal: t('Rule-based review strength', 'rule-based review strength'),
+          vector: [2, 0, 0, 3, 0, 2],
+          roleScores: { 'legal-compliance-operations': 3 },
+        },
+      ],
+    },
+    {
+      id: 'b3',
+      section: t('Your Ideal Day', 'आपका ideal day'),
+      prompt: t(
+        'Your ideal workday looks like:',
+        'आपका ideal workday कुछ ऐसा दिखता है:'
+      ),
+      helper: t('Be realistic about the next 6 months, not your long-term ambition.', 'अगले 6 महीनों के बारे में realistic रहें, long-term ambition नहीं।'),
+      options: [
+        {
+          id: 'do_b3_a',
+          label: t('Minimal meetings, mostly screen-based focused work', 'कम meetings, mostly screen पर focused काम'),
+          signal: t('Deep focused desk work', 'deep focused desk काम'),
+          vector: [2, 0, 0, 3, 0, 1],
+          roleScores: { 'data-entry-mis': 3 },
+        },
+        {
+          id: 'do_b3_b',
+          label: t('Some coordination with other teams, mainly task-driven', 'दूसरी teams के साथ थोड़ा coordination, mainly task-driven'),
+          signal: t('Cross-team operational coordination', 'cross-team operational coordination'),
+          vector: [1, 0, 1, 3, 0, 2],
+          roleScores: { 'back-office-operations': 3 },
+        },
+        {
+          id: 'do_b3_c',
+          label: t('Reviewing documents with occasional clarification calls', 'documents review करना और कभी-कभी clarification calls'),
+          signal: t('Document review with light communication', 'document review with light communication'),
+          vector: [2, 0, 0, 2, 0, 2],
+          roleScores: { 'legal-compliance-operations': 2, 'back-office-operations': 1 },
+        },
+      ],
+    },
+    {
+      id: 'b4',
+      section: t('Where You Want to Grow', 'आप कहाँ grow करना चाहते हैं'),
+      prompt: t(
+        'Which feels closest to work you would want to get good at?',
+        'इनमें से कौन-सा काम आप सीखना और उसमें अच्छा होना चाहते हैं?'
+      ),
+      helper: t('Think about what you would be proud of 2 years from now.', 'सोचें कि 2 साल बाद आप किस बात पर गर्व करेंगे।'),
+      options: [
+        {
+          id: 'do_b4_a',
+          label: t('Spreadsheets, data systems, and reporting tools', 'Spreadsheets, data systems और reporting tools'),
+          signal: t('Data tools mastery goal', 'data tools mastery goal'),
+          vector: [3, 0, 0, 3, 0, 2],
+          roleScores: { 'data-entry-mis': 3 },
+        },
+        {
+          id: 'do_b4_b',
+          label: t('Operational processes, documentation, coordination', 'Operational processes, documentation, coordination'),
+          signal: t('Operations mastery goal', 'operations mastery goal'),
+          vector: [1, 0, 1, 4, 0, 2],
+          roleScores: { 'back-office-operations': 3 },
+        },
+        {
+          id: 'do_b4_c',
+          label: t('Legal documents, compliance checklists, regulatory records', 'Legal documents, compliance checklists, regulatory records'),
+          signal: t('Legal and compliance mastery goal', 'legal और compliance mastery goal'),
+          vector: [2, 0, 0, 3, 0, 2],
+          roleScores: { 'legal-compliance-operations': 3 },
+        },
+      ],
+    },
+  ],
+
+  'analytical': [
+    {
+      id: 'b1',
+      section: t('Your Best Output', 'आपका best output'),
+      prompt: t(
+        'You built something useful at work. It is most likely:',
+        'आपने काम पर कुछ useful बनाया। यह सबसे ज़्यादा likely क्या होगा:'
+      ),
+      helper: t('Pick the one that feels most like you.', 'वह चुनें जो आप जैसा सबसे ज़्यादा लगे।'),
+      options: [
+        {
+          id: 'an_b1_a',
+          label: t('A dashboard or report someone uses every week', 'एक dashboard या report जिसे कोई हर हफ्ते use करे'),
+          signal: t('Dashboard and reporting strength', 'dashboard और reporting strength'),
+          vector: [2, 0, 0, 2, 0, 4],
+          roleScores: { 'operations-analyst': 3 },
+        },
+        {
+          id: 'an_b1_b',
+          label: t('A reconciled set of accounts or financial records', 'एक reconciled accounts set या financial records'),
+          signal: t('Financial accuracy strength', 'financial accuracy strength'),
+          vector: [4, 0, 0, 3, 0, 2],
+          roleScores: { 'accounting-finance-assistant': 3 },
+        },
+      ],
+    },
+    {
+      id: 'b2',
+      section: t('Numbers Work You Enjoy', 'आपको जो numbers work पसंद है'),
+      prompt: t(
+        'Which kind of numbers work feels most satisfying?',
+        'किस तरह का numbers काम सबसे satisfying लगता है?'
+      ),
+      helper: t('Think about what energises vs. drains you.', 'सोचें कि क्या energise करता है बनाम क्या drain करता है।'),
+      options: [
+        {
+          id: 'an_b2_a',
+          label: t('Spotting trends, building models, diagnosing what changed', 'trends देखना, models बनाना, यह diagnose करना कि क्या बदला'),
+          signal: t('Analytical trend and diagnosis work', 'analytical trend और diagnosis काम'),
+          vector: [2, 0, 0, 1, 0, 4],
+          roleScores: { 'operations-analyst': 3 },
+        },
+        {
+          id: 'an_b2_b',
+          label: t('Reconciling ledgers, checking invoices, ensuring accuracy', 'ledgers reconcile करना, invoices check करना, accuracy ensure करना'),
+          signal: t('Financial reconciliation work', 'financial reconciliation काम'),
+          vector: [4, 0, 0, 2, 0, 2],
+          roleScores: { 'accounting-finance-assistant': 3 },
+        },
+      ],
+    },
+    {
+      id: 'b3',
+      section: t('Your Tool Comfort', 'आपकी tool comfort'),
+      prompt: t(
+        'Which sounds more natural right now?',
+        'अभी कौन-सा आपको ज़्यादा natural लगता है?'
+      ),
+      helper: t('Honest answer wins — even if you have not used these tools yet.', 'ईमानदार जवाब सही रहेगा — भले ही आपने ये tools अभी use नहीं किए।'),
+      options: [
+        {
+          id: 'an_b3_a',
+          label: t('Excel or Sheets — analysis, pivot tables, dashboards', 'Excel या Sheets — analysis, pivot tables, dashboards'),
+          signal: t('Analytics tool comfort', 'analytics tool comfort'),
+          vector: [2, 0, 0, 1, 0, 4],
+          roleScores: { 'operations-analyst': 3 },
+        },
+        {
+          id: 'an_b3_b',
+          label: t('Tally, accounting entries, bookkeeping, financial records', 'Tally, accounting entries, bookkeeping, financial records'),
+          signal: t('Accounting tool comfort', 'accounting tool comfort'),
+          vector: [4, 0, 0, 3, 0, 1],
+          roleScores: { 'accounting-finance-assistant': 3 },
+        },
+      ],
+    },
+    {
+      id: 'b4',
+      section: t('Where You Want to Grow', 'आप कहाँ grow करना चाहते हैं'),
+      prompt: t(
+        'Where do you want to build real expertise over the next 2 years?',
+        'अगले 2 साल में आप कहाँ असली expertise बनाना चाहते हैं?'
+      ),
+      helper: t('Both are solid paths. This just decides the direction.', 'दोनों अच्छे रास्ते हैं। यह बस direction तय करता है।'),
+      options: [
+        {
+          id: 'an_b4_a',
+          label: t('Operations, process improvement, and reporting', 'Operations, process improvement और reporting'),
+          signal: t('Operations growth direction', 'operations growth direction'),
+          vector: [2, 0, 0, 2, 0, 4],
+          roleScores: { 'operations-analyst': 3 },
+        },
+        {
+          id: 'an_b4_b',
+          label: t('Finance, accounts, reconciliation, and Tally', 'Finance, accounts, reconciliation और Tally'),
+          signal: t('Finance growth direction', 'finance growth direction'),
+          vector: [4, 0, 0, 3, 0, 2],
+          roleScores: { 'accounting-finance-assistant': 3 },
+        },
+      ],
+    },
+  ],
+
+  'creative': [
+    {
+      id: 'b1',
+      section: t('Your Best Work', 'आपका best काम'),
+      prompt: t(
+        'The work you are most proud of creating:',
+        'जो काम आपने create किया और आपको उस पर सबसे ज़्यादा गर्व है:'
+      ),
+      helper: t('Think of real examples, college or personal projects included.', 'real examples सोचें — college या personal projects भी शामिल हैं।'),
+      options: [
+        {
+          id: 'cr_b1_a',
+          label: t('A piece of writing, article, or content someone found useful', 'एक writing piece, article या content जिसे किसी ने useful पाया'),
+          signal: t('Writing and content creation strength', 'writing और content creation strength'),
+          vector: [0, 0, 0, 1, 3, 2],
+          roleScores: { 'content-writer': 3 },
+        },
+        {
+          id: 'cr_b1_b',
+          label: t('A campaign, ad, or post that got real engagement', 'एक campaign, ad या post जिसे real engagement मिली'),
+          signal: t('Campaign and growth work strength', 'campaign और growth काम में strength'),
+          vector: [0, 0, 1, 1, 3, 2],
+          roleScores: { 'digital-marketing-executive': 3 },
+        },
+        {
+          id: 'cr_b1_c',
+          label: t('A pitch or conversation that genuinely convinced someone', 'एक pitch या conversation जिसने किसी को genuinely convince किया'),
+          signal: t('Persuasion and sales strength', 'persuasion और sales strength'),
+          vector: [0, 1, 3, 0, 2, 0],
+          roleScores: { 'sales-support': 3 },
+        },
+      ],
+    },
+    {
+      id: 'b2',
+      section: t('Your Audience Mode', 'आपका audience mode'),
+      prompt: t(
+        'When you think about your audience, your natural mode is:',
+        'जब आप अपने audience के बारे में सोचते/सोचती हैं तो आपका natural mode क्या है:'
+      ),
+      helper: t('There is no wrong answer here.', 'यहाँ कोई गलत जवाब नहीं है।'),
+      options: [
+        {
+          id: 'cr_b2_a',
+          label: t('Writing clearly so they understand the topic', 'साफ़ लिखना ताकि वे topic समझें'),
+          signal: t('Clarity-first writing mode', 'clarity-first writing mode'),
+          vector: [0, 0, 0, 1, 3, 1],
+          roleScores: { 'content-writer': 3 },
+        },
+        {
+          id: 'cr_b2_b',
+          label: t('Understanding what will capture their attention', 'समझना कि उनका ध्यान कैसे capture होगा'),
+          signal: t('Attention and growth thinking', 'attention और growth thinking'),
+          vector: [0, 0, 1, 0, 3, 2],
+          roleScores: { 'digital-marketing-executive': 3 },
+        },
+        {
+          id: 'cr_b2_c',
+          label: t('Persuading them toward a decision or action', 'उन्हें किसी decision या action की तरफ persuade करना'),
+          signal: t('Persuasion-first mode', 'persuasion-first mode'),
+          vector: [0, 1, 3, 0, 1, 0],
+          roleScores: { 'sales-support': 3 },
+        },
+      ],
+    },
+    {
+      id: 'b3',
+      section: t('How You Measure Success', 'आप success कैसे measure करते हैं'),
+      prompt: t(
+        'You would rather be measured on:',
+        'आप किस पर measure होना पसंद करेंगे:'
+      ),
+      helper: t('Pick the metric that would feel fair to you.', 'वह metric चुनें जो आपको fair लगे।'),
+      options: [
+        {
+          id: 'cr_b3_a',
+          label: t('Content quality and how useful it is', 'Content quality और यह कितना useful है'),
+          signal: t('Quality-first content metric', 'quality-first content metric'),
+          vector: [0, 0, 0, 1, 3, 2],
+          roleScores: { 'content-writer': 3 },
+        },
+        {
+          id: 'cr_b3_b',
+          label: t('Campaign performance and audience growth numbers', 'Campaign performance और audience growth numbers'),
+          signal: t('Growth and performance metric', 'growth और performance metric'),
+          vector: [0, 0, 1, 0, 3, 2],
+          roleScores: { 'digital-marketing-executive': 3 },
+        },
+        {
+          id: 'cr_b3_c',
+          label: t('Outreach volume and conversion rate', 'Outreach volume और conversion rate'),
+          signal: t('Sales metric comfort', 'sales metric comfort'),
+          vector: [0, 1, 3, 0, 1, 0],
+          roleScores: { 'sales-support': 3 },
+        },
+      ],
+    },
+    {
+      id: 'b4',
+      section: t('More Satisfying Day', 'ज़्यादा satisfying day'),
+      prompt: t(
+        'Which would make for a more satisfying workday?',
+        'इनमें से कौन-सा workday ज़्यादा satisfying होगा?'
+      ),
+      helper: t('Be realistic — all three are valid paths.', 'Realistic रहें — तीनों valid रास्ते हैं।'),
+      options: [
+        {
+          id: 'cr_b4_a',
+          label: t('Research, draft, edit, and publish something', 'Research करें, draft करें, edit करें और कुछ publish करें'),
+          signal: t('Writing workflow satisfaction', 'writing workflow में satisfaction'),
+          vector: [0, 0, 0, 2, 3, 1],
+          roleScores: { 'content-writer': 3 },
+        },
+        {
+          id: 'cr_b4_b',
+          label: t('Plan a campaign, set it up, and analyse the results', 'Campaign plan करें, set up करें और results analyse करें'),
+          signal: t('Campaign execution satisfaction', 'campaign execution में satisfaction'),
+          vector: [1, 0, 1, 1, 3, 2],
+          roleScores: { 'digital-marketing-executive': 3 },
+        },
+        {
+          id: 'cr_b4_c',
+          label: t('Build a pipeline, make calls, and close conversations', 'Pipeline build करें, calls करें और conversations close करें'),
+          signal: t('Sales execution satisfaction', 'sales execution में satisfaction'),
+          vector: [0, 1, 3, 0, 2, 0],
+          roleScores: { 'sales-support': 3 },
+        },
+      ],
+    },
+  ],
+};
+
+// ─── Backward-compatible export ───────────────────────────────────────────────
+// product.ts re-exports ASSESSMENT_QUESTIONS; UI uses it for the initial question set.
+// The UI must call getNextQuestions() after routing phase to load branch questions.
+export const ASSESSMENT_QUESTIONS: AssessmentQuestion[] = ROUTING_QUESTIONS;
+
+// ─── Disqualifier rules ───────────────────────────────────────────────────────
+
+interface DisqualifierRule {
+  condition: (profile: AssessmentProfile) => boolean;
+  roleIds: RoleId[];
+  multiplier: number;
+}
+
+const DISQUALIFIER_RULES: DisqualifierRule[] = [
+  // Numbers avoidance -> near-eliminates finance and data roles
+  {
+    condition: (p) => p.numbersConfidence === 'low',
+    roleIds: ['accounting-finance-assistant', 'data-entry-mis', 'operations-analyst'],
+    multiplier: 0.15,
+  },
+  // Speaking avoidance -> penalises high-call roles
+  {
+    condition: (p) => p.speakingConfidence === 'low',
+    roleIds: ['customer-support', 'sales-support', 'academic-counsellor'],
+    multiplier: 0.25,
+  },
+  // Data/detail avoidance -> penalises desk-heavy roles
+  {
+    condition: (p) => p.dataConfidence === 'low',
+    roleIds: ['data-entry-mis', 'back-office-operations', 'legal-compliance-operations'],
+    multiplier: 0.25,
+  },
+  // Strong numbers + commerce/science stream -> boost finance roles
+  {
+    condition: (p) =>
+      p.numbersConfidence === 'high' &&
+      ['commerce', 'science'].includes(p.educationStream || ''),
+    roleIds: ['accounting-finance-assistant', 'operations-analyst'],
+    multiplier: 1.15,
+  },
+  // Law stream -> boost legal-compliance
+  {
+    condition: (p) => p.educationStream === 'law',
+    roleIds: ['legal-compliance-operations'],
+    multiplier: 1.12,
+  },
+  // Healthcare stream -> boost telemedicine
+  {
+    condition: (p) => p.educationStream === 'healthcare',
+    roleIds: ['telemedicine-coordinator'],
+    multiplier: 1.15,
+  },
+];
+
+// ─── Internal scoring helpers ─────────────────────────────────────────────────
+
+function computeUserVector(selectedOptions: AssessmentOption[]): number[] {
+  const combined = new Array(DIMENSION_COUNT).fill(0) as number[];
+  for (const option of selectedOptions) {
+    option.vector.forEach((value, index) => {
+      combined[index] += value;
+    });
+  }
+  return combined;
+}
+
+function computeClusterScores(options: AssessmentOption[]): Record<ClusterId, number> {
+  const scores: Record<ClusterId, number> = {
+    'people-facing': 0,
+    'desk-ops': 0,
+    'analytical': 0,
+    'creative': 0,
+  };
+  for (const option of options) {
+    if (option.clusterScores) {
+      for (const [cluster, score] of Object.entries(option.clusterScores)) {
+        scores[cluster as ClusterId] += score as number;
+      }
+    }
+  }
+  return scores;
+}
+
+function computeConfidence(clusterScores: Record<ClusterId, number>): {
+  topCluster: ClusterId;
+  margin: number;
+  needsTieBreaker: boolean;
+} {
+  const sorted = (Object.entries(clusterScores) as [ClusterId, number][]).sort(
+    (a, b) => b[1] - a[1]
+  );
+  const margin = sorted[0][1] - sorted[1][1];
+  return {
+    topCluster: sorted[0][0],
+    margin,
+    needsTieBreaker: margin < 8,
+  };
+}
+
+function weightedCosineSimilarity(
+  userVector: number[],
+  roleVector: number[],
+  dimensionWeights: number[]
+): number {
+  let dot = 0;
+  let userNorm = 0;
+  let roleNorm = 0;
+
+  for (let index = 0; index < DIMENSION_COUNT; index += 1) {
+    const wu = userVector[index] * dimensionWeights[index];
+    const wr = roleVector[index] * dimensionWeights[index];
+    dot += wu * wr;
+    userNorm += wu * wu;
+    roleNorm += wr * wr;
+  }
+
+  if (!userNorm || !roleNorm) return 0;
+  return dot / (Math.sqrt(userNorm) * Math.sqrt(roleNorm));
+}
+
+function signalAlignment(option: AssessmentOption, role: RoleDefinition): number {
+  return option.vector.reduce(
+    (sum, value, index) => sum + value * role.vector[index] * role.dimensionWeights[index],
+    0
+  );
+}
+
+// ─── Public helpers ───────────────────────────────────────────────────────────
+
+export function getLocaleValue(text: LocalizedText, locale: Locale): string {
+  return text[locale];
+}
+
+export function getMatchStrengthLabel(score: number, locale: Locale): LocalizedText {
+  void locale;
+  if (score >= 82) return t('Strong match', 'मजबूत मैच');
+  if (score >= 70) return t('Good fit', 'अच्छा फिट');
+  if (score >= 58) return t('Possible fit', 'संभावित फिट');
+  return t('Explore more', 'और देखें');
+}
+
+export function buildRoleRationale(
+  role: RoleDefinition,
+  signals: LocalizedText[],
+  profile: AssessmentProfile,
+  locale: Locale
+): LocalizedText {
+  const reasonBits = signals.slice(0, 2).map((s) => s[locale]);
+  const locationText = profile.city
+    ? locale === 'en'
+      ? ` for someone targeting opportunities around ${profile.city}`
+      : ` खासकर ${profile.city} के आसपास अवसर खोजने वाले उम्मीदवार के लिए`
+    : '';
+  const joinedReason =
+    reasonBits.length > 1
+      ? `${reasonBits[0]} + ${reasonBits[1]}`
+      : reasonBits[0] || (locale === 'en' ? 'your current profile' : 'आपकी मौजूदा प्रोफाइल');
+
+  return {
+    en: `${role.shortLabel.en} stands out because of ${joinedReason}${locationText}. ${role.whyItFits.en}`,
+    hi: `${role.shortLabel.hi} इसलिए उभरकर आता है क्योंकि ${joinedReason}${locationText}। ${role.whyItFits.hi}`,
+  };
+}
+
+/**
+ * Returns the full ordered list of questions the user should see given their
+ * current responses. The UI renders questions[currentIndex] and uses
+ * questions.length as the total count.
+ *
+ * Before Phase 1 is complete: returns the 5 routing questions.
+ * After Phase 1, if tie-breaker needed and not answered: appends tie-breaker.
+ * After cluster determined: appends the 4 branch questions for that cluster.
+ */
+export function getNextQuestions(
+  responses: Record<string, string>
+): AssessmentQuestion[] {
+  const phase1Complete = ROUTING_QUESTIONS.every((q) => responses[q.id] !== undefined);
+  if (!phase1Complete) return ROUTING_QUESTIONS;
+
+  const phase1Options = ROUTING_QUESTIONS.map((q) =>
+    q.options.find((o) => o.id === responses[q.id])
+  ).filter(Boolean) as AssessmentOption[];
+
+  const clusterScores = computeClusterScores(phase1Options);
+  const { topCluster, needsTieBreaker } = computeConfidence(clusterScores);
+
+  const hasTieBreaker = responses[TIE_BREAKER_QUESTION.id] !== undefined;
+  const branch = BRANCH_QUESTIONS[topCluster];
+
+  if (needsTieBreaker && !hasTieBreaker) {
+    return [...ROUTING_QUESTIONS, TIE_BREAKER_QUESTION];
+  }
+
+  if (needsTieBreaker) {
+    return [...ROUTING_QUESTIONS, TIE_BREAKER_QUESTION, ...branch];
+  }
+
+  return [...ROUTING_QUESTIONS, ...branch];
+}
+
+// ─── Main scoring function ────────────────────────────────────────────────────
+
+export function scoreAssessment(
+  responses: Record<string, string>,
+  profileSeed: Partial<AssessmentProfile> = {},
+  locale: Locale = 'en'
+): AssessmentResult {
+  const profile: AssessmentProfile = { locale, ...profileSeed };
+
+  // Step 1: Collect Phase 1 (routing) options and apply profile patches
+  const phase1Options = ROUTING_QUESTIONS.map((q) => {
+    const option = q.options.find((o) => o.id === responses[q.id]);
+    if (option?.profilePatch) Object.assign(profile, option.profilePatch);
+    return option;
+  }).filter(Boolean) as AssessmentOption[];
+
+  // Step 2: Determine winning cluster (with optional tie-breaker)
+  const tbOption = TIE_BREAKER_QUESTION.options.find(
+    (o) => o.id === responses[TIE_BREAKER_QUESTION.id]
+  );
+  const routingOptions = tbOption ? [...phase1Options, tbOption] : phase1Options;
+
+  const clusterScores = computeClusterScores(routingOptions);
+  const { topCluster, margin } = computeConfidence(clusterScores);
+
+  // Step 3: Collect Phase 2 (branch) options for the winning cluster
+  const branchQuestions = BRANCH_QUESTIONS[topCluster];
+  const branchOptions = branchQuestions
+    .map((q) => {
+      const option = q.options.find((o) => o.id === responses[q.id]);
+      if (option?.profilePatch) Object.assign(profile, option.profilePatch);
+      return option;
+    })
+    .filter(Boolean) as AssessmentOption[];
+
+  // Step 4: Build combined user vector
+  const allSelected = [...routingOptions, ...branchOptions];
+  const userVector = computeUserVector(allSelected);
+
+  // Step 5: Score all 12 roles via weighted cosine similarity
+  const scoredRoles = ROLE_ORDER.map((roleId) => {
+    const role = ROLE_DEFINITIONS[roleId];
+    let score = Math.max(
+      0,
+      Math.min(
+        99,
+        Math.round(
+          weightedCosineSimilarity(userVector, role.vector, role.dimensionWeights) * 100
+        )
+      )
+    );
+
+    // Apply disqualifier rules
+    for (const rule of DISQUALIFIER_RULES) {
+      if (rule.roleIds.includes(roleId) && rule.condition(profile)) {
+        score = Math.max(0, Math.min(99, Math.round(score * rule.multiplier)));
+      }
+    }
+
+    const rationaleSignals = allSelected
+      .map((option) => ({
+        signal: option.signal,
+        alignment: signalAlignment(option, role),
+      }))
+      .sort((a, b) => b.alignment - a.alignment)
+      .slice(0, 3)
+      .map((item) => item.signal);
+
+    return { roleId, role, score, rationaleSignals };
+  });
+
+  const allScores = Object.fromEntries(
+    scoredRoles.map((item) => [item.roleId, item.score])
+  ) as Record<RoleId, number>;
+
+  // Step 6: Build topRoles — prefer winning cluster, fill to 3
+  const clusterRoleIds = CLUSTER_ROLES[topCluster];
+  const clusterScored = scoredRoles
+    .filter((r) => clusterRoleIds.includes(r.roleId))
+    .sort((a, b) => b.score - a.score);
+  const otherScored = scoredRoles
+    .filter((r) => !clusterRoleIds.includes(r.roleId))
+    .sort((a, b) => b.score - a.score);
+
+  const orderedCandidates = [...clusterScored, ...otherScored];
+  const positive = orderedCandidates.filter((r) => r.score > 0);
+  const candidates = positive.length >= 3 ? positive : orderedCandidates;
+
+  const topRoles = candidates.slice(0, 3).map((item) => ({
+    roleId: item.roleId,
+    role: item.role,
+    score: item.score,
+    rationale: buildRoleRationale(item.role, item.rationaleSignals, profile, locale),
+    supportingSignals: item.rationaleSignals,
+    strengthLabel: getMatchStrengthLabel(item.score, locale),
+  }));
+
+  // Step 7: Dimension snapshot (6-dim, normalised 0-100)
+  const total = Math.max(1, userVector.reduce((s, v) => s + v, 0));
+  const dimensionSnapshot = {
+    'numerical': Math.round((userVector[0] / total) * 100),
+    'people-reactive': Math.round((userVector[1] / total) * 100),
+    'people-proactive': Math.round((userVector[2] / total) * 100),
+    'process-ops': Math.round((userVector[3] / total) * 100),
+    'creative-output': Math.round((userVector[4] / total) * 100),
+    'analytical-output': Math.round((userVector[5] / total) * 100),
+  };
+
+  // Step 8: Summary and warning
+  const summary: LocalizedText = topRoles[0]
+    ? {
+        en: `${topRoles[0].role.name.en} looks strongest right now, with ${
+          topRoles[1]?.role.name.en || 'two other solid options'
+        } close behind.`,
+        hi: `अभी ${topRoles[0].role.name.hi} सबसे मजबूत दिख रहा है, और ${
+          topRoles[1]?.role.name.hi || 'दो अन्य अच्छे विकल्प'
+        } भी करीब हैं।`,
+      }
+    : {
+        en: 'We need a few more details to recommend the best path.',
+        hi: 'सबसे अच्छा रास्ता सुझाने के लिए हमें कुछ और जानकारी चाहिए।',
+      };
+
+  const topScore = topRoles[0]?.score || 0;
+  const closeCount = topRoles.filter((m) => topScore - m.score <= 4).length;
+
+  const warning: LocalizedText | null =
+    topScore < 62
+      ? t(
+          'Your profile is still broad. Treat these as realistic starting directions, not final labels.',
+          'आपकी प्रोफाइल अभी broad है। इन results को final label नहीं, realistic starting directions की तरह देखें।'
+        )
+      : closeCount >= 3
+        ? t(
+            'You have range across multiple role families, so review all top matches before deciding.',
+            'आपकी fit कई role families में दिख रही है, इसलिए फैसला लेने से पहले सभी top matches देखें।'
+          )
+        : null;
+
+  return {
+    profile,
+    cluster: topCluster,
+    confidenceScore: margin,
+    topRoles,
+    allScores,
+    summary,
+    warning,
+    dimensionSnapshot,
+  };
+}

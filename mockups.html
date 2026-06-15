@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Readiness Coach — UI Mockups</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --brand: #2563EB;
+    --brand-dark: #1D4ED8;
+    --brand-light: #EFF6FF;
+    --accent: #F97316;
+    --accent-light: #FFF7ED;
+    --green: #16A34A;
+    --green-light: #F0FDF4;
+    --red: #DC2626;
+    --gray-50: #F9FAFB;
+    --gray-100: #F3F4F6;
+    --gray-200: #E5E7EB;
+    --gray-300: #D1D5DB;
+    --gray-400: #9CA3AF;
+    --gray-500: #6B7280;
+    --gray-600: #4B5563;
+    --gray-700: #374151;
+    --gray-800: #1F2937;
+    --gray-900: #111827;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -1px rgba(0,0,0,.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -2px rgba(0,0,0,.05);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0F172A;
+    color: var(--gray-800);
+    min-height: 100vh;
+  }
+
+  /* ── TOOLBAR ── */
+  .toolbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    background: #1E293B;
+    border-bottom: 1px solid #334155;
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 16px;
+    flex-wrap: wrap;
+  }
+  .toolbar-title {
+    font-size: 13px; font-weight: 700; color: #E2E8F0;
+    letter-spacing: .04em; margin-right: 8px;
+  }
+  .nav-btn {
+    font-size: 11px; padding: 5px 10px; border-radius: 6px;
+    border: 1px solid #475569; background: #334155; color: #CBD5E1;
+    cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .nav-btn:hover { background: #475569; color: #F1F5F9; }
+  .nav-btn.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .spacer { flex: 1; }
+  .device-toggle {
+    display: flex; gap: 4px; background: #0F172A; padding: 3px; border-radius: 8px;
+  }
+  .dev-btn {
+    font-size: 11px; padding: 4px 10px; border-radius: 6px;
+    border: none; cursor: pointer; transition: all .15s;
+    background: transparent; color: #64748B;
+  }
+  .dev-btn.active { background: #334155; color: #E2E8F0; }
+
+  /* ── CANVAS ── */
+  .canvas {
+    padding-top: 52px;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-bottom: 40px;
+  }
+  .canvas.desktop { padding-top: 60px; }
+
+  /* ── PHONE FRAME ── */
+  .phone-frame {
+    width: 375px;
+    min-height: 720px;
+    background: #fff;
+    border-radius: 40px;
+    overflow: hidden;
+    box-shadow: 0 0 0 8px #1E293B, 0 0 0 10px #334155, 0 30px 60px rgba(0,0,0,.5);
+    margin-top: 24px;
+    position: relative;
+  }
+  .phone-notch {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 120px; height: 28px; background: #1E293B; border-radius: 0 0 20px 20px;
+    z-index: 10;
+  }
+  .phone-screen {
+    height: 100%;
+    overflow-y: auto;
+    padding-top: 28px;
+    scroll-behavior: smooth;
+  }
+
+  /* ── DESKTOP FRAME ── */
+  .desktop-frame {
+    width: 1280px;
+    min-height: 700px;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px #334155, 0 30px 60px rgba(0,0,0,.4);
+    margin-top: 24px;
+  }
+  .desktop-titlebar {
+    background: #E5E7EB;
+    height: 32px;
+    display: flex; align-items: center; gap: 6px; padding: 0 12px;
+    border-bottom: 1px solid var(--gray-200);
+  }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.red { background: #EF4444; }
+  .dot.yellow { background: #F59E0B; }
+  .dot.green { background: #10B981; }
+  .url-bar {
+    flex: 1; background: #fff; border-radius: 6px;
+    height: 20px; margin: 0 8px;
+    font-size: 11px; color: var(--gray-500);
+    display: flex; align-items: center; padding: 0 8px;
+  }
+
+  /* ── SCREEN (shared) ── */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ── NAV BAR (app) ── */
+  .app-nav {
+    position: sticky; top: 0; z-index: 50;
+    background: #fff;
+    border-bottom: 1px solid var(--gray-200);
+    padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .app-nav .logo { font-size: 16px; font-weight: 800; color: var(--brand); }
+  .app-nav .logo span { color: var(--accent); }
+  .app-nav-actions { display: flex; gap: 8px; align-items: center; }
+
+  /* ── BOTTOM NAV ── */
+  .bottom-nav {
+    position: sticky; bottom: 0;
+    background: #fff;
+    border-top: 1px solid var(--gray-200);
+    display: flex;
+    padding: 8px 0 12px;
+  }
+  .bnav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-size: 10px; color: var(--gray-400); cursor: pointer;
+    padding: 4px 0; transition: color .15s;
+  }
+  .bnav-item.active { color: var(--brand); }
+  .bnav-icon { font-size: 18px; line-height: 1; }
+  .bnav-label { font-size: 9px; }
+
+  /* ── BTN ── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 14px; font-weight: 600; border-radius: 10px;
+    padding: 12px 20px; cursor: pointer; transition: all .15s;
+    border: none; text-decoration: none;
+  }
+  .btn-primary { background: var(--brand); color: #fff; }
+  .btn-primary:hover { background: var(--brand-dark); }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-accent:hover { background: #EA6C00; }
+  .btn-outline { background: transparent; border: 1.5px solid var(--gray-300); color: var(--gray-700); }
+  .btn-outline:hover { border-color: var(--brand); color: var(--brand); }
+  .btn-ghost { background: transparent; color: var(--brand); padding: 8px 12px; }
+  .btn-sm { font-size: 12px; padding: 8px 14px; border-radius: 8px; }
+  .btn-full { width: 100%; }
+  .btn-lg { font-size: 15px; padding: 14px 24px; border-radius: 12px; }
+
+  /* ── CARD ── */
+  .card {
+    background: #fff; border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .card-elevated { box-shadow: var(--shadow-md); }
+
+  /* ── BADGE ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600; padding: 2px 8px;
+    border-radius: 99px;
+  }
+  .badge-blue { background: var(--brand-light); color: var(--brand); }
+  .badge-green { background: var(--green-light); color: var(--green); }
+  .badge-orange { background: var(--accent-light); color: var(--accent); }
+  .badge-gray { background: var(--gray-100); color: var(--gray-600); }
+
+  /* ── PROGRESS BAR ── */
+  .progress-bar { background: var(--gray-200); border-radius: 99px; height: 6px; overflow: hidden; }
+  .progress-fill { background: var(--brand); height: 100%; border-radius: 99px; transition: width .3s; }
+
+  /* ── FORM ── */
+  .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .form-label { font-size: 13px; font-weight: 600; color: var(--gray-700); }
+  .form-label .hint { font-weight: 400; color: var(--gray-400); font-size: 11px; margin-left: 4px; }
+  .form-input {
+    padding: 11px 14px; border-radius: 10px;
+    border: 1.5px solid var(--gray-300); font-size: 14px; color: var(--gray-800);
+    background: #fff; outline: none; transition: border-color .15s;
+  }
+  .form-input:focus { border-color: var(--brand); }
+  .form-input.filled { border-color: var(--gray-300); }
+
+  /* ── OPTION CARD ── */
+  .option-card {
+    border: 1.5px solid var(--gray-200); border-radius: 10px;
+    padding: 12px 14px; cursor: pointer; transition: all .15s;
+    display: flex; align-items: flex-start; gap: 10px;
+    margin-bottom: 8px;
+  }
+  .option-card:hover { border-color: var(--brand); background: var(--brand-light); }
+  .option-card.selected { border-color: var(--brand); background: var(--brand-light); }
+  .option-radio {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid var(--gray-300); flex-shrink: 0; margin-top: 1px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .option-card.selected .option-radio { border-color: var(--brand); background: var(--brand); }
+  .option-card.selected .option-radio::after {
+    content: ''; width: 7px; height: 7px; border-radius: 50%; background: #fff;
+  }
+  .option-text { font-size: 13px; color: var(--gray-700); line-height: 1.4; }
+  .option-text .sub { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+
+  /* ─────────────────────────────────── */
+  /*  SCREEN 1 — LANDING                */
+  /* ─────────────────────────────────── */
+  .landing-hero {
+    background: linear-gradient(145deg, #1E40AF 0%, #2563EB 60%, #3B82F6 100%);
+    padding: 56px 20px 32px;
+    color: #fff;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .landing-hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='20' cy='20' r='1' fill='rgba(255,255,255,.05)'/%3E%3C/svg%3E");
+  }
+  .landing-hero .eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; opacity: .7; margin-bottom: 12px;
+  }
+  .landing-hero h1 {
+    font-size: 26px; font-weight: 800; line-height: 1.2; margin-bottom: 8px;
+  }
+  .landing-hero h1 span { color: #FDE68A; }
+  .landing-hero .tagline {
+    font-size: 13px; opacity: .8; line-height: 1.5; margin-bottom: 6px;
+  }
+  .landing-hero .hindi {
+    font-size: 12px; opacity: .65; margin-bottom: 24px;
+  }
+  .landing-stats {
+    display: flex; justify-content: center; gap: 24px;
+    margin-top: 24px; padding-top: 20px;
+    border-top: 1px solid rgba(255,255,255,.2);
+  }
+  .landing-stat { text-align: center; }
+  .landing-stat .num { font-size: 20px; font-weight: 800; }
+  .landing-stat .label { font-size: 10px; opacity: .65; margin-top: 2px; }
+
+  .landing-features { padding: 24px 16px; }
+  .feature-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px 0; border-bottom: 1px solid var(--gray-100);
+  }
+  .feature-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .feature-icon.blue { background: var(--brand-light); }
+  .feature-icon.orange { background: var(--accent-light); }
+  .feature-icon.green { background: var(--green-light); }
+  .feature-icon.purple { background: #F3E8FF; }
+  .feature-text h3 { font-size: 13px; font-weight: 700; color: var(--gray-800); }
+  .feature-text p { font-size: 11px; color: var(--gray-500); margin-top: 2px; line-height: 1.4; }
+
+  .landing-roles { padding: 0 16px 24px; }
+  .roles-label { font-size: 12px; font-weight: 700; color: var(--gray-500); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 12px; }
+  .role-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .role-pill {
+    background: var(--gray-100); color: var(--gray-700);
+    font-size: 12px; padding: 6px 12px; border-radius: 99px;
+    border: 1px solid var(--gray-200);
+  }
+  .landing-cta { padding: 0 16px 24px; }
+  .trust-note { text-align: center; font-size: 11px; color: var(--gray-400); margin-top: 8px; }
+
+  /* ─────────────────────────────────── */
+  /*  SCREEN 2 — REGISTER               */
+  /* ─────────────────────────────────── */
+  .auth-screen { padding: 56px 20px 24px; }
+  .auth-header { text-align: center; margin-bottom: 28px; }
+  .auth-header .logo { font-size: 22px; font-weight: 800; color: var(--brand); margin-bottom: 8px; }
+  .auth-header .logo span { color: var(--accent); }
+  .auth-header h2 { font-size: 20px; font-weight: 700; color: var(--gray-900); }
+  .auth-header p { font-size: 13px; color: var(--gray-500); margin-top: 4px; }
+  .divider { display: flex; align-items: center; gap: 8px; margin: 16px 0; }
+  .divider-line { flex: 1; height: 1px; background: var(--gray-200); }
+  .divider span { font-size: 12px; color: var(--gray-400); }
+  .social-btn {
+    width: 100%; padding: 10px 16px; border-radius: 10px;
+    border: 1.5px solid var(--gray-200); background: #fff;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 13px; font-weight: 500; color: var(--gray-700);
+    cursor: pointer; margin-bottom: 8px;
+  }
+  .auth-footer { text-align: center; font-size: 12px; color: var(--gray-500); margin-top: 16px; }
+  .auth-footer a { color: var(--brand); font-weight: 600; }
+
+  /* ─────────────────────────────────── */
+  /*  SCREEN 3 — FIT CHECK              */
+  /* ─────────────────────────────────── */
+  .fit-check-header { padding: 16px 16px 0; }
+  .fit-check-step { font-size: 11px; color: var(--gray-400); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+  .fit-check-q { font-size: 17px; font-weight: 700; color: var(--gray-900); line-height: 1.3; margin-bottom: 4px; }
+  .fit-check-hint { font-size: 12px; color: var(--gray-500); margin-bottom: 16px; }
+  .fit-check-body { padding: 0 16px 20px; }
+  .fit-check-footer { padding: 16px; display: flex; gap: 8px; }
+
+  /* ─────────────────────────────────── */
+  /*  SCREEN 4 — RESULTS                */
+  /* ─────────────────────────────────── */
+  .results-header {
+    background: linear-gradient(135deg, #1E3A8A, #2563EB);
+    padding: 40px 20px 28px; color: #fff;
+  }
+  .results-header .label { font-size: 11px; opacity: .7; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+  .results-header h2 { font-size: 22px; font-weight: 800; margin: 6px 0 4px; }
+  .results-header .sub { font-size: 13px; opacity: .75; }
+  .match-card {
+    border-radius: 14px; overflow: hidden;
+    margin: 0 16px 12px;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--gray-200);
+    background: #fff;
+  }
+  .match-card-header {
+    padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+  }
+  .match-rank {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 800; flex-shrink: 0;
+  }
+  .rank-1 { background: #FEF3C7; color: #92400E; }
+  .rank-2 { background: #F1F5F9; color: #475569; }
+  .rank-3 { background: #FFF7ED; color: #9A3412; }
+  .match-title { font-size: 15px; font-weight: 700; color: var(--gray-900); }
+  .match-subtitle { font-size: 11px; color: var(--gray-500); margin-top: 1px; }
+  .match-score-wrap { margin-left: auto; text-align: right; }
+  .match-score { font-size: 20px; font-weight: 800; color: var(--green); }
+  .match-score-label { font-size: 10px; color: var(--gray-400); }
+  .match-body { padding: 0 16px 14px; border-top: 1px solid var(--gray-100); }
+  .match-why { font-size: 12px; color: var(--gray-600); line-height: 1.5; padding: 10px 0; }
+  .match-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .match-cta { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--gray-100); }
+  .results-body { padding: 16px 0 24px; }
+
+  /* ─────────────────────────────────── */
+  /*  SCREEN 5 — DASHBOARD              */
+  /* ─────────────────────────────────── */
+  .dash-header {
+    background: var(--brand);
+    padding: 40px 16px 20px;
+    color: #fff;
+  }
+  .dash-greeting { font-size: 12px; opacity: .8; }
+  .dash-name { font-size: 22px; font-weight: 800; margin: 2px 0; }
+  .dash-role { font-size: 13px; opacity: .8; }
+  .dash-progress-card {
+    background: rgba(255,255,255,.15);
+    border-radius: 12px; padding: 14px;
+    margin-top: 14px; border: 1px solid rgba(255,255,255,.2);
+  }
+  .dash-progress-label { font-size: 11px; font-weight: 600; opacity: .85; margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .dash-progress-bar { background: rgba(255,255,255,.3); border-radius: 99px; height: 7px; overflow: hidden; }
+  .dash-progress-fill { background: #FDE68A; height: 100%; border-radius: 99px; width: 45%; }
+  .dash-body { padding: 16px; }
+  .section-title { font-size: 13px; font-weight: 700; color: var(--gray-800); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .section-title a { font-size: 11px; font-weight: 600; color: var(--brand); }
+  .task-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px; border-radius: 10px; background: var(--gray-50);
+    border: 1px solid var(--gray-200); margin-bottom: 8px;
+  }
+  .task-check {
+    width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--gray-300);
+    flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center;
+  }
+  .task-check.done { background: var(--green); border-color: var(--green); }
+  .task-check.done::after { content: '✓'; color: #fff; font-size: 11px; font-weight: 700; }
+  .task-text { font-size: 13px; color: var(--gray-700); flex: 1; }
+  .task-text.done { text-decoration: line-through; color: var(--gray-400); }
+  .task-tag { font-size: 10px; color: var(--gray-400); margin-top: 2px; }
+  .stat-row { display: flex; gap: 10px; margin-bottom: 16px; }
+  .stat-box {
+    flex: 1; background: var(--gray-50); border: 1px solid var(--gray-200);
+    border-radius: 10px; padding: 12px; text-align: center;
+  }
+  .stat-box .val { font-size: 22px; font-weight: 800; color: var(--gray-900); }
+  .stat-box .lbl { font-size: 10px; color: var(--gray-500); margin-top: 2px; }
+  .app-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 10px; background: #fff;
+    border: 1px solid var(--gray-200); margin-bottom: 8px;
+  }
+  .company-logo {
+    width: 36px; height: 36px; border-radius: 8px; background: var(--gray-100);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; color: var(--gray-600); flex-shrink: 0;
+  }
+  .app-info { flex: 1; }
+  .app-role { font-size: 13px; font-weight: 600; color: var(--gray-800); }
+  .app-company { font-size: 11px; color: var(--gray-400); }
+
+  /* ─────────────────────────────────── */
+  /*  SCREEN 6 — RESUME                 */
+  /* ─────────────────────────────────── */
+  .resume-toolbar {
+    background: #fff; border-bottom: 1px solid var(--gray-200);
+    padding: 10px 16px; display: flex; align-items: center; gap: 8px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .resume-title { font-size: 14px; font-weight: 700; color: var(--gray-800); flex: 1; }
+  .resume-section-tabs {
+    display: flex; overflow-x: auto; gap: 0;
+    border-bottom: 1px solid var(--gray-200); background: #fff;
+    padding: 0 16px;
+  }
+  .res-tab {
+    font-size: 12px; font-weight: 600; padding: 10px 14px;
+    border-bottom: 2px solid transparent; color: var(--gray-500);
+    white-space: nowrap; cursor: pointer;
+  }
+  .res-tab.active { color: var(--brand); border-bottom-color: var(--brand); }
+  .resume-form { padding: 16px; }
+  .resume-preview-card {
+    margin: 0 16px 16px;
+    border: 1px solid var(--gray-200); border-radius: 10px;
+    overflow: hidden;
+  }
+  .rpc-header { background: var(--brand); padding: 16px; color: #fff; }
+  .rpc-name { font-size: 18px; font-weight: 800; }
+  .rpc-title { font-size: 12px; opacity: .8; margin-top: 2px; }
+  .rpc-body { padding: 12px 16px; background: var(--gray-50); }
+  .rpc-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--gray-500); margin-bottom: 8px; margin-top: 12px; }
+  .rpc-summary { font-size: 12px; color: var(--gray-600); line-height: 1.5; }
+  .rpc-skill-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rpc-skill { background: var(--brand-light); color: var(--brand); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
+  .ai-suggestion {
+    background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 10px;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .ai-icon { font-size: 16px; flex-shrink: 0; }
+  .ai-text { font-size: 12px; color: #92400E; line-height: 1.4; }
+  .ai-text strong { font-weight: 700; }
+
+  /* ─────────────────────────────────── */
+  /*  SCREEN 7 — WEEKLY PLAN            */
+  /* ─────────────────────────────────── */
+  .plan-header { padding: 40px 16px 16px; background: linear-gradient(135deg, #064E3B, #065F46); color: #fff; }
+  .plan-week-label { font-size: 11px; opacity: .7; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
+  .plan-title { font-size: 20px; font-weight: 800; margin: 4px 0; }
+  .plan-subtitle { font-size: 13px; opacity: .75; }
+  .plan-body { padding: 16px; }
+  .day-block { margin-bottom: 16px; }
+  .day-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--gray-400); margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .day-label::after { content: ''; flex: 1; height: 1px; background: var(--gray-200); }
+  .plan-task {
+    background: #fff; border: 1px solid var(--gray-200); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 6px;
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .plan-task-icon { font-size: 18px; flex-shrink: 0; }
+  .plan-task-body { flex: 1; }
+  .plan-task-title { font-size: 13px; font-weight: 600; color: var(--gray-800); }
+  .plan-task-desc { font-size: 11px; color: var(--gray-500); margin-top: 2px; line-height: 1.4; }
+  .plan-task-meta { display: flex; gap: 6px; margin-top: 6px; }
+  .plan-complete { border-left: 3px solid var(--green); }
+  .plan-complete .plan-task-title { color: var(--gray-400); text-decoration: line-through; }
+
+  /* ── DESKTOP LAYOUT ── */
+  .desktop-layout { display: flex; min-height: calc(100vh - 32px); }
+  .desktop-sidebar {
+    width: 220px; background: var(--gray-900);
+    padding: 20px 0; flex-shrink: 0;
+    display: flex; flex-direction: column;
+  }
+  .ds-logo { padding: 0 20px 20px; font-size: 18px; font-weight: 800; color: #fff; border-bottom: 1px solid #374151; }
+  .ds-logo span { color: var(--accent); }
+  .ds-nav { padding: 12px 0; flex: 1; }
+  .ds-nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 20px; font-size: 13px; color: #9CA3AF;
+    cursor: pointer; transition: all .15s;
+  }
+  .ds-nav-item:hover { background: #374151; color: #fff; }
+  .ds-nav-item.active { background: #1D4ED8; color: #fff; }
+  .ds-nav-icon { font-size: 16px; }
+  .ds-user { padding: 12px 20px; border-top: 1px solid #374151; display: flex; align-items: center; gap: 8px; }
+  .ds-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--brand); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; }
+  .ds-user-name { font-size: 12px; color: #D1D5DB; }
+  .desktop-main { flex: 1; overflow-y: auto; background: var(--gray-50); }
+  .desktop-topbar {
+    background: #fff; border-bottom: 1px solid var(--gray-200);
+    padding: 14px 24px; display: flex; align-items: center; gap: 12px;
+  }
+  .desktop-topbar h2 { font-size: 18px; font-weight: 700; color: var(--gray-900); flex: 1; }
+  .desktop-content { padding: 24px; }
+  .desktop-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .desktop-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .desktop-card { background: #fff; border-radius: 12px; border: 1px solid var(--gray-200); padding: 20px; box-shadow: var(--shadow); }
+  .kpi-val { font-size: 28px; font-weight: 800; color: var(--gray-900); }
+  .kpi-lbl { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
+  .kpi-trend { font-size: 12px; color: var(--green); font-weight: 600; margin-top: 6px; }
+
+  /* ── SCROLL indicator ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 4px; }
+
+  /* ── Annotations ── */
+  .annotation {
+    position: absolute; right: -140px; display: flex; align-items: center; gap: 6px;
+    pointer-events: none;
+  }
+  .annotation-line { width: 30px; height: 1px; background: #F97316; }
+  .annotation-text { font-size: 10px; color: #F97316; font-weight: 600; width: 100px; line-height: 1.3; }
+  .annotated { position: relative; }
+
+  /* ── Toast / indicator ── */
+  .toast {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+    background: var(--gray-800); color: #fff;
+    font-size: 12px; padding: 8px 16px; border-radius: 99px;
+    opacity: 0; pointer-events: none; transition: opacity .3s;
+    z-index: 999; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ── CHIP ── */
+  .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 99px; border: 1px solid; }
+
+  /* ── LANG TOGGLE ── */
+  .lang-toggle { display: flex; background: rgba(255,255,255,.15); border-radius: 8px; overflow: hidden; }
+  .lang-btn { font-size: 11px; font-weight: 700; padding: 4px 10px; color: rgba(255,255,255,.7); cursor: pointer; }
+  .lang-btn.active { background: rgba(255,255,255,.25); color: #fff; }
+
+  /* ─ Skeleton ─ */
+  @keyframes shimmer { 0%{background-position:-200px 0} 100%{background-position:calc(200px + 100%) 0} }
+  .skeleton { background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%); background-size: 200px 100%; animation: shimmer 1.2s infinite; border-radius: 6px; }
+
+</style>
+</head>
+<body>
+
+<!-- ── TOOLBAR ── -->
+<div class="toolbar">
+  <span class="toolbar-title">🎯 Job Readiness Coach</span>
+
+  <button class="nav-btn active" onclick="showScreen('landing')">Landing</button>
+  <button class="nav-btn" onclick="showScreen('register')">Register</button>
+  <button class="nav-btn" onclick="showScreen('fitcheck')">Fit Check</button>
+  <button class="nav-btn" onclick="showScreen('results')">Results</button>
+  <button class="nav-btn" onclick="showScreen('dashboard')">Dashboard</button>
+  <button class="nav-btn" onclick="showScreen('resume')">Resume</button>
+  <button class="nav-btn" onclick="showScreen('plan')">Weekly Plan</button>
+
+  <div class="spacer"></div>
+
+  <div class="device-toggle">
+    <button class="dev-btn active" id="mob-btn" onclick="setDevice('mobile')">📱 Mobile</button>
+    <button class="dev-btn" id="desk-btn" onclick="setDevice('desktop')">🖥 Desktop</button>
+  </div>
+</div>
+
+<!-- ── CANVAS ── -->
+<div class="canvas" id="canvas">
+
+  <!-- ════════════════════════════════ -->
+  <!--  PHONE FRAME                    -->
+  <!-- ════════════════════════════════ -->
+  <div class="phone-frame" id="phone-frame">
+    <div class="phone-notch"></div>
+    <div class="phone-screen" id="phone-screen">
+
+      <!-- ─── S1: LANDING ─── -->
+      <div class="screen active" id="screen-landing">
+        <div class="landing-hero">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div style="font-size:18px;font-weight:800;color:#fff">Job<span style="color:#FDE68A">Ready</span></div>
+            <div class="lang-toggle">
+              <div class="lang-btn active">EN</div>
+              <div class="lang-btn">हिंदी</div>
+            </div>
+          </div>
+          <div class="eyebrow">India's Job Readiness Coach</div>
+          <h1>Find your <span>first real job</span><br>with confidence</h1>
+          <p class="tagline">Discover roles that truly fit you, build a better resume, and get a clear weekly plan.</p>
+          <p class="hindi">अपनी पहली नौकरी खोजें — Hindi और English दोनों में</p>
+          <button class="btn btn-accent btn-lg btn-full" onclick="showScreen('register'); showToast('Starting your journey →')">
+            Start My Fit Check — Free 🚀
+          </button>
+          <div class="landing-stats">
+            <div class="landing-stat"><div class="num">12+</div><div class="label">Entry roles</div></div>
+            <div class="landing-stat"><div class="num">3 min</div><div class="label">Fit check</div></div>
+            <div class="landing-stat"><div class="num">Hindi</div><div class="label">+ English</div></div>
+          </div>
+        </div>
+
+        <div class="landing-features">
+          <div class="feature-row">
+            <div class="feature-icon blue">🎯</div>
+            <div class="feature-text">
+              <h3>Know your best-fit roles</h3>
+              <p>Answer 10 questions. Get your top 3 matches with clear reasons why they fit you.</p>
+            </div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-icon orange">📄</div>
+            <div class="feature-text">
+              <h3>Build a role-aligned resume</h3>
+              <p>We draft it for you based on your background. Download as PDF in minutes.</p>
+            </div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-icon green">📅</div>
+            <div class="feature-text">
+              <h3>Your weekly action plan</h3>
+              <p>Know exactly what to do each day — apply, prepare, follow up.</p>
+            </div>
+          </div>
+          <div class="feature-row" style="border-bottom:none">
+            <div class="feature-icon purple">🤖</div>
+            <div class="feature-text">
+              <h3>AI coach, always available</h3>
+              <p>Ask questions, get explanations, practice interviews — in Hindi or English.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="landing-roles">
+          <div class="roles-label">Roles we cover</div>
+          <div class="role-pills">
+            <span class="role-pill">Customer Support</span>
+            <span class="role-pill">Sales Executive</span>
+            <span class="role-pill">HR Recruiter</span>
+            <span class="role-pill">Data Entry / MIS</span>
+            <span class="role-pill">Academic Counsellor</span>
+            <span class="role-pill">Back Office</span>
+            <span class="role-pill">Operations</span>
+            <span class="role-pill">+ more</span>
+          </div>
+        </div>
+
+        <div class="landing-cta">
+          <button class="btn btn-primary btn-full btn-lg" onclick="showScreen('register'); showToast('Create your free account →')">
+            Create Free Account
+          </button>
+          <button class="btn btn-ghost btn-full" onclick="showScreen('register')">Already have an account? Sign in</button>
+        </div>
+      </div>
+
+      <!-- ─── S2: REGISTER ─── -->
+      <div class="screen" id="screen-register">
+        <div class="auth-screen">
+          <div class="auth-header">
+            <div class="logo">Job<span>Ready</span></div>
+            <h2>Create your account</h2>
+            <p>Start your job-readiness journey</p>
+          </div>
+
+          <div class="social-btn">
+            <span>🔵</span> Continue with Google
+          </div>
+
+          <div class="divider">
+            <div class="divider-line"></div>
+            <span>or sign up with email</span>
+            <div class="divider-line"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Full name</label>
+            <input class="form-input filled" value="Priya Sharma" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mobile number <span style="font-size:11px;color:#6B7280">(+91)</span></label>
+            <input class="form-input filled" value="98765 43210" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input class="form-input filled" value="priya.sharma@gmail.com" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <input class="form-input" type="password" value="••••••••" style="letter-spacing:4px" />
+          </div>
+
+          <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:16px">
+            <div style="width:16px;height:16px;border-radius:4px;border:2px solid var(--brand);background:var(--brand);flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center">
+              <span style="color:#fff;font-size:10px;font-weight:700">✓</span>
+            </div>
+            <p style="font-size:11px;color:var(--gray-500);line-height:1.5">I agree to the Terms of Service and Privacy Policy. JobReady is free to use.</p>
+          </div>
+
+          <button class="btn btn-primary btn-full btn-lg" onclick="showScreen('fitcheck'); showToast('Account created! Let's find your fit.')">
+            Create Account →
+          </button>
+
+          <div class="auth-footer">
+            Already have an account? <a href="#" onclick="return false">Sign in</a>
+          </div>
+
+          <div style="margin-top:16px;background:var(--brand-light);border-radius:10px;padding:10px 12px;font-size:11px;color:var(--gray-600);display:flex;gap:8px;align-items:flex-start">
+            <span>🇮🇳</span>
+            <span>Made for India. Your data stays private. We never spam.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── S3: FIT CHECK ─── -->
+      <div class="screen" id="screen-fitcheck">
+        <div class="app-nav">
+          <div class="logo">Job<span>Ready</span></div>
+          <div style="font-size:12px;color:var(--gray-500);font-weight:600">Step 1 of 3</div>
+        </div>
+
+        <div style="padding:12px 16px 8px">
+          <div style="margin-bottom:6px;font-size:11px;color:var(--gray-500);font-weight:600">Question 4 of 10</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:40%"></div></div>
+        </div>
+
+        <div class="fit-check-header">
+          <div class="fit-check-step">Education &amp; Background</div>
+          <div class="fit-check-q">What is your highest level of education?</div>
+          <div class="fit-check-hint">आपकी सबसे ऊंची शिक्षा क्या है?</div>
+        </div>
+
+        <div class="fit-check-body">
+          <div class="option-card">
+            <div class="option-radio"></div>
+            <div class="option-text">12th Pass / Intermediate<div class="sub">High school complete</div></div>
+          </div>
+          <div class="option-card selected">
+            <div class="option-radio"></div>
+            <div class="option-text">Graduate / Bachelor's<div class="sub">B.A., B.Sc., B.Com., BCA, or similar</div></div>
+          </div>
+          <div class="option-card">
+            <div class="option-radio"></div>
+            <div class="option-text">Postgraduate / Master's<div class="sub">M.A., MBA, M.Sc., or similar</div></div>
+          </div>
+          <div class="option-card">
+            <div class="option-radio"></div>
+            <div class="option-text">Diploma / Vocational<div class="sub">ITI, Polytechnic, or skill cert</div></div>
+          </div>
+        </div>
+
+        <div class="fit-check-footer">
+          <button class="btn btn-outline btn-sm" style="width:80px" onclick="showToast('← Previous question')">← Back</button>
+          <button class="btn btn-primary" style="flex:1" onclick="advanceFitCheck()">Next →</button>
+        </div>
+      </div>
+
+      <!-- ─── S4: RESULTS ─── -->
+      <div class="screen" id="screen-results">
+        <div class="results-header">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div class="label">🎉 Your Fit Check Results</div>
+              <h2>Your Top 3 Matches</h2>
+              <div class="sub">Based on your background, interests &amp; goals</div>
+            </div>
+            <div style="background:rgba(255,255,255,.15);border-radius:10px;padding:8px 12px;text-align:center">
+              <div style="font-size:20px;font-weight:800">82%</div>
+              <div style="font-size:10px;opacity:.7">avg fit</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="results-body">
+          <!-- Match 1 -->
+          <div class="match-card">
+            <div class="match-card-header">
+              <div class="match-rank rank-1">🥇</div>
+              <div>
+                <div class="match-title">Customer Support Executive</div>
+                <div class="match-subtitle">BPO / IT / E-commerce</div>
+              </div>
+              <div class="match-score-wrap">
+                <div class="match-score">91%</div>
+                <div class="match-score-label">fit score</div>
+              </div>
+            </div>
+            <div class="match-body">
+              <div class="match-why">
+                Your communication skills and patience align perfectly. Customer support roles have <strong>high openings</strong> in your city and often hire freshers with a graduation degree.
+              </div>
+              <div class="match-tags">
+                <span class="badge badge-blue">High openings</span>
+                <span class="badge badge-green">Fresher-friendly</span>
+                <span class="badge badge-orange">₹18k–28k/mo</span>
+              </div>
+            </div>
+            <div class="match-cta">
+              <button class="btn btn-primary" style="flex:1;font-size:12px;padding:9px 12px" onclick="showScreen('dashboard'); showToast('Role confirmed! Building your plan...')">Confirm this role →</button>
+              <button class="btn btn-outline btn-sm" onclick="showToast('Opening role details...')">Learn more</button>
+            </div>
+          </div>
+
+          <!-- Match 2 -->
+          <div class="match-card">
+            <div class="match-card-header">
+              <div class="match-rank rank-2">🥈</div>
+              <div>
+                <div class="match-title">HR Recruiter / Coordinator</div>
+                <div class="match-subtitle">Staffing / Corporate / Startup</div>
+              </div>
+              <div class="match-score-wrap">
+                <div class="match-score" style="color:var(--brand)">78%</div>
+                <div class="match-score-label">fit score</div>
+              </div>
+            </div>
+            <div class="match-body">
+              <div class="match-why">
+                Your interest in people and organization is a natural fit for HR. Entry-level roles often require no prior experience — just communication skills.
+              </div>
+              <div class="match-tags">
+                <span class="badge badge-blue">Growing field</span>
+                <span class="badge badge-gray">₹15k–24k/mo</span>
+              </div>
+            </div>
+            <div class="match-cta">
+              <button class="btn btn-outline" style="flex:1;font-size:12px;padding:9px 12px" onclick="showScreen('dashboard'); showToast('HR Recruiter selected!')">Select this role</button>
+              <button class="btn btn-outline btn-sm" onclick="showToast('Opening role details...')">Learn more</button>
+            </div>
+          </div>
+
+          <!-- Match 3 -->
+          <div class="match-card">
+            <div class="match-card-header">
+              <div class="match-rank rank-3">🥉</div>
+              <div>
+                <div class="match-title">Sales / Inside Sales Executive</div>
+                <div class="match-subtitle">FMCG / SaaS / EdTech</div>
+              </div>
+              <div class="match-score-wrap">
+                <div class="match-score" style="color:var(--accent)">74%</div>
+                <div class="match-score-label">fit score</div>
+              </div>
+            </div>
+            <div class="match-body">
+              <div class="match-why">
+                Strong communication and motivation to meet goals are your edge. Inside sales can have excellent earning potential through incentives.
+              </div>
+              <div class="match-tags">
+                <span class="badge badge-orange">High earning potential</span>
+                <span class="badge badge-gray">₹15k–30k + incentives</span>
+              </div>
+            </div>
+            <div class="match-cta">
+              <button class="btn btn-outline" style="flex:1;font-size:12px;padding:9px 12px" onclick="showScreen('dashboard'); showToast('Sales Executive selected!')">Select this role</button>
+              <button class="btn btn-outline btn-sm" onclick="showToast('Opening role details...')">Learn more</button>
+            </div>
+          </div>
+
+          <div style="padding:8px 16px 16px;text-align:center">
+            <p style="font-size:12px;color:var(--gray-400)">Not happy with these? <a href="#" style="color:var(--brand);font-weight:600" onclick="return false">Retake the fit check →</a></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── S5: DASHBOARD ─── -->
+      <div class="screen" id="screen-dashboard">
+        <div class="dash-header">
+          <div class="dash-greeting">Good morning,</div>
+          <div class="dash-name">Priya 👋</div>
+          <div class="dash-role">Target role: Customer Support Executive</div>
+          <div class="dash-progress-card">
+            <div class="dash-progress-label">
+              <span>Overall Progress</span>
+              <span style="color:#FDE68A">45%</span>
+            </div>
+            <div class="dash-progress-bar">
+              <div class="dash-progress-fill"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:8px">
+              <div style="font-size:10px;opacity:.7">✅ Fit Check done</div>
+              <div style="font-size:10px;opacity:.7">⏳ Resume in progress</div>
+              <div style="font-size:10px;opacity:.4">🔒 Plan locked</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dash-body">
+          <!-- Stats -->
+          <div class="stat-row">
+            <div class="stat-box"><div class="val">4</div><div class="lbl">Applied</div></div>
+            <div class="stat-box"><div class="val">2</div><div class="lbl">Interviews</div></div>
+            <div class="stat-box"><div class="val">6</div><div class="lbl">Day streak</div></div>
+          </div>
+
+          <!-- Today's tasks -->
+          <div class="section-title">
+            Today's Tasks
+            <a href="#" onclick="showScreen('plan'); return false">See all →</a>
+          </div>
+          <div class="task-item">
+            <div class="task-check done"></div>
+            <div>
+              <div class="task-text done">Complete resume summary section</div>
+              <div class="task-tag">✅ Completed · Resume</div>
+            </div>
+          </div>
+          <div class="task-item">
+            <div class="task-check"></div>
+            <div>
+              <div class="task-text">Apply to 2 Customer Support roles on Naukri</div>
+              <div class="task-tag">📋 Due today · Applications</div>
+            </div>
+          </div>
+          <div class="task-item">
+            <div class="task-check"></div>
+            <div>
+              <div class="task-text">Practice 3 common interview questions</div>
+              <div class="task-tag">🎤 Due today · Interview Prep</div>
+            </div>
+          </div>
+
+          <!-- Applications -->
+          <div class="section-title" style="margin-top:20px">
+            Recent Applications
+            <a href="#" onclick="return false">View all →</a>
+          </div>
+          <div class="app-item">
+            <div class="company-logo">TT</div>
+            <div class="app-info">
+              <div class="app-role">Customer Support Executive</div>
+              <div class="app-company">TechTree India · Bangalore</div>
+            </div>
+            <span class="badge badge-orange">Applied</span>
+          </div>
+          <div class="app-item">
+            <div class="company-logo">AZ</div>
+            <div class="app-info">
+              <div class="app-role">Customer Support Associate</div>
+              <div class="app-company">Amazon · Hyderabad</div>
+            </div>
+            <span class="badge badge-blue">Screening</span>
+          </div>
+
+          <!-- Quick actions -->
+          <div class="section-title" style="margin-top:20px">Quick Actions</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px">
+            <button class="card" style="text-align:center;cursor:pointer;padding:14px 8px" onclick="showScreen('resume'); showToast('Opening Resume Builder...')">
+              <div style="font-size:24px;margin-bottom:4px">📄</div>
+              <div style="font-size:12px;font-weight:600;color:var(--gray-800)">Build Resume</div>
+              <div style="font-size:10px;color:var(--gray-400);margin-top:2px">45% complete</div>
+            </button>
+            <button class="card" style="text-align:center;cursor:pointer;padding:14px 8px" onclick="showScreen('plan'); showToast('Opening Weekly Plan...')">
+              <div style="font-size:24px;margin-bottom:4px">📅</div>
+              <div style="font-size:12px;font-weight:600;color:var(--gray-800)">Weekly Plan</div>
+              <div style="font-size:10px;color:var(--gray-400);margin-top:2px">Week 2 of 8</div>
+            </button>
+            <button class="card" style="text-align:center;cursor:pointer;padding:14px 8px" onclick="showToast('Opening Interview Coach...')">
+              <div style="font-size:24px;margin-bottom:4px">🎤</div>
+              <div style="font-size:12px;font-weight:600;color:var(--gray-800)">Interview Prep</div>
+              <div style="font-size:10px;color:var(--gray-400);margin-top:2px">3 questions done</div>
+            </button>
+            <button class="card" style="text-align:center;cursor:pointer;padding:14px 8px" onclick="showToast('Opening AI Coach...')">
+              <div style="font-size:24px;margin-bottom:4px">🤖</div>
+              <div style="font-size:12px;font-weight:600;color:var(--gray-800)">Ask Coach</div>
+              <div style="font-size:10px;color:var(--gray-400);margin-top:2px">Hindi / English</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="bottom-nav">
+          <div class="bnav-item active" onclick="showScreen('dashboard')">
+            <div class="bnav-icon">🏠</div><div class="bnav-label">Home</div>
+          </div>
+          <div class="bnav-item" onclick="showScreen('resume'); showToast('Resume Builder')">
+            <div class="bnav-icon">📄</div><div class="bnav-label">Resume</div>
+          </div>
+          <div class="bnav-item" onclick="showScreen('plan'); showToast('Weekly Plan')">
+            <div class="bnav-icon">📅</div><div class="bnav-label">Plan</div>
+          </div>
+          <div class="bnav-item" onclick="showToast('Applications tracker')">
+            <div class="bnav-icon">💼</div><div class="bnav-label">Jobs</div>
+          </div>
+          <div class="bnav-item" onclick="showToast('Your profile')">
+            <div class="bnav-icon">👤</div><div class="bnav-label">Profile</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── S6: RESUME ─── -->
+      <div class="screen" id="screen-resume">
+        <div class="resume-toolbar">
+          <button class="btn btn-ghost btn-sm" onclick="showScreen('dashboard')" style="padding:4px 8px;color:var(--gray-500)">← Back</button>
+          <div class="resume-title">Resume Builder</div>
+          <button class="btn btn-primary btn-sm" onclick="showToast('📥 Resume PDF downloaded!')">Save PDF</button>
+        </div>
+
+        <div style="padding:12px 16px;background:var(--brand-light);border-bottom:1px solid var(--gray-200)">
+          <div style="font-size:11px;font-weight:700;color:var(--brand);margin-bottom:4px">For: Customer Support Executive</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:55%"></div></div>
+          <div style="font-size:11px;color:var(--gray-500);margin-top:4px">3 of 6 sections complete · 55% done</div>
+        </div>
+
+        <div class="resume-section-tabs">
+          <div class="res-tab active">Preview</div>
+          <div class="res-tab" onclick="showToast('Editing personal info...')">Personal</div>
+          <div class="res-tab" onclick="showToast('Editing summary...')">Summary</div>
+          <div class="res-tab" onclick="showToast('Editing education...')">Education</div>
+          <div class="res-tab" onclick="showToast('Editing skills...')">Skills</div>
+          <div class="res-tab" onclick="showToast('Editing experience...')">Experience</div>
+        </div>
+
+        <div style="padding:12px 16px 0">
+          <div class="ai-suggestion">
+            <div class="ai-icon">✨</div>
+            <div class="ai-text"><strong>AI Suggestion:</strong> Add a quantified achievement to your summary. Try: "Resolved 50+ customer queries daily with 95% satisfaction." <a href="#" style="color:var(--brand);font-weight:600" onclick="showToast('AI suggestion applied!'); return false">Apply suggestion →</a></div>
+          </div>
+        </div>
+
+        <!-- Resume preview card -->
+        <div class="resume-preview-card">
+          <div class="rpc-header">
+            <div class="rpc-name">Priya Sharma</div>
+            <div class="rpc-title">Customer Support Executive</div>
+            <div style="display:flex;gap:12px;margin-top:8px;font-size:10px;opacity:.8">
+              <span>📧 priya.sharma@gmail.com</span>
+              <span>📱 +91 98765 43210</span>
+            </div>
+            <div style="font-size:10px;opacity:.7;margin-top:2px">📍 Bangalore, Karnataka</div>
+          </div>
+          <div class="rpc-body">
+            <div class="rpc-section-label">Professional Summary</div>
+            <div class="rpc-summary">Motivated B.Com graduate with excellent communication skills and a customer-first mindset. Eager to contribute to a support team and build a strong career in customer service.</div>
+            <div class="rpc-section-label">Education</div>
+            <div style="font-size:12px;color:var(--gray-700)">
+              <strong>B.Com (General)</strong> — Bangalore University<br>
+              <span style="color:var(--gray-500);font-size:11px">2021–2024 · CGPA 7.2</span>
+            </div>
+            <div class="rpc-section-label">Skills</div>
+            <div class="rpc-skill-row">
+              <span class="rpc-skill">Customer Communication</span>
+              <span class="rpc-skill">MS Excel</span>
+              <span class="rpc-skill">CRM Tools</span>
+              <span class="rpc-skill">Hindi &amp; English</span>
+              <span class="rpc-skill">Problem Solving</span>
+            </div>
+            <div class="rpc-section-label" style="color:var(--accent)">⚠ Sections to complete</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="background:var(--accent-light);border:1px dashed var(--accent);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--accent);cursor:pointer" onclick="showToast('Adding work experience...')">
+                + Add Work Experience or Internship
+              </div>
+              <div style="background:var(--gray-50);border:1px dashed var(--gray-300);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--gray-400);cursor:pointer" onclick="showToast('Adding projects...')">
+                + Add Projects or Certifications
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:0 16px 24px;display:flex;gap:8px">
+          <button class="btn btn-primary" style="flex:1" onclick="showToast('📥 Downloading resume PDF...')">Download PDF</button>
+          <button class="btn btn-outline" style="flex:1" onclick="showToast('💬 AI improving your resume...')">✨ AI Improve</button>
+        </div>
+
+        <div class="bottom-nav">
+          <div class="bnav-item" onclick="showScreen('dashboard')"><div class="bnav-icon">🏠</div><div class="bnav-label">Home</div></div>
+          <div class="bnav-item active"><div class="bnav-icon">📄</div><div class="bnav-label">Resume</div></div>
+          <div class="bnav-item" onclick="showScreen('plan')"><div class="bnav-icon">📅</div><div class="bnav-label">Plan</div></div>
+          <div class="bnav-item" onclick="showToast('Applications')"><div class="bnav-icon">💼</div><div class="bnav-label">Jobs</div></div>
+          <div class="bnav-item" onclick="showToast('Profile')"><div class="bnav-icon">👤</div><div class="bnav-label">Profile</div></div>
+        </div>
+      </div>
+
+      <!-- ─── S7: WEEKLY PLAN ─── -->
+      <div class="screen" id="screen-plan">
+        <div class="plan-header">
+          <div class="plan-week-label">Customer Support Executive · Week 2 of 8</div>
+          <div class="plan-title">Your Weekly Plan</div>
+          <div class="plan-subtitle">Focus: Resume completion + First applications</div>
+          <div style="margin-top:14px">
+            <div style="font-size:11px;opacity:.7;margin-bottom:6px;display:flex;justify-content:space-between"><span>Week progress</span><span>3 / 7 tasks done</span></div>
+            <div style="background:rgba(255,255,255,.2);border-radius:99px;height:6px;overflow:hidden">
+              <div style="background:#6EE7B7;width:43%;height:100%;border-radius:99px"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="plan-body">
+          <!-- Monday -->
+          <div class="day-block">
+            <div class="day-label">Monday · Today</div>
+            <div class="plan-task plan-complete">
+              <div class="plan-task-icon">✅</div>
+              <div class="plan-task-body">
+                <div class="plan-task-title">Complete resume summary section</div>
+                <div class="plan-task-desc">Write 2–3 sentences about your background and career goal.</div>
+                <div class="plan-task-meta"><span class="badge badge-green">Done</span><span class="badge badge-gray">20 min</span></div>
+              </div>
+            </div>
+            <div class="plan-task">
+              <div class="plan-task-icon">📝</div>
+              <div class="plan-task-body">
+                <div class="plan-task-title">Apply to 2 Customer Support roles on Naukri</div>
+                <div class="plan-task-desc">Search "Customer Support Executive fresher Bangalore" and apply with your resume.</div>
+                <div class="plan-task-meta"><span class="badge badge-orange">Pending</span><span class="badge badge-gray">30 min</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tuesday -->
+          <div class="day-block">
+            <div class="day-label">Tuesday</div>
+            <div class="plan-task plan-complete">
+              <div class="plan-task-icon">✅</div>
+              <div class="plan-task-body">
+                <div class="plan-task-title">Add education details to resume</div>
+                <div class="plan-task-desc">Fill in your degree, institution, year, and grades.</div>
+                <div class="plan-task-meta"><span class="badge badge-green">Done</span><span class="badge badge-gray">15 min</span></div>
+              </div>
+            </div>
+            <div class="plan-task">
+              <div class="plan-task-icon">🎤</div>
+              <div class="plan-task-body">
+                <div class="plan-task-title">Practice "Tell me about yourself" answer</div>
+                <div class="plan-task-desc">Use the AI coach to record and get feedback on your answer.</div>
+                <div class="plan-task-meta"><span class="badge badge-blue">Upcoming</span><span class="badge badge-gray">25 min</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Wednesday -->
+          <div class="day-block">
+            <div class="day-label">Wednesday</div>
+            <div class="plan-task plan-complete">
+              <div class="plan-task-icon">✅</div>
+              <div class="plan-task-body">
+                <div class="plan-task-title">Research 5 companies hiring freshers</div>
+                <div class="plan-task-desc">Make a shortlist with company name, role, and Naukri link.</div>
+                <div class="plan-task-meta"><span class="badge badge-green">Done</span><span class="badge badge-gray">45 min</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Thursday -->
+          <div class="day-block">
+            <div class="day-label">Thursday</div>
+            <div class="plan-task">
+              <div class="plan-task-icon">📩</div>
+              <div class="plan-task-body">
+                <div class="plan-task-title">Apply to 3 more roles</div>
+                <div class="plan-task-desc">Use your shortlist from Wednesday to send 3 applications.</div>
+                <div class="plan-task-meta"><span class="badge badge-blue">Upcoming</span><span class="badge badge-gray">40 min</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Friday -->
+          <div class="day-block">
+            <div class="day-label">Friday</div>
+            <div class="plan-task">
+              <div class="plan-task-icon">🔁</div>
+              <div class="plan-task-body">
+                <div class="plan-task-title">Weekly review &amp; update dashboard</div>
+                <div class="plan-task-desc">Log applications, note responses, and update your progress.</div>
+                <div class="plan-task-meta"><span class="badge badge-blue">Upcoming</span><span class="badge badge-gray">15 min</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="padding:8px 0 16px;text-align:center">
+            <button class="btn btn-primary btn-full" onclick="showToast('Marking all done for the week! 🎉')">Complete Week →</button>
+          </div>
+        </div>
+
+        <div class="bottom-nav">
+          <div class="bnav-item" onclick="showScreen('dashboard')"><div class="bnav-icon">🏠</div><div class="bnav-label">Home</div></div>
+          <div class="bnav-item" onclick="showScreen('resume')"><div class="bnav-icon">📄</div><div class="bnav-label">Resume</div></div>
+          <div class="bnav-item active"><div class="bnav-icon">📅</div><div class="bnav-label">Plan</div></div>
+          <div class="bnav-item" onclick="showToast('Applications')"><div class="bnav-icon">💼</div><div class="bnav-label">Jobs</div></div>
+          <div class="bnav-item" onclick="showToast('Profile')"><div class="bnav-icon">👤</div><div class="bnav-label">Profile</div></div>
+        </div>
+      </div>
+
+    </div><!-- /phone-screen -->
+  </div><!-- /phone-frame -->
+
+  <!-- ════════════════════════════════ -->
+  <!--  DESKTOP FRAME                  -->
+  <!-- ════════════════════════════════ -->
+  <div class="desktop-frame" id="desktop-frame" style="display:none">
+    <div class="desktop-titlebar">
+      <div class="dot red"></div>
+      <div class="dot yellow"></div>
+      <div class="dot green"></div>
+      <div class="url-bar">🔒 app.jobready.in/<span id="url-slug">dashboard</span></div>
+    </div>
+
+    <!-- Desktop: Dashboard -->
+    <div class="screen desktop-layout active" id="dscreen-dashboard">
+      <div class="desktop-sidebar">
+        <div class="ds-logo">Job<span>Ready</span></div>
+        <div class="ds-nav">
+          <div class="ds-nav-item active"><span class="ds-nav-icon">🏠</span> Dashboard</div>
+          <div class="ds-nav-item" onclick="showDesktopScreen('resume')"><span class="ds-nav-icon">📄</span> Resume Builder</div>
+          <div class="ds-nav-item" onclick="showDesktopScreen('plan')"><span class="ds-nav-icon">📅</span> Weekly Plan</div>
+          <div class="ds-nav-item" onclick="showToast('Applications tracker')"><span class="ds-nav-icon">💼</span> Applications</div>
+          <div class="ds-nav-item" onclick="showToast('Interview Coach')"><span class="ds-nav-icon">🎤</span> Interview Prep</div>
+          <div class="ds-nav-item" onclick="showToast('AI Coach')"><span class="ds-nav-icon">🤖</span> Ask Coach</div>
+          <div class="ds-nav-item" onclick="showToast('Profile settings')"><span class="ds-nav-icon">⚙️</span> Settings</div>
+        </div>
+        <div class="ds-user">
+          <div class="ds-avatar">P</div>
+          <div class="ds-user-name">Priya Sharma</div>
+        </div>
+      </div>
+      <div class="desktop-main">
+        <div class="desktop-topbar">
+          <h2>Dashboard</h2>
+          <span class="badge badge-blue">Customer Support Executive</span>
+          <button class="btn btn-primary btn-sm" onclick="showToast('Opening AI Coach...')">🤖 Ask Coach</button>
+        </div>
+        <div class="desktop-content">
+          <!-- KPI Row -->
+          <div class="desktop-grid-3" style="margin-bottom:20px">
+            <div class="desktop-card">
+              <div class="kpi-lbl">Overall Progress</div>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+                <div style="font-size:32px;font-weight:800;color:var(--brand)">45%</div>
+                <div style="flex:1">
+                  <div class="progress-bar" style="height:8px"><div class="progress-fill" style="width:45%"></div></div>
+                  <div style="font-size:11px;color:var(--gray-400);margin-top:4px">Fit Check ✓ · Resume 55% · Plan active</div>
+                </div>
+              </div>
+            </div>
+            <div class="desktop-card">
+              <div class="kpi-lbl">Applications</div>
+              <div class="kpi-val">4</div>
+              <div class="kpi-trend">↑ 2 this week · 1 in screening</div>
+            </div>
+            <div class="desktop-card">
+              <div class="kpi-lbl">Activity Streak</div>
+              <div class="kpi-val">🔥 6 days</div>
+              <div class="kpi-trend">Keep going — next milestone: 10 days</div>
+            </div>
+          </div>
+          <!-- Two column -->
+          <div class="desktop-grid-2">
+            <div>
+              <div class="desktop-card" style="margin-bottom:16px">
+                <div class="section-title" style="margin-bottom:14px">Today's Tasks <a href="#" onclick="showDesktopScreen('plan');return false">View plan →</a></div>
+                <div class="task-item">
+                  <div class="task-check done"></div>
+                  <div><div class="task-text done">Complete resume summary section</div><div class="task-tag">✅ Done · Resume</div></div>
+                </div>
+                <div class="task-item">
+                  <div class="task-check"></div>
+                  <div><div class="task-text">Apply to 2 Customer Support roles on Naukri</div><div class="task-tag">📋 Due today</div></div>
+                </div>
+                <div class="task-item">
+                  <div class="task-check"></div>
+                  <div><div class="task-text">Practice "Tell me about yourself" answer</div><div class="task-tag">🎤 Due today</div></div>
+                </div>
+              </div>
+              <div class="desktop-card">
+                <div class="section-title" style="margin-bottom:14px">Recent Applications</div>
+                <div class="app-item">
+                  <div class="company-logo">TT</div>
+                  <div class="app-info"><div class="app-role">Customer Support Executive</div><div class="app-company">TechTree India · Bangalore</div></div>
+                  <span class="badge badge-orange">Applied</span>
+                </div>
+                <div class="app-item">
+                  <div class="company-logo">AZ</div>
+                  <div class="app-info"><div class="app-role">Customer Support Associate</div><div class="app-company">Amazon · Hyderabad</div></div>
+                  <span class="badge badge-blue">Screening</span>
+                </div>
+                <div class="app-item">
+                  <div class="company-logo">FL</div>
+                  <div class="app-info"><div class="app-role">Support Executive</div><div class="app-company">Flipkart · Bangalore</div></div>
+                  <span class="badge badge-gray">Viewed</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="desktop-card" style="margin-bottom:16px">
+                <div class="section-title" style="margin-bottom:14px">Resume Completion</div>
+                <div style="margin-bottom:12px">
+                  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>Summary</span><span class="badge badge-green">Done</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>Education</span><span class="badge badge-green">Done</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>Skills</span><span class="badge badge-green">Done</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>Work Experience</span><span class="badge badge-orange">In progress</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>Projects</span><span class="badge badge-gray">Pending</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px"><span>Certifications</span><span class="badge badge-gray">Pending</span></div>
+                  <div class="progress-bar"><div class="progress-fill" style="width:55%"></div></div>
+                  <div style="font-size:11px;color:var(--gray-400);margin-top:4px">55% complete</div>
+                </div>
+                <button class="btn btn-primary btn-sm btn-full" onclick="showDesktopScreen('resume')">Continue Resume →</button>
+              </div>
+              <div class="desktop-card">
+                <div class="section-title" style="margin-bottom:12px">AI Coach Tip ✨</div>
+                <div class="ai-suggestion">
+                  <div class="ai-icon">🤖</div>
+                  <div class="ai-text">
+                    <strong>This week's tip:</strong> Freshers who apply within 24 hours of a job posting get 3× more callbacks. Check Naukri each morning!<br>
+                    <a href="#" style="color:var(--brand);font-weight:600;font-size:12px" onclick="showToast('Opening AI Coach...');return false">Ask a question →</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop: Resume -->
+    <div class="screen desktop-layout" id="dscreen-resume">
+      <div class="desktop-sidebar">
+        <div class="ds-logo">Job<span>Ready</span></div>
+        <div class="ds-nav">
+          <div class="ds-nav-item" onclick="showDesktopScreen('dashboard')"><span class="ds-nav-icon">🏠</span> Dashboard</div>
+          <div class="ds-nav-item active"><span class="ds-nav-icon">📄</span> Resume Builder</div>
+          <div class="ds-nav-item" onclick="showDesktopScreen('plan')"><span class="ds-nav-icon">📅</span> Weekly Plan</div>
+          <div class="ds-nav-item" onclick="showToast('Applications')"><span class="ds-nav-icon">💼</span> Applications</div>
+          <div class="ds-nav-item" onclick="showToast('Interview Coach')"><span class="ds-nav-icon">🎤</span> Interview Prep</div>
+          <div class="ds-nav-item" onclick="showToast('AI Coach')"><span class="ds-nav-icon">🤖</span> Ask Coach</div>
+        </div>
+        <div class="ds-user"><div class="ds-avatar">P</div><div class="ds-user-name">Priya Sharma</div></div>
+      </div>
+      <div class="desktop-main">
+        <div class="desktop-topbar">
+          <h2>Resume Builder</h2>
+          <span class="badge badge-blue">Customer Support Executive</span>
+          <button class="btn btn-primary btn-sm" onclick="showToast('📥 Resume PDF downloaded!')">📥 Download PDF</button>
+          <button class="btn btn-outline btn-sm" onclick="showToast('✨ AI improving resume...')">✨ AI Improve</button>
+        </div>
+        <div class="desktop-content">
+          <div style="display:flex;gap:20px">
+            <!-- Left: form -->
+            <div style="flex:1">
+              <div class="ai-suggestion" style="margin-bottom:16px">
+                <div class="ai-icon">✨</div>
+                <div class="ai-text"><strong>AI Suggestion:</strong> Add a quantified achievement to your summary. Try: "Resolved 50+ customer queries daily with 95% satisfaction." <a href="#" style="color:var(--brand);font-weight:600" onclick="showToast('AI suggestion applied!'); return false">Apply →</a></div>
+              </div>
+              <div class="desktop-card" style="margin-bottom:16px">
+                <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--gray-800)">Professional Summary</div>
+                <textarea style="width:100%;padding:10px 12px;border-radius:8px;border:1.5px solid var(--gray-300);font-size:13px;color:var(--gray-700);resize:vertical;min-height:80px;font-family:inherit;line-height:1.5">Motivated B.Com graduate with excellent communication skills and a customer-first mindset. Eager to contribute to a support team and build a strong career in customer service.</textarea>
+              </div>
+              <div class="desktop-card" style="margin-bottom:16px">
+                <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--gray-800)">Skills <span style="font-size:12px;font-weight:400;color:var(--gray-400)">(for Customer Support roles)</span></div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+                  <span class="rpc-skill" style="padding:5px 12px;font-size:12px">Customer Communication ✓</span>
+                  <span class="rpc-skill" style="padding:5px 12px;font-size:12px">MS Excel ✓</span>
+                  <span class="rpc-skill" style="padding:5px 12px;font-size:12px">CRM Tools ✓</span>
+                  <span class="rpc-skill" style="padding:5px 12px;font-size:12px">Hindi &amp; English ✓</span>
+                  <span style="background:var(--gray-100);color:var(--gray-500);font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer" onclick="showToast('Adding skill...')">+ Add skill</span>
+                </div>
+                <div style="background:var(--brand-light);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--brand)">💡 Suggested: Zendesk, Freshdesk, Ticket Management, Active Listening <a href="#" style="font-weight:600" onclick="showToast('Skills added!');return false">Add all →</a></div>
+              </div>
+              <div class="desktop-card">
+                <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--gray-800)">Work Experience</div>
+                <div style="background:var(--accent-light);border:1.5px dashed var(--accent);border-radius:10px;padding:16px;text-align:center;cursor:pointer" onclick="showToast('Adding work experience...')">
+                  <div style="font-size:20px;margin-bottom:6px">💼</div>
+                  <div style="font-size:13px;font-weight:600;color:var(--accent)">Add Work Experience or Internship</div>
+                  <div style="font-size:11px;color:var(--accent);opacity:.7;margin-top:2px">Even part-time or freelance work counts!</div>
+                </div>
+              </div>
+            </div>
+            <!-- Right: preview -->
+            <div style="width:320px;flex-shrink:0">
+              <div style="font-size:12px;font-weight:700;color:var(--gray-500);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">Live Preview</div>
+              <div class="resume-preview-card" style="margin:0">
+                <div class="rpc-header">
+                  <div class="rpc-name">Priya Sharma</div>
+                  <div class="rpc-title">Customer Support Executive</div>
+                  <div style="display:flex;gap:12px;margin-top:8px;font-size:10px;opacity:.8">
+                    <span>📧 priya.sharma@gmail.com</span>
+                    <span>📱 +91 98765 43210</span>
+                  </div>
+                </div>
+                <div class="rpc-body">
+                  <div class="rpc-section-label">Summary</div>
+                  <div class="rpc-summary">Motivated B.Com graduate with excellent communication skills and a customer-first mindset. Eager to contribute to a support team and build a strong career in customer service.</div>
+                  <div class="rpc-section-label">Education</div>
+                  <div style="font-size:12px;color:var(--gray-700)"><strong>B.Com (General)</strong> — Bangalore University<br><span style="color:var(--gray-500);font-size:11px">2021–2024 · CGPA 7.2</span></div>
+                  <div class="rpc-section-label">Skills</div>
+                  <div class="rpc-skill-row">
+                    <span class="rpc-skill">Customer Communication</span>
+                    <span class="rpc-skill">MS Excel</span>
+                    <span class="rpc-skill">CRM Tools</span>
+                    <span class="rpc-skill">Hindi &amp; English</span>
+                  </div>
+                  <div class="rpc-section-label" style="color:var(--accent)">⏳ Work Experience</div>
+                  <div style="font-size:11px;color:var(--gray-400);font-style:italic">Not added yet</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop: Weekly Plan -->
+    <div class="screen desktop-layout" id="dscreen-plan">
+      <div class="desktop-sidebar">
+        <div class="ds-logo">Job<span>Ready</span></div>
+        <div class="ds-nav">
+          <div class="ds-nav-item" onclick="showDesktopScreen('dashboard')"><span class="ds-nav-icon">🏠</span> Dashboard</div>
+          <div class="ds-nav-item" onclick="showDesktopScreen('resume')"><span class="ds-nav-icon">📄</span> Resume Builder</div>
+          <div class="ds-nav-item active"><span class="ds-nav-icon">📅</span> Weekly Plan</div>
+          <div class="ds-nav-item" onclick="showToast('Applications')"><span class="ds-nav-icon">💼</span> Applications</div>
+          <div class="ds-nav-item" onclick="showToast('Interview Coach')"><span class="ds-nav-icon">🎤</span> Interview Prep</div>
+          <div class="ds-nav-item" onclick="showToast('AI Coach')"><span class="ds-nav-icon">🤖</span> Ask Coach</div>
+        </div>
+        <div class="ds-user"><div class="ds-avatar">P</div><div class="ds-user-name">Priya Sharma</div></div>
+      </div>
+      <div class="desktop-main">
+        <div class="desktop-topbar">
+          <h2>Weekly Plan — Week 2 of 8</h2>
+          <span class="badge badge-green">3 / 7 done</span>
+          <div style="flex:1"></div>
+          <button class="btn btn-outline btn-sm" onclick="showToast('Viewing all 8 weeks...')">View all weeks</button>
+        </div>
+        <div class="desktop-content">
+          <div style="background:linear-gradient(135deg,#064E3B,#065F46);border-radius:12px;padding:20px;color:#fff;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:18px;font-weight:800">Focus: Resume completion + First applications</div>
+              <div style="font-size:13px;opacity:.75;margin-top:4px">Customer Support Executive track · Week 2 of 8</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:28px;font-weight:800;color:#6EE7B7">43%</div>
+              <div style="font-size:11px;opacity:.7">week progress</div>
+            </div>
+          </div>
+          <div class="desktop-grid-2">
+            <div>
+              <div class="desktop-card">
+                <div class="section-title" style="margin-bottom:12px">Monday — Today</div>
+                <div class="plan-task plan-complete" style="background:var(--gray-50)">
+                  <div class="plan-task-icon">✅</div>
+                  <div class="plan-task-body">
+                    <div class="plan-task-title">Complete resume summary section</div>
+                    <div class="plan-task-meta"><span class="badge badge-green">Done</span><span class="badge badge-gray">20 min</span></div>
+                  </div>
+                </div>
+                <div class="plan-task" style="background:var(--gray-50)">
+                  <div class="plan-task-icon">📝</div>
+                  <div class="plan-task-body">
+                    <div class="plan-task-title">Apply to 2 Customer Support roles on Naukri</div>
+                    <div class="plan-task-desc">Search "Customer Support Executive fresher Bangalore"</div>
+                    <div class="plan-task-meta"><span class="badge badge-orange">Pending</span><span class="badge badge-gray">30 min</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="desktop-card" style="margin-top:16px">
+                <div class="section-title" style="margin-bottom:12px">Wednesday</div>
+                <div class="plan-task plan-complete" style="background:var(--gray-50)">
+                  <div class="plan-task-icon">✅</div>
+                  <div class="plan-task-body">
+                    <div class="plan-task-title">Research 5 companies hiring freshers</div>
+                    <div class="plan-task-meta"><span class="badge badge-green">Done</span><span class="badge badge-gray">45 min</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="desktop-card" style="margin-bottom:16px">
+                <div class="section-title" style="margin-bottom:12px">Tuesday</div>
+                <div class="plan-task plan-complete" style="background:var(--gray-50)">
+                  <div class="plan-task-icon">✅</div>
+                  <div class="plan-task-body">
+                    <div class="plan-task-title">Add education details to resume</div>
+                    <div class="plan-task-meta"><span class="badge badge-green">Done</span><span class="badge badge-gray">15 min</span></div>
+                  </div>
+                </div>
+                <div class="plan-task" style="background:var(--gray-50)">
+                  <div class="plan-task-icon">🎤</div>
+                  <div class="plan-task-body">
+                    <div class="plan-task-title">Practice "Tell me about yourself" answer</div>
+                    <div class="plan-task-meta"><span class="badge badge-blue">Upcoming</span><span class="badge badge-gray">25 min</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="desktop-card">
+                <div class="section-title" style="margin-bottom:12px">Thu–Fri</div>
+                <div class="plan-task" style="background:var(--gray-50)">
+                  <div class="plan-task-icon">📩</div>
+                  <div class="plan-task-body">
+                    <div class="plan-task-title">Apply to 3 more roles</div>
+                    <div class="plan-task-meta"><span class="badge badge-blue">Upcoming</span><span class="badge badge-gray">40 min</span></div>
+                  </div>
+                </div>
+                <div class="plan-task" style="background:var(--gray-50)">
+                  <div class="plan-task-icon">🔁</div>
+                  <div class="plan-task-body">
+                    <div class="plan-task-title">Weekly review &amp; update dashboard</div>
+                    <div class="plan-task-meta"><span class="badge badge-blue">Upcoming</span><span class="badge badge-gray">15 min</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /desktop-frame -->
+
+</div><!-- /canvas -->
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  let currentScreen = 'landing';
+  let currentDevice = 'mobile';
+  let fitCheckStep = 4;
+
+  function showScreen(id) {
+    currentScreen = id;
+    // mobile
+    document.querySelectorAll('.phone-screen .screen').forEach(s => s.classList.remove('active'));
+    const mob = document.getElementById('screen-' + id);
+    if (mob) { mob.classList.add('active'); document.getElementById('phone-screen').scrollTop = 0; }
+    // update toolbar buttons
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const btns = document.querySelectorAll('.nav-btn');
+    const map = ['landing','register','fitcheck','results','dashboard','resume','plan'];
+    const idx = map.indexOf(id);
+    if (idx >= 0) btns[idx].classList.add('active');
+    // sync desktop if on desktop
+    if (currentDevice === 'desktop') {
+      const dMap = { dashboard: 'dashboard', resume: 'resume', plan: 'plan' };
+      if (dMap[id]) showDesktopScreen(dMap[id]);
+    }
+    // update url slug
+    const slugMap = { landing: '', register: 'register', fitcheck: 'career-fit-check', results: 'results', dashboard: 'dashboard', resume: 'resume', plan: 'plan' };
+    document.getElementById('url-slug').textContent = slugMap[id] || id;
+  }
+
+  function showDesktopScreen(id) {
+    document.querySelectorAll('.desktop-frame .screen').forEach(s => s.classList.remove('active'));
+    const ds = document.getElementById('dscreen-' + id);
+    if (ds) ds.classList.add('active');
+    document.getElementById('url-slug').textContent = id;
+  }
+
+  function setDevice(d) {
+    currentDevice = d;
+    document.getElementById('mob-btn').classList.toggle('active', d === 'mobile');
+    document.getElementById('desk-btn').classList.toggle('active', d === 'desktop');
+    const phone = document.getElementById('phone-frame');
+    const desk = document.getElementById('desktop-frame');
+    const canvas = document.getElementById('canvas');
+    if (d === 'mobile') {
+      phone.style.display = 'block'; desk.style.display = 'none';
+      canvas.style.alignItems = 'flex-start';
+    } else {
+      phone.style.display = 'none'; desk.style.display = 'block';
+      canvas.style.alignItems = 'flex-start';
+      // Sync desktop screen with current mobile screen
+      const dMap = { dashboard: 'dashboard', resume: 'resume', plan: 'plan' };
+      showDesktopScreen(dMap[currentScreen] || 'dashboard');
+    }
+  }
+
+  function advanceFitCheck() {
+    fitCheckStep++;
+    if (fitCheckStep <= 10) {
+      // Next question
+      const questions = [
+        { step: 'Communication', q: 'How comfortable are you communicating in English?', hint: 'आप अंग्रेजी में कितना comfortable हैं?' },
+        { step: 'Work Preference', q: 'Which type of work environment do you prefer?', hint: 'आप किस काम के माहौल में काम करना पसंद करते हैं?' },
+        { step: 'Skills & Strengths', q: 'Which of these best describes your top strength?', hint: 'आपकी सबसे बड़ी ताकत क्या है?' },
+        { step: 'Location', q: 'Are you open to relocating for your first job?', hint: 'क्या आप पहली नौकरी के लिए शहर बदलने के लिए तैयार हैं?' },
+        { step: 'Goals', q: 'What is most important to you in your first job?', hint: 'पहली नौकरी में आपके लिए क्या सबसे ज़रूरी है?' },
+        { step: 'Tech Comfort', q: 'How comfortable are you with computers and basic software?', hint: 'कंप्यूटर और सॉफ्टवेयर से आप कितने comfortable हैं?' },
+      ];
+      const q = questions[(fitCheckStep - 5) % questions.length];
+      document.querySelector('#screen-fitcheck .fit-check-step').textContent = q.step;
+      document.querySelector('#screen-fitcheck .fit-check-q').textContent = q.q;
+      document.querySelector('#screen-fitcheck .fit-check-hint').textContent = q.hint;
+      document.querySelector('#screen-fitcheck .progress-fill').style.width = (fitCheckStep * 10) + '%';
+      document.querySelector('#screen-fitcheck').querySelector('div[style*="Question"]').textContent = 'Question ' + fitCheckStep + ' of 10';
+      // Reset selections
+      document.querySelectorAll('#screen-fitcheck .option-card').forEach((c, i) => {
+        c.classList.toggle('selected', i === 0);
+      });
+      // Click toggles
+      document.querySelectorAll('#screen-fitcheck .option-card').forEach(c => {
+        c.onclick = () => {
+          document.querySelectorAll('#screen-fitcheck .option-card').forEach(x => x.classList.remove('selected'));
+          c.classList.add('selected');
+        };
+      });
+    }
+    if (fitCheckStep >= 10) {
+      showToast('Analysing your fit... 🤔');
+      setTimeout(() => { showScreen('results'); }, 800);
+    }
+  }
+
+  // Option card click handlers
+  document.querySelectorAll('.option-card').forEach(c => {
+    c.addEventListener('click', () => {
+      const group = c.closest('.fit-check-body');
+      if (group) {
+        group.querySelectorAll('.option-card').forEach(x => x.classList.remove('selected'));
+        c.classList.add('selected');
+      }
+    });
+  });
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  }
+</script>
+</body>
+</html>

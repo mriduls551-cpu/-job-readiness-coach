@@ -1,0 +1,284 @@
+'use client';
+
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import Link from 'next/link';
+import { FullPageLoader } from '@/components/FullPageLoader';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useAssessmentState } from '@/hooks/useAssessmentState';
+import {
+  getStoredLocale,
+  setStoredLocale,
+  setStoredUser,
+} from '@/lib/client-session';
+import { ROLE_DEFINITIONS, getLocaleValue, type Locale, type RoleId } from '@/lib/product';
+
+interface ProfileResponseUser {
+  id: string;
+  email: string;
+  name: string;
+  role: 'user' | 'admin';
+}
+
+export default function ProfilePage() {
+  const { user, loading } = useCurrentUser({ requireAuth: true });
+  const {
+    assessment,
+    selectedRoleId,
+    loading: assessmentLoading,
+  } = useAssessmentState();
+  const [locale, setLocale] = useState<Locale>('en');
+  const [name, setName] = useState('');
+  const [savedName, setSavedName] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setLocale(getStoredLocale());
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    setName(user.name);
+    setSavedName(user.name);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const loadProfile = async () => {
+      const response = await fetch('/api/profile', {
+        credentials: 'include',
+      });
+
+      if (!response.ok) return;
+      const payload = (await response.json()) as {
+        data?: {
+          user?: ProfileResponseUser;
+        };
+      };
+      const nextUser = payload.data?.user;
+      if (!nextUser) return;
+
+      setStoredUser(nextUser);
+      setName(nextUser.name);
+      setSavedName(nextUser.name);
+    };
+
+    void loadProfile();
+  }, [user]);
+
+  const activeRole = useMemo(() => {
+    const roleId = (selectedRoleId ||
+      assessment?.topRoles?.[0]?.roleId ||
+      null) as RoleId | null;
+    return roleId ? ROLE_DEFINITIONS[roleId] : null;
+  }, [assessment?.topRoles, selectedRoleId]);
+
+  const saveProfile = () => {
+    if (!user) return;
+
+    startTransition(async () => {
+      setStatusMessage('');
+      setSaveError('');
+
+      const response = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ name }),
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        data?: {
+          user?: ProfileResponseUser;
+        };
+      };
+
+      if (!response.ok || !payload.data?.user) {
+        setSaveError(
+          payload.error ||
+            (locale === 'en'
+              ? 'We could not save your profile right now.'
+              : 'हम अभी आपका प्रोफ़ाइल सेव नहीं कर पाए।')
+        );
+        return;
+      }
+
+      setStoredUser(payload.data.user);
+      setSavedName(payload.data.user.name);
+      setStatusMessage(
+        locale === 'en'
+          ? 'Profile updated successfully.'
+          : 'प्रोफ़ाइल सफलतापूर्वक अपडेट हो गई।'
+      );
+    });
+  };
+
+  const hasUnsavedChanges = name.trim() !== savedName.trim();
+
+  if (loading || assessmentLoading) {
+    return (
+      <FullPageLoader
+        eyebrow="Account"
+        title="Loading your account…"
+        message="We’re bringing together your profile, language preference, and journey summary."
+      />
+    );
+  }
+
+  if (!user) {
+    return (
+      <FullPageLoader
+        eyebrow="Account"
+        title="Redirecting to sign in…"
+        message="Your account page is available after sign-in."
+      />
+    );
+  }
+
+  return (
+    <main className="section-shell">
+      <div className="container-main space-y-6">
+        <section className="workspace-hero">
+          <p className="eyebrow-copy">{locale === 'en' ? 'Account' : 'अकाउंट'}</p>
+          <h1 className="mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
+            {locale === 'en'
+              ? 'Keep your profile and job journey in sync.'
+              : 'अपनी प्रोफ़ाइल और job journey को एक जगह रखें।'}
+          </h1>
+          <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+            {locale === 'en'
+              ? 'Update the name you want to show across your workspace, choose your preferred language, and jump back into the next step quickly.'
+              : 'अपने workspace में दिखने वाला नाम अपडेट करें, पसंदीदा भाषा चुनें, और अगले कदम पर जल्दी लौटें।'}
+          </p>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-[1.08fr,0.92fr]">
+          <div className="route-shell space-y-5">
+            <div>
+              <label className="text-sm font-semibold text-slate-700">
+                {locale === 'en' ? 'Full name' : 'पूरा नाम'}
+              </label>
+              <input
+                className="input-field mt-2"
+                onChange={(event) => setName(event.target.value)}
+                placeholder={locale === 'en' ? 'Priya Sharma' : 'प्रिया शर्मा'}
+                value={name}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold text-slate-700">
+                {locale === 'en' ? 'Email' : 'ईमेल'}
+              </label>
+              <input className="input-field mt-2 bg-slate-50" disabled value={user.email} />
+              <p className="mt-2 text-xs text-slate-500">
+                {locale === 'en'
+                  ? 'Email changes are not supported in this release yet.'
+                  : 'इस रिलीज़ में अभी ईमेल बदलना समर्थित नहीं है।'}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-sm font-semibold text-slate-700">
+                {locale === 'en' ? 'Preferred language' : 'पसंदीदा भाषा'}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                {(['en', 'hi'] as Locale[]).map((option) => (
+                  <button
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                      locale === option
+                        ? 'bg-[#0a5a60] text-white'
+                        : 'border border-slate-200 bg-white text-slate-700'
+                    }`}
+                    key={option}
+                    onClick={() => {
+                      setStoredLocale(option);
+                      setLocale(option);
+                    }}
+                    type="button"
+                  >
+                    {option === 'en' ? 'English' : 'हिंदी'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {statusMessage ? (
+              <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                {statusMessage}
+              </p>
+            ) : null}
+            {saveError ? (
+              <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                {saveError}
+              </p>
+            ) : null}
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                className="btn-primary"
+                disabled={!hasUnsavedChanges || isPending || name.trim().length < 2}
+                onClick={saveProfile}
+                type="button"
+              >
+                {isPending
+                  ? locale === 'en'
+                    ? 'Saving...'
+                    : 'सेव हो रहा है...'
+                  : locale === 'en'
+                    ? 'Save profile'
+                    : 'प्रोफ़ाइल सेव करें'}
+              </button>
+              <Link className="btn-outline" href="/dashboard">
+                {locale === 'en' ? 'Back to dashboard' : 'डैशबोर्ड पर वापस'}
+              </Link>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="route-shell">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                {locale === 'en' ? 'Current role direction' : 'वर्तमान role direction'}
+              </p>
+              <h2 className="mt-3 text-2xl text-slate-950">
+                {activeRole ? getLocaleValue(activeRole.name, locale) : '--'}
+              </h2>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                {activeRole
+                  ? getLocaleValue(activeRole.summary, locale)
+                  : locale === 'en'
+                    ? 'Complete your fit check to lock in a role direction.'
+                    : 'अपना fit check पूरा करें ताकि आपकी role direction तय हो सके।'}
+              </p>
+            </div>
+
+            <div className="route-shell">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                {locale === 'en' ? 'Quick links' : 'Quick links'}
+              </p>
+              <div className="mt-4 grid gap-3">
+                <Link className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50" href="/results">
+                  {locale === 'en' ? 'Review role matches' : 'Role matches देखें'}
+                </Link>
+                <Link className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50" href="/resume">
+                  {locale === 'en' ? 'Open resume workspace' : 'Resume workspace खोलें'}
+                </Link>
+                <Link className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50" href="/plan">
+                  {locale === 'en' ? 'Open weekly plan' : 'Weekly plan खोलें'}
+                </Link>
+                <Link className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50" href="/applications">
+                  {locale === 'en' ? 'Track applications' : 'Applications track करें'}
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}

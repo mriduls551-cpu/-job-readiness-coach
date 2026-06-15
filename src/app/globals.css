@@ -1,0 +1,575 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  /* Safe-area bottom padding for iPhone home indicator + bottom nav clearance */
+  .pb-safe {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  /* Add bottom spacing so content isn't hidden behind the mobile bottom nav */
+  .has-bottom-nav {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@layer base {
+  :root {
+    --bg-page: #f8f2e7;
+    --bg-panel: rgba(255, 252, 246, 0.84);
+    --bg-panel-strong: rgba(255, 253, 249, 0.98);
+    --ink-strong: #17232b;
+    --ink-soft: #51616c;
+    /* Darkened from #778490 → passes WCAG AA 4.5:1 on --bg-page */
+    --ink-muted: #5f6e78;
+    --border-soft: rgba(18, 36, 41, 0.12);
+    --accent-ink: #0f6d66;
+    --accent-saffron: #d9822b;
+    --accent-blue: #2c6aaf;
+    --accent-lilac: #6f61f4;
+    --brand-ink: #113f45;
+    --bg-warm: #fff8ee;
+    --wash-saffron: rgba(217, 130, 43, 0.16);
+    --wash-forest: rgba(15, 109, 102, 0.1);
+    /* Shared shadow scale */
+    --shadow-sm: 0 8px 18px rgba(17, 63, 69, 0.07);
+    --shadow-md: 0 16px 32px rgba(17, 63, 69, 0.09);
+    --shadow-lg: 0 26px 48px rgba(17, 63, 69, 0.11);
+    --shadow-xl: 0 36px 68px rgba(26, 35, 48, 0.13);
+    /* Cross-platform serif stack — Lora loads on Android where Iowan is unavailable */
+    --font-heading: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --font-body: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --font-devanagari: "Nirmala UI", "Mangal", "Segoe UI", sans-serif;
+    /* Safe-area bottom padding for devices with home indicators */
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 12% 16%, rgba(217, 130, 43, 0.18), transparent 20%),
+      radial-gradient(circle at 88% 12%, rgba(15, 109, 102, 0.12), transparent 18%),
+      radial-gradient(circle at 50% 100%, rgba(133, 162, 141, 0.16), transparent 24%),
+      linear-gradient(180deg, #fffdf8 0%, #f8f2e7 34%, #f6efe2 100%);
+    color: var(--ink-strong);
+    font-family: var(--font-body), var(--font-devanagari);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.04em;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+@layer components {
+  .container-main {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .glass-panel {
+    /* Solid fallback first — applied on all devices */
+    background: rgba(255, 252, 246, 0.97);
+    border-radius: 1.75rem;
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Progressive enhancement: blur only where GPU can handle it */
+  @supports (backdrop-filter: blur(1px)) {
+    .glass-panel {
+      background: var(--bg-panel);
+      backdrop-filter: blur(18px);
+    }
+  }
+
+  .section-shell {
+    @apply py-10 sm:py-14 lg:py-16;
+  }
+
+  .home-shell {
+    min-height: 100vh;
+    background:
+      linear-gradient(90deg, rgba(255, 253, 248, 0.72), transparent 48%),
+      radial-gradient(circle at 82% 28%, rgba(15, 109, 102, 0.14), transparent 24%),
+      radial-gradient(circle at 18% 12%, rgba(217, 130, 43, 0.14), transparent 22%);
+  }
+
+  .home-hero {
+    @apply grid gap-10 border-y py-10 sm:py-16 lg:grid-cols-[1.05fr,0.95fr] lg:items-center lg:py-20;
+    border-color: var(--border-soft);
+  }
+
+  .home-hero__copy {
+    @apply space-y-6;
+    animation: rise-in 560ms ease-out both;
+  }
+
+  .home-display {
+    @apply max-w-4xl text-5xl leading-[0.98] text-[var(--brand-ink)] sm:text-6xl lg:text-7xl;
+  }
+
+  .home-accent {
+    @apply max-w-3xl text-2xl leading-tight text-[var(--accent-saffron)] sm:text-3xl;
+    font-family: var(--font-heading);
+  }
+
+  .home-guide {
+    @apply overflow-hidden rounded-[2rem] border p-5 sm:p-7;
+    border-color: rgba(17, 63, 69, 0.12);
+    background: rgba(255, 253, 248, 0.72);
+    box-shadow: var(--shadow-xl);
+    animation: rise-in 560ms 100ms ease-out both;
+  }
+
+  .home-guide__tabs {
+    @apply mt-5 grid gap-2;
+  }
+
+  .home-guide__tab {
+    @apply w-full rounded-xl border-l-2 px-4 py-3 text-left text-sm font-semibold transition;
+    border-color: transparent;
+    color: var(--ink-soft);
+  }
+
+  .home-guide__tab:hover {
+    background: rgba(255, 255, 255, 0.55);
+    color: var(--brand-ink);
+  }
+
+  .home-guide__tab--active {
+    border-color: var(--accent-saffron);
+    background: rgba(255, 255, 255, 0.78);
+    color: var(--brand-ink);
+  }
+
+  .home-guide__response {
+    @apply relative mt-5 border-t pt-6;
+    border-color: var(--border-soft);
+    animation: reveal-copy 280ms ease-out both;
+  }
+
+  .home-guide__marker {
+    @apply absolute -top-1 left-0 h-2 w-16 rounded-full;
+    background: linear-gradient(90deg, var(--accent-saffron), var(--accent-ink));
+  }
+
+  .journey-rail {
+    @apply grid border-b py-8 sm:grid-cols-2 lg:grid-cols-4;
+    border-color: var(--border-soft);
+  }
+
+  .journey-rail__step {
+    @apply flex gap-4 border-b px-2 py-5 sm:border-b-0 sm:border-r sm:px-5;
+    border-color: var(--border-soft);
+  }
+
+  .journey-rail__step:last-child {
+    border-right: 0;
+  }
+
+  .journey-rail__index {
+    @apply pt-1 text-xs font-bold tracking-[0.2em] text-[var(--accent-saffron)];
+  }
+
+  .eyebrow-copy {
+    @apply text-xs font-semibold uppercase tracking-[0.25em] text-slate-500;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold text-white transition;
+    background: linear-gradient(135deg, #0f6d66, #0d5954);
+    box-shadow: 0 16px 32px rgba(15, 109, 102, 0.24);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-full border px-5 py-3 text-sm font-semibold transition;
+    border-color: rgba(15, 118, 110, 0.24);
+    color: var(--accent-ink);
+    background: rgba(255, 255, 255, 0.76);
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center rounded-full border px-5 py-3 text-sm font-semibold transition;
+    border-color: var(--border-soft);
+    color: var(--ink-soft);
+    background: rgba(255, 255, 255, 0.72);
+  }
+
+  .input-field {
+    @apply w-full rounded-2xl border px-4 py-3 text-sm outline-none transition;
+    border-color: var(--border-soft);
+    background: rgba(255, 255, 255, 0.94);
+    color: var(--ink-strong);
+  }
+
+  .input-field:focus {
+    border-color: rgba(15, 118, 110, 0.48);
+    box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
+  }
+
+  .card {
+    @apply rounded-[1.5rem] border p-6;
+    border-color: var(--border-soft);
+    background: var(--bg-panel-strong);
+    box-shadow: 0 18px 46px rgba(18, 24, 40, 0.08);
+  }
+
+  .assistant-bubble {
+    @apply rounded-[1.5rem] rounded-tl-md px-4 py-3 text-sm leading-6;
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--ink-soft);
+  }
+
+  .user-bubble {
+    @apply rounded-[1.5rem] rounded-tr-md px-4 py-3 text-sm leading-6 text-white;
+    background: linear-gradient(135deg, var(--accent-ink), #115e59);
+  }
+
+  .accent-chip {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold;
+    background: rgba(15, 118, 110, 0.12);
+    color: var(--accent-ink);
+  }
+
+  .brand-emblem {
+    position: relative;
+    display: inline-flex;
+    height: 4rem;
+    width: 4rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 1.25rem;
+    background:
+      linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(248, 242, 231, 0.8)),
+      linear-gradient(135deg, rgba(15, 109, 102, 0.12), rgba(217, 130, 43, 0.08));
+    border: 1px solid rgba(17, 63, 69, 0.08);
+    box-shadow: 0 18px 34px rgba(17, 63, 69, 0.14);
+  }
+
+  .brand-emblem::before {
+    content: '';
+    position: absolute;
+    inset: 0.5rem;
+    border-radius: 1rem;
+    background: linear-gradient(135deg, rgba(15, 109, 102, 0.14), rgba(217, 130, 43, 0.08));
+  }
+
+  .brand-emblem__core {
+    position: relative;
+    z-index: 1;
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    color: var(--brand-ink);
+  }
+
+  .heritage-quote {
+    position: relative;
+    display: inline-block;
+    padding-bottom: 0.85rem;
+  }
+
+  .heritage-quote::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 0.2rem;
+    width: 5.5rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent-saffron), rgba(217, 130, 43, 0.2));
+  }
+
+  .badge-pill {
+    @apply inline-flex items-center rounded-full px-4 py-2 text-sm font-medium;
+    border: 1px solid rgba(17, 63, 69, 0.12);
+    background: rgba(255, 255, 255, 0.78);
+    color: var(--brand-ink);
+  }
+
+  .trust-tile {
+    @apply flex items-center gap-3 rounded-[1.35rem] px-4 py-4 text-sm font-medium;
+    border: 1px solid rgba(17, 63, 69, 0.1);
+    background: rgba(255, 255, 255, 0.72);
+    color: var(--brand-ink);
+    box-shadow: 0 12px 26px rgba(17, 63, 69, 0.08);
+  }
+
+  .trust-tile__badge {
+    display: inline-flex;
+    height: 0.8rem;
+    width: 0.8rem;
+    flex: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--accent-saffron), var(--accent-ink));
+  }
+
+  .story-card {
+    @apply rounded-[1.75rem] border p-5;
+    position: relative;
+    border-color: rgba(17, 63, 69, 0.11);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 251, 244, 0.88));
+    box-shadow: 0 16px 34px rgba(17, 63, 69, 0.1);
+  }
+
+  .story-card__index {
+    @apply inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white;
+    background: linear-gradient(135deg, #0f6d66, #125550);
+    box-shadow: 0 10px 22px rgba(15, 109, 102, 0.24);
+  }
+
+  .phone-shell {
+    @apply rounded-[2rem] border p-4;
+    border-color: rgba(27, 34, 39, 0.16);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 244, 237, 0.96));
+    box-shadow:
+      0 30px 70px rgba(18, 24, 40, 0.16),
+      inset 0 0 0 2px rgba(17, 63, 69, 0.03);
+  }
+
+  .phone-status {
+    @apply mb-4 flex items-center justify-between text-xs font-medium;
+    color: var(--brand-ink);
+  }
+
+  .editor-frame {
+    @apply rounded-[1.6rem] border p-4;
+    border-color: rgba(17, 63, 69, 0.08);
+    background: rgba(255, 255, 255, 0.86);
+  }
+
+  .warm-note {
+    @apply rounded-[1.3rem] border px-4 py-3 text-sm leading-7;
+    border-color: rgba(217, 130, 43, 0.26);
+    background: rgba(255, 249, 236, 0.88);
+    color: var(--brand-ink);
+  }
+
+  .auth-layout {
+    @apply grid gap-6 lg:grid-cols-[1.1fr,0.9fr];
+    align-items: stretch;
+  }
+
+  .auth-aside {
+    @apply rounded-[2rem] border px-6 py-7 sm:px-8 sm:py-8;
+    border-color: rgba(17, 63, 69, 0.1);
+    background:
+      radial-gradient(circle at top left, rgba(217, 130, 43, 0.14), transparent 24%),
+      radial-gradient(circle at bottom right, rgba(15, 109, 102, 0.11), transparent 24%),
+      linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(249, 244, 235, 0.96));
+    box-shadow: 0 24px 58px rgba(17, 63, 69, 0.12);
+  }
+
+  .auth-form-card {
+    @apply glass-panel flex items-center border border-white/60 p-6 sm:p-8;
+    min-height: 100%;
+  }
+
+  .form-label {
+    @apply mb-2 block text-sm font-semibold;
+    color: var(--brand-ink);
+  }
+
+  .field-note {
+    @apply mt-2 text-xs;
+    color: var(--ink-muted);
+  }
+
+  .journey-grid {
+    @apply grid gap-4 lg:grid-cols-4;
+  }
+
+  .surface-chip {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em];
+    background: rgba(15, 109, 102, 0.1);
+    color: var(--accent-ink);
+  }
+
+  .route-shell {
+    @apply rounded-[2rem] border p-4 sm:p-6;
+    border-color: rgba(17, 63, 69, 0.1);
+    background: linear-gradient(180deg, rgba(255, 252, 247, 0.94), rgba(255, 250, 242, 0.9));
+    box-shadow: 0 20px 48px rgba(17, 63, 69, 0.1);
+  }
+
+  .workspace-hero {
+    @apply rounded-[2rem] border p-6 sm:p-8;
+    border-color: rgba(17, 63, 69, 0.1);
+    background:
+      radial-gradient(circle at top right, rgba(15, 109, 102, 0.09), transparent 22%),
+      radial-gradient(circle at top left, rgba(217, 130, 43, 0.11), transparent 20%),
+      linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(255, 249, 239, 0.94));
+    box-shadow: 0 24px 58px rgba(17, 63, 69, 0.11);
+  }
+
+  .workspace-section {
+    @apply border-t py-6;
+    border-color: var(--border-soft);
+  }
+
+  .workspace-section:first-child {
+    border-top: 0;
+  }
+
+  .progress-orbit {
+    @apply flex min-w-[12rem] flex-col items-center text-center;
+  }
+
+  .progress-orbit__ring {
+    @apply mt-3 flex h-24 w-24 items-center justify-center rounded-full;
+    background:
+      radial-gradient(circle, #fffdf8 56%, transparent 58%),
+      conic-gradient(var(--accent-ink) var(--progress), rgba(15, 109, 102, 0.12) 0);
+    box-shadow: inset 0 0 0 1px rgba(15, 109, 102, 0.08);
+  }
+
+  .progress-orbit__ring span {
+    @apply text-xl font-bold text-[var(--accent-ink)];
+  }
+
+  .metric-strip {
+    @apply grid overflow-hidden rounded-[1.5rem] border sm:grid-cols-3;
+    border-color: var(--border-soft);
+    background: rgba(255, 255, 255, 0.48);
+  }
+
+  .metric-strip .metric-tile {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .metric-strip .metric-tile + .metric-tile {
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .workspace-row {
+    @apply relative border-l-2 py-3 pl-5 pr-2;
+    border-color: rgba(15, 109, 102, 0.2);
+    background: transparent;
+    transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+  }
+
+  .workspace-row:hover {
+    border-color: var(--accent-ink);
+    background: linear-gradient(90deg, rgba(15, 109, 102, 0.06), transparent 72%);
+    transform: translateX(3px);
+  }
+
+  .workspace-row--complete {
+    border-color: var(--accent-ink);
+    background: linear-gradient(90deg, rgba(15, 109, 102, 0.08), transparent 72%);
+  }
+
+  .metric-tile {
+    @apply rounded-[1.5rem] border p-4;
+    border-color: rgba(17, 63, 69, 0.08);
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 14px 28px rgba(17, 63, 69, 0.07);
+  }
+
+  .step-panel {
+    @apply rounded-[1.6rem] border p-5;
+    border-color: rgba(17, 63, 69, 0.09);
+    background: rgba(255, 255, 255, 0.84);
+    box-shadow: 0 16px 32px rgba(17, 63, 69, 0.08);
+  }
+
+  .selection-option {
+    @apply w-full rounded-[1.5rem] border px-5 py-4 text-left transition;
+    border-color: rgba(17, 63, 69, 0.1);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 12px 24px rgba(17, 63, 69, 0.06);
+    /* Reserve space for left accent so layout doesn't shift on selection */
+    border-left-width: 3px;
+    border-left-color: transparent;
+  }
+
+  .selection-option:hover {
+    border-color: rgba(15, 109, 102, 0.28);
+    border-left-color: rgba(15, 109, 102, 0.28);
+  }
+
+  .selection-option--active {
+    /* Solid left accent stripe — visible in bright daylight on budget screens */
+    border-color: rgba(15, 109, 102, 0.22);
+    border-left-color: var(--accent-ink);
+    background: linear-gradient(180deg, rgba(220, 242, 239, 0.98), rgba(238, 250, 248, 0.94));
+    box-shadow: 0 16px 28px rgba(15, 109, 102, 0.13);
+  }
+
+  .match-card {
+    @apply rounded-[1.8rem] border p-5 transition;
+    border-color: rgba(17, 63, 69, 0.1);
+    background: rgba(255, 254, 250, 0.94);
+    box-shadow: 0 18px 38px rgba(17, 63, 69, 0.08);
+  }
+
+  .match-card--active {
+    border-color: rgba(15, 109, 102, 0.28);
+    background: linear-gradient(180deg, rgba(238, 248, 246, 0.98), rgba(255, 254, 250, 0.95));
+    box-shadow: 0 20px 44px rgba(15, 109, 102, 0.11);
+  }
+
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes reveal-copy {
+    from {
+      opacity: 0;
+      transform: translateX(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .home-hero__copy,
+    .home-guide,
+    .home-guide__response {
+      animation: none;
+    }
+  }
+
+  @media (min-width: 640px) {
+    .metric-strip .metric-tile + .metric-tile {
+      border-left: 1px solid var(--border-soft);
+      border-top: 0;
+    }
+  }
+}
