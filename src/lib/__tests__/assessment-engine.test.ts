@@ -1,3 +1,5 @@
+/** @jest-environment node */
+
 import { describe, expect, it } from '@jest/globals';
 import {
   ASSESSMENT_QUESTIONS,
@@ -237,5 +239,139 @@ describe('getLocaleValue', () => {
 
   it('returns Hindi for hi locale', () => {
     expect(getLocaleValue(text, 'hi')).toBe('नमस्ते');
+  });
+});
+
+// ─── Cluster-forcing response sets (all 4 clusters) ───────────────────────────
+//
+// Scores confirmed via tsx probe (see tech-debt work log):
+//   people-facing : r1_a(pf:3) r2_a(pf:3) r3_d(pf:2) r4_a(pf:3) r5_d(pf:3) → pf=14
+//   desk-ops      : r1_c(desk:3) r2_d(desk:3) r3_b(desk:1) r4_b(desk:1+pf:1) r5_c(desk:3) → desk=11
+//   analytical    : r1_d(ana:3) r2_b(desk:2+ana:1) r3_c(ana:2) r4_c(ana:2) r5_b(ana:3) → ana=11
+//   creative      : no 5-answer clean win; needs tie-breaker via rtb_c
+
+function peopleFacingClusterResponses(): Record<string, string> {
+  return { r1: 'r1_a', r2: 'r2_a', r3: 'r3_d', r4: 'r4_a', r5: 'r5_d' };
+}
+
+function deskOpsClusterResponses(): Record<string, string> {
+  return { r1: 'r1_c', r2: 'r2_d', r3: 'r3_b', r4: 'r4_b', r5: 'r5_c' };
+}
+
+function analyticalClusterResponses(): Record<string, string> {
+  return { r1: 'r1_d', r2: 'r2_b', r3: 'r3_c', r4: 'r4_c', r5: 'r5_b' };
+}
+
+function creativeClusterResponses(): Record<string, string> {
+  // Last options on all routing Qs trigger the tie-breaker; rtb_c forces creative
+  return { r1: 'r1_d', r2: 'r2_d', r3: 'r3_d', r4: 'r4_d', r5: 'r5_d', rtb: 'rtb_c' };
+}
+
+describe('All 4 clusters are reachable via routing + tie-breaker', () => {
+  it('routes to people-facing cluster', () => {
+    const phase1 = peopleFacingClusterResponses();
+    const questions = getNextQuestions(phase1);
+    // Should now offer branch questions (Phase 2)
+    const routingIds = new Set(ASSESSMENT_QUESTIONS.map((q) => q.id));
+    const branchQs = questions.filter((q) => !routingIds.has(q.id) && q.id !== TIE_BREAKER_QUESTION.id);
+    expect(branchQs.length).toBeGreaterThan(0);
+
+    const branchAnswers: Record<string, string> = {};
+    branchQs.forEach((q) => {
+      branchAnswers[q.id] = q.options[0].id;
+    });
+    const result = scoreAssessment(phase1, branchAnswers, 'en');
+    expect(result.cluster).toBe('people-facing');
+  });
+
+  it('routes to desk-ops cluster', () => {
+    const phase1 = deskOpsClusterResponses();
+    const questions = getNextQuestions(phase1);
+    const routingIds = new Set(ASSESSMENT_QUESTIONS.map((q) => q.id));
+    const branchQs = questions.filter((q) => !routingIds.has(q.id) && q.id !== TIE_BREAKER_QUESTION.id);
+    expect(branchQs.length).toBeGreaterThan(0);
+
+    const branchAnswers: Record<string, string> = {};
+    branchQs.forEach((q) => {
+      branchAnswers[q.id] = q.options[0].id;
+    });
+    const result = scoreAssessment(phase1, branchAnswers, 'en');
+    expect(result.cluster).toBe('desk-ops');
+  });
+
+  it('routes to analytical cluster', () => {
+    const phase1 = analyticalClusterResponses();
+    const questions = getNextQuestions(phase1);
+    const routingIds = new Set(ASSESSMENT_QUESTIONS.map((q) => q.id));
+    const branchQs = questions.filter((q) => !routingIds.has(q.id) && q.id !== TIE_BREAKER_QUESTION.id);
+    expect(branchQs.length).toBeGreaterThan(0);
+
+    const branchAnswers: Record<string, string> = {};
+    branchQs.forEach((q) => {
+      branchAnswers[q.id] = q.options[0].id;
+    });
+    const result = scoreAssessment(phase1, branchAnswers, 'en');
+    expect(result.cluster).toBe('analytical');
+  });
+
+  it('routes to creative cluster via tie-breaker (rtb_c)', () => {
+    const allResponses = creativeClusterResponses();
+    // Phase 1 + tie-breaker answers together
+    const phase1WithTB = { ...allResponses };
+    const questions = getNextQuestions(phase1WithTB);
+    const routingIds = new Set(ASSESSMENT_QUESTIONS.map((q) => q.id));
+    const branchQs = questions.filter((q) => !routingIds.has(q.id) && q.id !== TIE_BREAKER_QUESTION.id);
+
+    const branchAnswers: Record<string, string> = {};
+    branchQs.forEach((q) => {
+      branchAnswers[q.id] = q.options[0].id;
+    });
+    const result = scoreAssessment(phase1WithTB, branchAnswers, 'en');
+    expect(result.cluster).toBe('creative');
+  });
+});
+
+// ─── Tie-breaker trigger ──────────────────────────────────────────────────────
+describe('Tie-breaker question', () => {
+  it('is included in getNextQuestions when top-2 cluster margin is < 5', () => {
+    // The last-option set creates a narrow spread requiring the tie-breaker
+    const tiedPhase1 = { r1: 'r1_d', r2: 'r2_d', r3: 'r3_d', r4: 'r4_d', r5: 'r5_d' };
+    const questions = getNextQuestions(tiedPhase1);
+    const hasTB = questions.some((q) => q.id === TIE_BREAKER_QUESTION.id);
+    expect(hasTB).toBe(true);
+  });
+
+  it('is NOT included when a cluster wins by a clear margin', () => {
+    // People-facing dominates with pf=14; no tie-breaker needed
+    const clearWin = peopleFacingClusterResponses();
+    const questions = getNextQuestions(clearWin);
+    const hasTB = questions.some((q) => q.id === TIE_BREAKER_QUESTION.id);
+    expect(hasTB).toBe(false);
+  });
+});
+
+// ─── Hindi locale assertions on scored results ────────────────────────────────
+describe('scoreAssessment – Hindi locale', () => {
+  it('returns hi-locale strings in topRoles names', () => {
+    const phase1 = peopleFacingClusterResponses();
+    const questions = getNextQuestions(phase1);
+    const routingIds = new Set(ASSESSMENT_QUESTIONS.map((q) => q.id));
+    const branchQs = questions.filter((q) => !routingIds.has(q.id) && q.id !== TIE_BREAKER_QUESTION.id);
+
+    const branchAnswers: Record<string, string> = {};
+    branchQs.forEach((q) => {
+      branchAnswers[q.id] = q.options[0].id;
+    });
+
+    const result = scoreAssessment(phase1, branchAnswers, 'hi');
+    expect(result.topRoles.length).toBeGreaterThan(0);
+    // Each topRole carries a role definition with localized name and rationale
+    result.topRoles.forEach((match) => {
+      expect(typeof match.role.name.hi).toBe('string');
+      expect(match.role.name.hi.length).toBeGreaterThan(0);
+      // rationale also has hi locale
+      expect(typeof match.rationale.hi).toBe('string');
+      expect(match.rationale.hi.length).toBeGreaterThan(0);
+    });
   });
 });

@@ -183,8 +183,10 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+
     logger.error('Login error', {
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: errorMessage,
     });
 
     if (err instanceof z.ZodError) {
@@ -194,6 +196,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return error('Login failed', HttpStatus.INTERNAL_SERVER_ERROR);
+    const includeDebugDetails = process.env.NODE_ENV !== 'production';
+
+    return error(
+      includeDebugDetails ? `Login failed: ${errorMessage}` : 'Login failed',
+      HttpStatus.INTERNAL_SERVER_ERROR
+    );
   }
 }

@@ -370,7 +370,11 @@ class InMemoryDB implements ProductDB {
   private sessions = new Map<string, AgentSession>();
 
   constructor() {
-    logger.info('Job coach in-memory database ready');
+    // TD-01: in-memory store does NOT survive restarts/serverless cold starts.
+    // Warn loudly so a deployed/preview env never silently loses user data.
+    logger.warn(
+      '⚠️  Using in-memory database — data will NOT persist across restarts or serverless cold starts. Configure Supabase for any shared/deployed environment.'
+    );
   }
 
   async ensureUser(user: User) {

@@ -25,8 +25,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-production-server.out.log
-production-server.err.log
+*.log
 
 # IDEs
 .idea
@@ -43,3 +42,22 @@ production-server.err.log
 
 # Misc
 .cache
+
+# Corruption artifacts from FUSE-mounted dev environment (TD-10/TD-11)
+.fuse_hidden*
+
+# One-off debug/diagnostic scripts (TD-11)
+/diagnose*.ts
+/smoke-test*
+/qa-journey.mjs
+
+# Local validation/cleanup artifacts
+*.bak
+results.json
+results-*.json
+
+# QA script output
+/qa-screenshots
+
+# Duplicate jest config (disk copy; jest.config.ts is canonical)
+/jest.config.js

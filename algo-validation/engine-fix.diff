@@ -1,0 +1,171 @@
+--- /tmp/head_eng.ts	2026-06-15 19:26:30.425777963 +0000
++++ src/lib/assessment-engine.ts	2026-06-15 19:23:59.000000000 +0000
+@@ -997,7 +997,7 @@
+         label: t('Research and write a useful comparison doc or guide', 'शोध करके उपयोगी तुलना-पत्र या मार्गदर्शिका लिखना'),
+         signal: t('Pulled toward research and writing', 'शोध और लेखन की ओर झुकाव'),
+         vector: [0, 0, 0, 1, 2, 1],
+-        clusterScores: { 'creative': 2, 'analytical': 1 },
++        clusterScores: { 'creative': 3, 'analytical': 1 }, // FIX (Issue 3): creative was under-reachable
+       },
+       {
+         id: 'r2_d',
+@@ -1780,7 +1780,10 @@
+   return scores;
+ }
+ 
+-function computeConfidence(clusterScores: Record<ClusterId, number>): {
++function computeConfidence(
++  clusterScores: Record<ClusterId, number>,
++  preferredCluster?: ClusterId
++): {
+   topCluster: ClusterId;
+   margin: number;
+   needsTieBreaker: boolean;
+@@ -1789,10 +1792,16 @@
+     (a, b) => b[1] - a[1]
+   );
+   const margin = sorted[0][1] - sorted[1][1];
++  let topCluster = sorted[0][0];
++  // FIX (Issue 4): honor an explicit tie-breaker answer within 3 pts of the leader.
++  if (preferredCluster) {
++    const prefScore = clusterScores[preferredCluster] ?? 0;
++    if (sorted[0][1] - prefScore <= 3) topCluster = preferredCluster;
++  }
+   return {
+-    topCluster: sorted[0][0],
++    topCluster,
+     margin,
+-    needsTieBreaker: margin < 8,
++    needsTieBreaker: margin < 5, // FIX (Issue 4): was < 8
+   };
+ }
+ 
+@@ -1880,16 +1889,28 @@
+     q.options.find((o) => o.id === responses[q.id])
+   ).filter(Boolean) as AssessmentOption[];
+ 
+-  const clusterScores = computeClusterScores(phase1Options);
+-  const { topCluster, needsTieBreaker } = computeConfidence(clusterScores);
++  const baseScores = computeClusterScores(phase1Options);
++  const { needsTieBreaker } = computeConfidence(baseScores);
+ 
+   const hasTieBreaker = responses[TIE_BREAKER_QUESTION.id] !== undefined;
+-  const branch = BRANCH_QUESTIONS[topCluster];
+ 
+   if (needsTieBreaker && !hasTieBreaker) {
+     return [...ROUTING_QUESTIONS, TIE_BREAKER_QUESTION];
+   }
+ 
++  // FIX (Issue 4): pick branch cluster INCLUDING the tie-breaker answer.
++  const tbOption = TIE_BREAKER_QUESTION.options.find(
++    (o) => o.id === responses[TIE_BREAKER_QUESTION.id]
++  );
++  const tbCluster = tbOption
++    ? (Object.keys(tbOption.clusterScores || {})[0] as ClusterId | undefined)
++    : undefined;
++  const finalScores = tbOption
++    ? computeClusterScores([...phase1Options, tbOption])
++    : baseScores;
++  const { topCluster } = computeConfidence(finalScores, tbCluster);
++  const branch = BRANCH_QUESTIONS[topCluster];
++
+   if (needsTieBreaker) {
+     return [...ROUTING_QUESTIONS, TIE_BREAKER_QUESTION, ...branch];
+   }
+@@ -1918,9 +1939,12 @@
+     (o) => o.id === responses[TIE_BREAKER_QUESTION.id]
+   );
+   const routingOptions = tbOption ? [...phase1Options, tbOption] : phase1Options;
++  const tbCluster = tbOption
++    ? (Object.keys(tbOption.clusterScores || {})[0] as ClusterId | undefined)
++    : undefined;
+ 
+   const clusterScores = computeClusterScores(routingOptions);
+-  const { topCluster, margin } = computeConfidence(clusterScores);
++  const { topCluster, margin } = computeConfidence(clusterScores, tbCluster);
+ 
+   // Step 3: Collect Phase 2 (branch) options for the winning cluster
+   const branchQuestions = BRANCH_QUESTIONS[topCluster];
+@@ -1936,20 +1960,26 @@
+   const allSelected = [...routingOptions, ...branchOptions];
+   const userVector = computeUserVector(allSelected);
+ 
+-  // Step 5: Score all 12 roles via weighted cosine similarity
++  // Step 5: Score all 12 roles
++  // FIX (Issue 1): blend cosine direction (max 70) with DIRECT branch roleScores
++  // (max 30). roleScores were previously collected but never used, so branch
++  // answers had no effect on within-cluster ranking. Now they drive it.
++  const roleScoreTotals: Partial<Record<RoleId, number>> = {};
++  for (const option of allSelected) {
++    if (option.roleScores) {
++      for (const [rid, val] of Object.entries(option.roleScores)) {
++        roleScoreTotals[rid as RoleId] = (roleScoreTotals[rid as RoleId] || 0) + (val as number);
++      }
++    }
++  }
++
+   const scoredRoles = ROLE_ORDER.map((roleId) => {
+     const role = ROLE_DEFINITIONS[roleId];
+-    let score = Math.max(
+-      0,
+-      Math.min(
+-        99,
+-        Math.round(
+-          weightedCosineSimilarity(userVector, role.vector, role.dimensionWeights) * 100
+-        )
+-      )
+-    );
++    const cosineComponent =
++      weightedCosineSimilarity(userVector, role.vector, role.dimensionWeights) * 70;
++    const roleBonus = Math.min(30, (roleScoreTotals[roleId] || 0) * 3);
++    let score = Math.max(0, Math.min(99, Math.round(cosineComponent + roleBonus)));
+ 
+-    // Apply disqualifier rules
+     for (const rule of DISQUALIFIER_RULES) {
+       if (rule.roleIds.includes(roleId) && rule.condition(profile)) {
+         score = Math.max(0, Math.min(99, Math.round(score * rule.multiplier)));
+@@ -1957,10 +1987,7 @@
+     }
+ 
+     const rationaleSignals = allSelected
+-      .map((option) => ({
+-        signal: option.signal,
+-        alignment: signalAlignment(option, role),
+-      }))
++      .map((option) => ({ signal: option.signal, alignment: signalAlignment(option, role) }))
+       .sort((a, b) => b.alignment - a.alignment)
+       .slice(0, 3)
+       .map((item) => item.signal);
+@@ -1972,18 +1999,21 @@
+     scoredRoles.map((item) => [item.roleId, item.score])
+   ) as Record<RoleId, number>;
+ 
+-  // Step 6: Build topRoles — prefer winning cluster, fill to 3
++  // Step 6: Build topRoles
++  // FIX (Issue 2): rank by SCORE first so a disqualified low-score role can never
++  // be shown above a clearly higher-scoring one. Cluster & ROLE_ORDER tie-break only.
+   const clusterRoleIds = CLUSTER_ROLES[topCluster];
+-  const clusterScored = scoredRoles
+-    .filter((r) => clusterRoleIds.includes(r.roleId))
+-    .sort((a, b) => b.score - a.score);
+-  const otherScored = scoredRoles
+-    .filter((r) => !clusterRoleIds.includes(r.roleId))
+-    .sort((a, b) => b.score - a.score);
+-
+-  const orderedCandidates = [...clusterScored, ...otherScored];
+-  const positive = orderedCandidates.filter((r) => r.score > 0);
+-  const candidates = positive.length >= 3 ? positive : orderedCandidates;
++  const roleOrderIndex = (id: RoleId) => ROLE_ORDER.indexOf(id);
++  const ranked = [...scoredRoles].sort((a, b) => {
++    if (b.score !== a.score) return b.score - a.score;
++    const aIn = clusterRoleIds.includes(a.roleId) ? 0 : 1;
++    const bIn = clusterRoleIds.includes(b.roleId) ? 0 : 1;
++    if (aIn !== bIn) return aIn - bIn;
++    return roleOrderIndex(a.roleId) - roleOrderIndex(b.roleId);
++  });
++
++  const positive = ranked.filter((r) => r.score > 0);
++  const candidates = positive.length >= 3 ? positive : ranked;
+ 
+   const topRoles = candidates.slice(0, 3).map((item) => ({
+     roleId: item.roleId,

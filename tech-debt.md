@@ -1,7 +1,17 @@
 # Tech Debt Audit — Job Startup Next.js App
-_Generated: 2026-06-08_
+_Refreshed: 2026-06-16 (supersedes 2026-06-08 audit; previous saved as `tech-debt.prev-2026-06-08.bak`)_
 
-Priority score = (Impact + Risk) × (6 − Effort), where each axis is 1–5 (Effort inverted).
+Priority score = (Impact + Risk) × (6 − Effort), each axis 1–5 (Effort inverted).
+
+## What changed since the last audit (8 days)
+- 🔴 **A repo-wide file-truncation event occurred** — 26 source files (incl. `package.json`,
+  `globals.css`, the assessment engine, most pages/routes) were silently truncated, breaking the
+  build entirely. Recovered this session from git `HEAD`. **New items TD-10 and TD-11 capture the cause.**
+- ✅ **One item fixed this session:** the assessment engine's branch `roleScores` were collected
+  but never used in scoring (dead logic that broke within-cluster ranking). Now consumed; four
+  scoring fixes applied and validated (see `algo-validation/`).
+- ⚠️ **None of TD-01 … TD-09 from the previous audit were actioned.** All still open, re-verified
+  against current code below. An audit nobody acts on is itself process debt.
 
 ---
 
@@ -9,189 +19,142 @@ Priority score = (Impact + Risk) × (6 − Effort), where each axis is 1–5 (Ef
 
 ### 🔴 Critical
 
----
+#### TD-10 · Dev environment is silently truncating files _(NEW)_
+**Category:** Infrastructure  **Score: 40** · Impact 5 · Risk 5 · Effort 2
+The working tree shows the hallmark of an interrupted file-sync / FUSE mount: **75 `.fuse_hidden*`
+orphan inodes** scattered through `src/`, and 26 files were found cut off mid-line (a `package.json`
+truncated at `"typescript":` with no value broke every build). This is not a one-off — the orphan
+count shows it has happened repeatedly. Work and code are being lost silently.
 
-#### TD-01 · `InMemoryDB` singleton gives false data-persistence confidence
+**Risk if left:** Recurring broken builds, silent loss of uncommitted work, and (because the engine
+was among the casualties) shipping a stale/partial algorithm without noticing.
+
+**Fix (Effort 2 — ~half day):**
+1. Commit the recovered clean state **now** so there's a known-good baseline.
+2. Stop editing directly on the synced/FUSE mount; work on a local clone and push, or fix the sync
+   client that's interrupting writes.
+3. Add a pre-commit hook (`husky` + a 2-line check) that fails if any staged file fails
+   `tsc --noEmit` or contains `.fuse_hidden`, so corruption can never be committed again.
+
+#### TD-01 · `InMemoryDB` singleton gives false data-persistence confidence _(still open)_
 **Category:** Architecture  **Score: 32** · Impact 4 · Risk 4 · Effort 2
+`db.ts` still exports a module-level memory singleton (5 refs). On serverless/Vercel each cold start
+wipes registered users, assessments, and plans silently. Fix unchanged: startup warning +
+`/api/health` `persistence` field + docs that this is local-test-only.
 
-`db.ts` exports a module-level `memoryInstance` singleton used whenever Supabase isn't configured. On Vercel and any serverless host, each cold start destroys the instance — registered users, assessments, and plans evaporate silently. Developers who test against the in-memory DB cannot trust that their flows work correctly in staging or production.
-
-**Risk if left:** Silent data loss in any preview/staging env not connected to Supabase. Onboarding devs assume persistence they don't have.
-
-**Fix (Effort 2 — ~1 day):**
-1. Add a startup warning log whenever `InMemoryDB` is initialised in any environment: `logger.warn('⚠️  Using in-memory DB — data will not survive restart')`.
-2. Add a `/api/health` response field `persistence: 'memory' | 'supabase' | 'unavailable'` so it's immediately observable.
-3. Update `ALLOW_IN_MEMORY_DB` docs and README to explicitly state this is for local unit-test runs only, not for any shared or deployed environment.
-
----
-
-#### TD-02 · `mock-auth.ts` is permanently wired into production code paths
+#### TD-02 · `mock-auth.ts` wired into non-production paths by default _(still open)_
 **Category:** Architecture / Code  **Score: 28** · Impact 3 · Risk 4 · Effort 2
-
-`isLocalAuthEnabled()` returns `true` whenever `NODE_ENV !== 'production'`. Any preview deployment (Vercel preview, staging branch) that lacks Supabase config silently falls through to `mock-auth`, which holds users in an in-memory dictionary keyed by email, stores sessions in `localStorage['auth-session']` (different key from `client-session.ts`'s `SESSION_KEY`), and resets on every server restart. There are also two password-reset methods (`resetPassword`, `confirmPasswordReset`) that mutate in-memory state, making them no-ops in reality.
-
-**Risk if left:** A staging environment advertises registration/login that looks real but loses all state on deploy. The divergent localStorage keys between `mock-auth` and `client-session` can produce ghost sessions.
-
-**Fix (Effort 2 — 1–2 days):**
-1. Rename `isLocalAuthEnabled` → `isDevAuthEnabled` and require `ENABLE_DEV_AUTH=true` to be set explicitly — no more implicit non-production default.
-2. Move `MOCK_USERS` seed to a test fixture file; strip `mock-auth` down to a thin stub used only in Jest.
-3. Add an env-var validation step at startup (`src/lib/env-check.ts`) that throws if neither Supabase nor explicit dev-auth is configured.
-
----
+`isLocalAuthEnabled()` (in `auth-mode.ts`, used by `mock-auth.ts`) still returns true for any
+non-production env. Previews advertise real-looking auth that loses all state on deploy, and the
+divergent `localStorage` session keys can create ghost sessions. Fix: require explicit
+`ENABLE_DEV_AUTH=true`; move seed users to a Jest fixture; add startup env validation.
 
 ### 🟠 High
 
----
+#### TD-11 · Corruption artifacts, logs & debug scripts are committed to git _(NEW)_
+**Category:** Infrastructure / Documentation  **Score: 25** · Impact 2 · Risk 3 · Effort 1
+`git ls-files` currently tracks **75 `.fuse_hidden*` files, 7 `*.log` files, and 8 root debug
+scripts** (`diagnose*.ts`, `smoke-test*`, `qa-journey.mjs`). `.gitignore` covers none of these
+patterns (it lists two specific log filenames only). Result: repo bloat, noisy diffs, and
+corruption junk shipped to every clone.
 
-#### TD-03 · Client IP extraction copy-pasted in 5+ places
+**Fix (Effort 1 — ~1 hour):**
+1. Add to `.gitignore`: `.fuse_hidden*`, `*.log`, `/diagnose*.ts`, `/smoke-test*`, `qa-journey.mjs`.
+2. `git rm --cached` all 90 currently-tracked offenders.
+3. Move any debug script still useful into `scripts/`; delete the rest.
+
+#### TD-03 · Client-IP extraction copy-pasted across 7 sites _(still open, grew)_
 **Category:** Code  **Score: 25** · Impact 2 · Risk 3 · Effort 1
+`x-forwarded-for` parsing now appears in **7** locations (was 5+); no `getClientIp()` helper exists.
+They disagree on comma-splitting, so the rate-limit key is inconsistent. Fix: one `getClientIp()`
+in `request-user.ts`, dedupe all sites.
 
-The same three-line pattern appears verbatim in `auth/login/route.ts`, `auth/register/route.ts`, `agent/chat/route.ts`, `assessment/fit-check/route.ts`, and `api/middleware.ts` — while `rate-limiter.ts` has its own fourth variation. They disagree on whether to split `x-forwarded-for` on commas (the rate-limiter does; the route handlers don't), creating an inconsistent IP key used for rate-limiting.
-
-```ts
-// current — duplicated everywhere
-const clientIp =
-  request.headers.get('x-forwarded-for') ||
-  request.headers.get('x-real-ip') ||
-  'unknown';
-```
-
-**Fix (Effort 1 — 2 hours):**
-Add `getClientIp(request: NextRequest): string` to `src/lib/request-user.ts` (or a new `src/lib/request-meta.ts`) that normalises `x-forwarded-for` splitting, deduplicate all call sites, and update `rate-limiter.ts` to use it.
-
----
-
-#### TD-04 · `any` throughout `rate-limiter.ts` and `client-session.ts`
+#### TD-04 · `any` in core libraries _(still open)_
 **Category:** Code  **Score: 25** · Impact 2 · Risk 3 · Effort 1
+**11** explicit `any` uses remain in `src` (rate-limiter public API, `client-session` resumeDraft,
+`dashboard` assessment state). Replace with the real types (`ResumeDraft`, `AssessmentRecord`,
+typed request union).
 
-`rate-limiter.ts` types its entire public API (`RateLimitConfig.keyGenerator`, `createRateLimiter`, `getClientKey`, `getRateLimiter.check`) with `any`. `client-session.ts` types `resumeDraft` as `any | null` (equivalent to `any`). `dashboard/page.tsx` types its `assessment` state as `any`. These are holes that let malformed data flow silently.
-
-**Fix (Effort 1 — 2–3 hours):**
-- `rate-limiter.ts`: replace `any` with `NextRequest | { ip?: string; headers: Record<string,string> }` union.
-- `client-session.ts`: import `ResumeDraft` from `@/lib/product` and type the draft field.
-- `dashboard/page.tsx`: import the `AssessmentRecord` type from `@/lib/db`.
-
----
-
-#### TD-05 · Zero test coverage on all 18 API route handlers
+#### TD-05 · Zero tests on 22 API route handlers _(still open, count up)_
 **Category:** Test  **Score: 20** · Impact 5 · Risk 5 · Effort 4
+Now **22** routes, still **0** route tests (only 2 lib unit tests + 2 e2e specs exist). Auth,
+fit-check, and plan paths can regress silently. Add handler tests with mocked `db`/`supabase`,
+auth + fit-check first.
 
-Every route under `src/app/api/` is untested. The highest-risk paths (auth login/register/logout, assessment fit-check, plan updates) can regress silently. The test infrastructure (`babel-jest`, `jest-environment-jsdom`) is already working.
-
-**Fix (Effort 4 — 3–5 days spread across sprints):**
-Priority order for route tests:
-1. `auth/login` and `auth/register` — cover rate-limit path, Supabase path, mock-auth path, ZodError path.
-2. `assessment/fit-check` — cover engine call, DB write, locale handling.
-3. `applications` CRUD.
-4. `dashboard` snapshot aggregation.
-
-Use `jest.mock('@/lib/db')` + `jest.mock('@/lib/supabase')` to isolate routes from infrastructure.
-
----
-
-#### TD-06 · `next` version range is unpinned (`^14.0.0`)
+#### TD-06 · `next` version unpinned (`^14.0.0`) _(still open)_
 **Category:** Dependency  **Score: 20** · Impact 2 · Risk 2 · Effort 1
-
-The `^` range will automatically pull in any `14.x` release, including breaking minor changes. Next.js 15 is stable and introduces breaking changes to `params`/`searchParams` (now Promises). The project's `package-lock.json` currently pins the resolved version, but a fresh `npm install` in CI from a clean cache will drift.
-
-**Fix (Effort 1 — 30 min):**
-Pin to an exact version: `"next": "14.2.35"`. Add a Dependabot or Renovate config to manage intentional upgrades.
-
----
+Still `^14.0.0`; a clean CI install can drift across all 14.x. Pin exact (`14.2.x`) and add
+Renovate/Dependabot. (Same applies to the other `^` ranges — react, zod, supabase.)
 
 ### 🟡 Medium
 
----
-
-#### TD-07 · `assessment-engine.ts` is a 1,570-line God file
+#### TD-07 · `assessment-engine.ts` God file _(still open, now 2,079 lines)_
 **Category:** Code / Architecture  **Score: 21** · Impact 4 · Risk 3 · Effort 3
+Types + 12 role defs + all question data + scoring + helpers + a 478-line Hindi-localization table
+in one file. Split into `assessment/{types,roles,questions,scoring,localization,index}.ts` with a
+barrel re-export so existing imports keep working. (Doing this would also have contained the
+truncation blast radius.)
 
-The file contains five distinct concerns in one module: type definitions, 12 role definitions (~25 lines each), question data (routing questions, tie-breaker, 16 branch questions), cluster/scoring algorithms, and public helper functions. Any PR touching questions or roles produces large diffs and merge conflicts.
-
-**Fix (Effort 3 — 2–3 days):**
-Split into:
-- `src/lib/assessment/types.ts` — interfaces and enums only
-- `src/lib/assessment/roles.ts` — `ROLE_DEFINITIONS`, `ROLE_ORDER`, `CLUSTER_ROLES`
-- `src/lib/assessment/questions.ts` — `ROUTING_QUESTIONS`, `TIE_BREAKER_QUESTION`, `BRANCH_QUESTIONS`
-- `src/lib/assessment/scoring.ts` — `scoreAssessment`, `getNextQuestions`, internal helpers
-- `src/lib/assessment/index.ts` — barrel re-export (keeps all existing imports working)
-
----
-
-#### TD-08 · `db.ts` is a 1,200-line dual-implementation file
+#### TD-08 · `db.ts` dual-implementation file _(still open, 1,289 lines)_
 **Category:** Architecture  **Score: 15** · Impact 3 · Risk 2 · Effort 3
-
-`InMemoryDB`, `SupabaseDB`, 9 mapper functions, the `ProductDB` interface, and the singleton factory all live in one file. Finding a single Supabase query means scrolling past hundreds of lines of in-memory logic.
-
-**Fix (Effort 3 — 1–2 days):**
-Split into:
-- `src/lib/db/types.ts` — `ProductDB` interface and record types
-- `src/lib/db/mappers.ts` — `mapUserRow`, `mapAssessmentRow`, etc.
-- `src/lib/db/memory.ts` — `InMemoryDB`
-- `src/lib/db/supabase.ts` — `SupabaseDB`
-- `src/lib/db/index.ts` — `getDB`, `getPersistenceMode` factory
-
----
+`InMemoryDB` + `SupabaseDB` + 9 mappers + interface + factory in one module. Split into
+`db/{types,mappers,memory,supabase,index}.ts`.
 
 ### 🟢 Low
 
----
+#### TD-12 · `console.*` instead of the logger _(NEW, minor)_
+**Category:** Code  **Score: 8** · Impact 1 · Risk 1 · Effort 1
+A `logger.ts` exists but **9** raw `console.log/error/warn` calls remain in `src`. Route them
+through the logger for consistent, controllable output.
 
-#### TD-09 · Debug scripts left in project root
-**Category:** Documentation  **Score: 10** · Impact 1 · Risk 1 · Effort 1
-
-`diagnose.ts`, `diagnose2.ts`, `diagnose3.ts`, `diagnose4.ts`, `smoke-test.ts`, `smoke-test-engine.mjs`, `smoke-test-engine.ts` are all in the project root alongside `package.json`. They have no `package.json` scripts and aren't ignored in `.gitignore` (or the equivalent), so they ship to every reviewer and create noise.
-
-**Fix (Effort 1 — 15 min):** Move to `scripts/` and add `scripts/*.ts` to `.gitignore` or delete if no longer needed.
+#### TD-09 · Debug scripts in project root _(folded into TD-11)_
+Superseded by TD-11 above.
 
 ---
 
 ## Phased Remediation Plan
+All phases run alongside feature work — no freeze required.
 
-All phases are designed to run in parallel with feature work — no freeze required.
+### Phase 0 — Stop the bleeding (do this first, today)
+| Item | Est. |
+|------|------|
+| TD-10: Commit recovered clean state; move off the corrupting mount; add pre-commit tsc guard | half day |
+| TD-11: Fix `.gitignore`; `git rm --cached` the 90 tracked artifacts | 1h |
 
-### Phase 1 — Quick wins (1 sprint, ~3 days of eng time)
-These are low-effort, high-leverage changes that unblock everything else.
+### Phase 1 — Quick wins (1 sprint, ~1 day total)
+| Item | Est. |
+|------|------|
+| TD-03: Extract `getClientIp()` and dedupe 7 sites | 2h |
+| TD-04: Replace 11 `any` in core libs | 3h |
+| TD-06: Pin `next` (and other deps) + add Renovate | 1h |
+| TD-01: InMemoryDB startup warning + `/api/health` persistence field | 2h |
+| TD-12: Route `console.*` through logger | 1h |
 
-| Item | Owner | Est. |
-|------|-------|------|
-| TD-03: Extract `getClientIp()` helper | Any | 2h |
-| TD-04: Replace `any` in rate-limiter + client-session | Any | 3h |
-| TD-09: Move / delete debug scripts | Any | 30m |
-| TD-06: Pin `next` to exact version + add Renovate | Eng lead | 1h |
-| TD-01: Add `InMemoryDB` startup warning + health field | Any | 2h |
+### Phase 2 — Architecture cleanup (2–3 sprints, 1 ticket/sprint)
+| Item | Est. |
+|------|------|
+| TD-02: Make dev-auth opt-in; strip mock-auth from prod paths | 2d |
+| TD-07: Split `assessment-engine.ts` into modules | 2d |
+| TD-08: Split `db.ts` into modules | 1.5d |
 
-### Phase 2 — Architecture cleanup (2–3 sprints, 1 ticket each)
-Tackle one per sprint alongside feature work.
-
-| Item | Ticket | Est. |
-|------|--------|------|
-| TD-02: Make dev-auth opt-in, strip mock-auth from prod paths | 1 | 2d |
-| TD-07: Split `assessment-engine.ts` into 4 modules | 1 | 2d |
-| TD-08: Split `db.ts` into 4 modules | 1 | 1.5d |
-
-### Phase 3 — Test coverage (ongoing, 1 route per sprint)
-Write route handler tests as features in those routes are touched, not as a big-bang effort.
-
-| Sprint | Routes to cover |
-|--------|----------------|
-| Sprint N | `auth/login`, `auth/register` |
-| Sprint N+1 | `auth/logout`, `auth/session`, `assessment/fit-check` |
-| Sprint N+2 | `applications`, `dashboard` |
-| Sprint N+3 | `plan`, `profile`, `resumes` |
+### Phase 3 — Test coverage (ongoing, 1 route/sprint)
+auth → fit-check → applications → dashboard → plan/profile. Mock `db`/`supabase`; write tests as you
+touch each route.
 
 ---
 
 ## Summary Table
-
-| ID | Item | Category | Impact | Risk | Effort | **Score** |
-|----|------|----------|--------|------|--------|-----------|
-| TD-01 | InMemoryDB persistence illusion | Architecture | 4 | 4 | 2 | **32** |
-| TD-02 | mock-auth in production paths | Architecture | 3 | 4 | 2 | **28** |
-| TD-03 | Duplicate client IP extraction | Code | 2 | 3 | 1 | **25** |
-| TD-04 | `any` types in core libs | Code | 2 | 3 | 1 | **25** |
-| TD-07 | `assessment-engine.ts` God file | Code | 4 | 3 | 3 | **21** |
-| TD-05 | Zero API route tests | Test | 5 | 5 | 4 | **20** |
-| TD-06 | Unpinned `next` version | Dependency | 2 | 2 | 1 | **20** |
-| TD-08 | `db.ts` dual-implementation | Architecture | 3 | 2 | 3 | **15** |
-| TD-09 | Debug scripts in root | Documentation | 1 | 1 | 1 | **10** |
+| ID | Item | Category | I | R | E | **Score** | Status |
+|----|------|----------|---|---|---|-----------|--------|
+| TD-10 | Dev env truncating files | Infrastructure | 5 | 5 | 2 | **40** | 🆕 open |
+| TD-01 | InMemoryDB persistence illusion | Architecture | 4 | 4 | 2 | **32** | open |
+| TD-02 | mock-auth in non-prod paths | Architecture | 3 | 4 | 2 | **28** | open |
+| TD-03 | Duplicate client-IP extraction (7×) | Code | 2 | 3 | 1 | **25** | open |
+| TD-04 | `any` in core libs (11) | Code | 2 | 3 | 1 | **25** | open |
+| TD-11 | Corruption/log/script files in git | Infrastructure | 2 | 3 | 1 | **25** | 🆕 open |
+| TD-07 | assessment-engine God file (2,079) | Code | 4 | 3 | 3 | **21** | open |
+| TD-05 | Zero API route tests (22 routes) | Test | 5 | 5 | 4 | **20** | open |
+| TD-06 | Unpinned `next` | Dependency | 2 | 2 | 1 | **20** | open |
+| TD-08 | db.ts dual-implementation (1,289) | Architecture | 3 | 2 | 3 | **15** | open |
+| TD-12 | console.* vs logger (9) | Code | 1 | 1 | 1 | **8** | 🆕 open |
+| — | Engine dead `roleScores` logic | Code | — | — | — | — | ✅ fixed this session |

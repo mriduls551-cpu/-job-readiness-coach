@@ -29,6 +29,7 @@ interface RequestLike {
 }
 
 const encoder = new TextEncoder();
+const decoder = new TextDecoder();
 const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7;
 
 function getSessionSecret() {
@@ -43,14 +44,33 @@ function getSessionSecret() {
   throw new Error('NEXTAUTH_SECRET is required in production');
 }
 
-function toBase64Url(value: string) {
-  return btoa(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+function toBase64(value: Uint8Array | string) {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value).toString('base64');
+  }
+
+  const bytes = typeof value === 'string' ? encoder.encode(value) : value;
+  const binary = Array.from(bytes, (item) => String.fromCharCode(item)).join('');
+  return btoa(binary);
+}
+
+function fromBase64(value: string) {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value, 'base64');
+  }
+
+  const binary = atob(value);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+function toBase64Url(value: Uint8Array | string) {
+  return toBase64(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
 function fromBase64Url(value: string) {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
   const padding = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
-  return atob(normalized + padding);
+  return decoder.decode(fromBase64(normalized + padding));
 }
 
 async function sign(value: string) {
@@ -63,10 +83,7 @@ async function sign(value: string) {
     ['sign']
   );
   const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(value));
-  const bytes = Array.from(new Uint8Array(signature))
-    .map((item) => String.fromCharCode(item))
-    .join('');
-  return toBase64Url(bytes);
+  return toBase64Url(new Uint8Array(signature));
 }
 
 function parseLocalSessionPayload(token: string) {

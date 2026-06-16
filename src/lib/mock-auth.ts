@@ -19,11 +19,19 @@ interface AuthSession {
   expiresAt: number;
 }
 
-function buildDefaultMockUsers(): Record<string, { email: string; password: string; user: MockUser }> {
+interface MockUserRecord {
+  email: string;
+  password: string;
+  user: MockUser;
+  fallbackPasswords?: string[];
+}
+
+function buildDefaultMockUsers(): Record<string, MockUserRecord> {
   const demoEmail = process.env.MOCK_DEMO_EMAIL || 'demo@example.com';
   const demoPassword = process.env.MOCK_DEMO_PASSWORD;
   const adminEmail = process.env.MOCK_ADMIN_EMAIL || 'admin@example.com';
   const adminPassword = process.env.MOCK_ADMIN_PASSWORD;
+  const isDevLocalAuth = process.env.NODE_ENV !== 'production';
 
   if (!demoPassword || !adminPassword) {
     if (process.env.NODE_ENV === 'production' && isLocalAuthEnabled()) {
@@ -42,6 +50,7 @@ function buildDefaultMockUsers(): Record<string, { email: string; password: stri
     [demoEmail]: {
       email: demoEmail,
       password: demoPassword ?? 'dev-demo-password',
+      fallbackPasswords: isDevLocalAuth ? ['dev-demo-password'] : undefined,
       user: {
         id: 'user-1',
         email: demoEmail,
@@ -53,6 +62,7 @@ function buildDefaultMockUsers(): Record<string, { email: string; password: stri
     [adminEmail]: {
       email: adminEmail,
       password: adminPassword ?? 'dev-admin-password',
+      fallbackPasswords: isDevLocalAuth ? ['dev-admin-password'] : undefined,
       user: {
         id: 'admin-1',
         email: adminEmail,
@@ -64,7 +74,7 @@ function buildDefaultMockUsers(): Record<string, { email: string; password: stri
   };
 }
 
-let mockUsers: Record<string, { email: string; password: string; user: MockUser }> | null = null;
+let mockUsers: Record<string, MockUserRecord> | null = null;
 
 function getMockUsers() {
   if (!mockUsers) {
@@ -74,16 +84,24 @@ function getMockUsers() {
   return mockUsers;
 }
 
+function encodeBase64(value: string) {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value, 'utf8').toString('base64');
+  }
+
+  return btoa(value);
+}
+
 function generateToken(): string {
-  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const payload = btoa(
+  const header = encodeBase64(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const payload = encodeBase64(
     JSON.stringify({
       sub: Math.random().toString(36).substr(2, 9),
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600 * 24 * 7,
     })
   );
-  const signature = btoa('mock-signature');
+  const signature = encodeBase64('mock-signature');
   return `${header}.${payload}.${signature}`;
 }
 
@@ -122,8 +140,11 @@ export const mockAuth = {
     const users = getMockUsers();
 
     const userRecord = users[email];
+    const acceptedPasswords = userRecord
+      ? [userRecord.password, ...(userRecord.fallbackPasswords || [])]
+      : [];
 
-    if (!userRecord || userRecord.password !== password) {
+    if (!userRecord || !acceptedPasswords.includes(password)) {
       throw new Error('Invalid email or password');
     }
 
