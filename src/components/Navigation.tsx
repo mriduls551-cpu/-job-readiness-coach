@@ -4,12 +4,9 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { BrandWordmark } from '@/components/BrandWordmark';
-import {
-  clearStoredUser,
-  setStoredLocale,
-} from '@/lib/client-session';
+import { LanguageSelect } from '@/components/LanguageSelect';
+import { clearStoredUser } from '@/lib/client-session';
 import { useAppStore } from '@/lib/store';
-import type { Locale } from '@/lib/product';
 import { Home, FileText, ListChecks, Briefcase, MessageSquare, User, ChevronDown, LogOut, Settings } from 'lucide-react';
 import { getFirstName } from '@/lib/presentation';
 
@@ -60,10 +57,6 @@ export function Navigation() {
     }
   };
 
-  const toggleLocale = (nextLocale: Locale) => {
-    setStoredLocale(nextLocale);
-  };
-
   if (HIDE_PATHS.has(pathname)) {
     return null;
   }
@@ -97,33 +90,7 @@ export function Navigation() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Locale toggle */}
-            <div className="rounded-full bg-white/80 p-1 shadow-sm">
-              <button
-                aria-label="Switch to English"
-                className={`min-h-[36px] min-w-[36px] rounded-full px-3 py-2 text-xs font-semibold transition ${
-                  locale === 'en'
-                    ? 'bg-[var(--brand-ink)] text-white'
-                    : 'text-[var(--ink-soft)] hover:text-[var(--brand-ink)]'
-                }`}
-                onClick={() => toggleLocale('en')}
-                type="button"
-              >
-                EN
-              </button>
-              <button
-                aria-label="Switch to Hindi"
-                className={`min-h-[36px] min-w-[36px] rounded-full px-3 py-2 text-xs font-semibold transition ${
-                  locale === 'hi'
-                    ? 'bg-[var(--brand-ink)] text-white'
-                    : 'text-[var(--ink-soft)] hover:text-[var(--brand-ink)]'
-                }`}
-                onClick={() => toggleLocale('hi')}
-                type="button"
-              >
-                HI
-              </button>
-            </div>
+            <LanguageSelect />
 
             {user ? (
               <div className="relative">

@@ -18,6 +18,11 @@ import {
   type ResumeDraft,
 } from '@/lib/product';
 import { FullPageLoader } from '@/components/FullPageLoader';
+import { captureProductEvent } from '@/lib/analytics';
+import {
+  formatIndianPhoneInput,
+  isValidIndianPhoneNumberOrEmpty,
+} from '@/lib/phone';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -192,6 +197,10 @@ export default function ResumePage() {
         }
 
         setSaveState('saved');
+        void captureProductEvent('resume_saved', {
+          has_phone: Boolean(resume.phone),
+          section_count: resume.experience.length + resume.education.length,
+        });
         setStatusMessage(
           locale === 'en'
             ? 'Saved to your workspace.'
@@ -355,6 +364,9 @@ export default function ResumePage() {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
+    void captureProductEvent('resume_pdf_downloaded', {
+      selected_role: selectedRoleId || null,
+    });
   };
 
   return (
@@ -535,10 +547,21 @@ export default function ResumePage() {
                     {locale === 'en' ? 'Phone' : 'फोन'}
                   </span>
                   <input
-                    className="input-field"
-                    onChange={(event) => updateResume('phone', event.target.value)}
+                    className={`input-field ${
+                      isValidIndianPhoneNumberOrEmpty(resume.phone) ? '' : 'border-rose-400'
+                    }`}
+                    onChange={(event) =>
+                      updateResume('phone', formatIndianPhoneInput(event.target.value))
+                    }
                     value={resume.phone}
                   />
+                  {!isValidIndianPhoneNumberOrEmpty(resume.phone) ? (
+                    <span className="text-xs text-rose-600">
+                      {locale === 'en'
+                        ? 'Enter a valid Indian phone number.'
+                        : 'एक वैध भारतीय फ़ोन नंबर दर्ज करें।'}
+                    </span>
+                  ) : null}
                 </label>
               </div>
 
@@ -875,5 +898,4 @@ export default function ResumePage() {
     </main>
   );
 }
-
 

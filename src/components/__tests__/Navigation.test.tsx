@@ -21,9 +21,20 @@ jest.mock('next/link', () => {
   return MockLink;
 });
 
-let mockUser: { name: string; email: string } | null = null;
+type MockUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: 'user' | 'admin';
+};
+
+let mockUser: MockUser | null = null;
 let mockLocale: 'en' | 'hi' = 'en';
-const mockSetStoredLocale = jest.fn<(l: 'en' | 'hi') => void>((l) => { mockLocale = l; });
+let syncStoreLocale: ((locale: 'en' | 'hi') => void) | null = null;
+const mockSetStoredLocale = jest.fn<(l: 'en' | 'hi') => void>((l) => {
+  mockLocale = l;
+  syncStoreLocale?.(l);
+});
 
 jest.mock('@/lib/client-session', () => ({
   getStoredUser: () => mockUser,
@@ -37,13 +48,52 @@ jest.mock('@/components/BrandWordmark', () => ({
   BrandWordmark: () => <span data-testid="brand-wordmark">JRC</span>,
 }));
 
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => {
+    const messages: Record<string, string> = {
+      language: 'Language',
+      english: 'English',
+      hindi: 'Hindi',
+      languageTooltip: 'Choose English or Hindi for this workspace',
+    };
+    return messages[key] || key;
+  },
+}));
+
+const { useAppStore } = require('@/lib/store') as typeof import('@/lib/store');
 const { Navigation } = require('@/components/Navigation') as typeof import('@/components/Navigation');
+syncStoreLocale = (locale) => useAppStore.setState({ locale });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function asGuest() { mockUser = null; }
-function asUser() { mockUser = { name: 'Priya', email: 'priya@example.com' }; }
+function syncStore() {
+  useAppStore.setState({
+    user: mockUser,
+    locale: mockLocale,
+    latestAssessment: null,
+    selectedRole: null,
+  });
+}
+
+function asGuest() {
+  mockUser = null;
+  syncStore();
+}
+
+function asUser() {
+  mockUser = {
+    id: 'user-priya',
+    name: 'Priya',
+    email: 'priya@example.com',
+    role: 'user',
+  };
+  syncStore();
+}
 function atPath(path: string) { mockPathname.mockReturnValue(path); }
+
+function renderNavigation() {
+  return render(<Navigation />);
+}
 
 // ─── HIDE_PATHS ───────────────────────────────────────────────────────────────
 
@@ -52,19 +102,19 @@ describe('HIDE_PATHS', () => {
 
   it('renders nothing on /', () => {
     atPath('/');
-    const { container } = render(<Navigation />);
+    const { container } = renderNavigation();
     expect(container.firstChild).toBeNull();
   });
 
   it('renders nothing on /login', () => {
     atPath('/login');
-    const { container } = render(<Navigation />);
+    const { container } = renderNavigation();
     expect(container.firstChild).toBeNull();
   });
 
   it('renders nothing on /register', () => {
     atPath('/register');
-    const { container } = render(<Navigation />);
+    const { container } = renderNavigation();
     expect(container.firstChild).toBeNull();
   });
 });
@@ -75,21 +125,19 @@ describe('Top nav', () => {
   beforeEach(() => { asUser(); atPath('/dashboard'); });
 
   it('renders the brand wordmark', () => {
-    render(<Navigation />);
+    renderNavigation();
     expect(screen.getByTestId('brand-wordmark')).toBeInTheDocument();
   });
 
-  it('renders EN and HI locale toggle buttons', () => {
-    render(<Navigation />);
-    expect(screen.getByRole('button', { name: /switch to english/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /switch to hindi/i })).toBeInTheDocument();
+  it('renders the language selector', () => {
+    renderNavigation();
+    expect(screen.getByRole('combobox', { name: /language/i })).toBeInTheDocument();
   });
 
-  it('locale toggle buttons have min-h-[36px] class', () => {
-    render(<Navigation />);
-    const enBtn = screen.getByRole('button', { name: /switch to english/i });
-    expect(enBtn.className).toMatch(/min-h-\[36px\]/);
-    expect(enBtn.className).toMatch(/min-w-\[36px\]/);
+  it('language selector has stable touch target height', () => {
+    renderNavigation();
+    const languageSelect = screen.getByRole('combobox', { name: /language/i });
+    expect(languageSelect.className).toMatch(/min-h-\[40px\]/);
   });
 });
 
@@ -99,17 +147,17 @@ describe('Guest user', () => {
   beforeEach(() => { asGuest(); atPath('/career-fit-check'); });
 
   it('shows Sign in link', () => {
-    render(<Navigation />);
+    renderNavigation();
     expect(screen.getByRole('link', { name: /sign in/i })).toBeInTheDocument();
   });
 
   it('shows Create free account link', () => {
-    render(<Navigation />);
+    renderNavigation();
     expect(screen.getByRole('link', { name: /create free account/i })).toBeInTheDocument();
   });
 
   it('does not render mobile bottom nav', () => {
-    render(<Navigation />);
+    renderNavigation();
     expect(screen.queryByRole('navigation', { name: /main navigation/i })).toBeNull();
   });
 });
@@ -120,29 +168,29 @@ describe('Authenticated user', () => {
   beforeEach(() => { asUser(); atPath('/dashboard'); });
 
   it('shows user name button', () => {
-    render(<Navigation />);
+    renderNavigation();
     expect(screen.getByRole('button', { name: /priya/i })).toBeInTheDocument();
   });
 
   it('does not show Sign in link', () => {
-    render(<Navigation />);
+    renderNavigation();
     expect(screen.queryByRole('link', { name: /sign in/i })).toBeNull();
   });
 
   it('renders bottom nav with aria-label="Main navigation"', () => {
-    render(<Navigation />);
+    renderNavigation();
     expect(screen.getByRole('navigation', { name: /main navigation/i })).toBeInTheDocument();
   });
 
   it('bottom nav contains exactly 5 tab links', () => {
-    render(<Navigation />);
+    renderNavigation();
     const bottomNav = screen.getByRole('navigation', { name: /main navigation/i });
     expect(bottomNav.querySelectorAll('a').length).toBe(5);
   });
 
   it('active path link has aria-current="page"', () => {
     atPath('/dashboard');
-    render(<Navigation />);
+    renderNavigation();
     const bottomNav = screen.getByRole('navigation', { name: /main navigation/i });
     const activeLink = bottomNav.querySelector('[aria-current="page"]');
     expect(activeLink).not.toBeNull();
@@ -151,7 +199,7 @@ describe('Authenticated user', () => {
 
   it('non-active links do not have aria-current', () => {
     atPath('/dashboard');
-    render(<Navigation />);
+    renderNavigation();
     const bottomNav = screen.getByRole('navigation', { name: /main navigation/i });
     const inactiveLinks = bottomNav.querySelectorAll('a:not([aria-current="page"])');
     inactiveLinks.forEach((link) => {
@@ -163,11 +211,11 @@ describe('Authenticated user', () => {
 // ─── Locale toggle ────────────────────────────────────────────────────────────
 
 describe('Locale toggle', () => {
-  beforeEach(() => { asUser(); atPath('/dashboard'); mockLocale = 'en'; });
+  beforeEach(() => { mockLocale = 'en'; asUser(); atPath('/dashboard'); });
 
-  it('EN button has active bg class when locale is en', () => {
-    render(<Navigation />);
-    const enBtn = screen.getByRole('button', { name: /switch to english/i });
-    expect(enBtn.className).toMatch(/bg-\[var\(--brand-ink\)\]/);
+  it('shows English as the active language when locale is en', () => {
+    renderNavigation();
+    const languageSelect = screen.getByRole('combobox', { name: /language/i });
+    expect(languageSelect).toHaveTextContent(/english/i);
   });
 });

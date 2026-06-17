@@ -14,7 +14,7 @@ import { verifyAdminRequest } from '@/lib/auth/authorization';
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     // P0-3: Verify admin access
@@ -24,7 +24,7 @@ export async function DELETE(
     }
     const requestingUserId = adminCheck.user.id;
 
-    const userId = params.userId;
+    const { userId } = await params;
 
     // P0-4: Validate userId parameter
     const validation = validateRequest(AdminUserDeleteSchema, { userId });

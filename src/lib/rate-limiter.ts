@@ -9,33 +9,36 @@
  * (e.g. to cap spend on paid LLM endpoints).
  */
 
-import { Redis } from '@upstash/redis';
-
 interface RateLimit {
   count: number;
   resetAt: number;
 }
 
+interface RedisClient {
+  incr(key: string): Promise<number>;
+  expire(key: string, seconds: number): Promise<unknown>;
+}
+
 const rateLimitStore = new Map<string, RateLimit>();
 
-let redisClient: Redis | null = null;
+let redisClient: RedisClient | null = null;
 let redisInitAttempted = false;
 
-function getRedis(): Redis | null {
+async function getRedis(): Promise<RedisClient | null> {
   if (redisInitAttempted) {
     return redisClient;
   }
-  redisInitAttempted = true;
-
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (url && token) {
     try {
+      const { Redis } = await import('@upstash/redis');
       redisClient = new Redis({ url, token });
     } catch {
       redisClient = null;
     }
   }
+  redisInitAttempted = true;
   return redisClient;
 }
 
@@ -48,7 +51,7 @@ async function checkRedisWindow(
   windowMs: number,
   maxRequests: number
 ): Promise<{ limited: boolean; remaining: number; resetTime: number } | null> {
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) {
     return null;
   }

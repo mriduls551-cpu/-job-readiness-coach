@@ -7,6 +7,7 @@ import { z } from 'zod';
 import axios from 'axios';
 import { logger } from '@/lib/logger';
 import { setStoredUser } from '@/lib/client-session';
+import { captureProductEvent, identifyProductUser } from '@/lib/analytics';
 
 const loginSchema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -39,7 +40,12 @@ export function LoginForm() {
 
       if (response.data.success) {
         logger.info('Login successful');
-        setStoredUser(response.data.data.user);
+        const user = response.data.data.user;
+        setStoredUser(user);
+        void identifyProductUser(user);
+        void captureProductEvent('login_completed', {
+          next_path: searchParams.get('next') || '/',
+        });
         const nextPath = searchParams.get('next');
         const safeNextPath = nextPath && nextPath.startsWith('/') ? nextPath : '/';
         router.push(safeNextPath);

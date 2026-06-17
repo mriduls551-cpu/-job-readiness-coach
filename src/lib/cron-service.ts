@@ -157,7 +157,7 @@ class CronService {
     for (const user of users) {
       const plan = await db.getUserActivePlan(user.id);
       if (plan) {
-        const email = emailService.generatePlanReminderEmail(
+        const email = await emailService.generatePlanReminderEmail(
           user.name,
           user.email,
           plan.weekNumber

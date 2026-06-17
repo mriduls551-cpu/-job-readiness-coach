@@ -9,7 +9,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' https: data:",
   "img-src 'self' data: https: blob:",
-  `connect-src 'self' https://openrouter.ai https://*.supabase.co https://sentry.io https://*.ingest.sentry.io${
+  `connect-src 'self' https://openrouter.ai https://*.supabase.co https://sentry.io https://*.ingest.sentry.io https://*.posthog.com https://*.i.posthog.com${
     isProduction ? '' : ' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*'
   }`,
   "form-action 'self'",

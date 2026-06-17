@@ -22,7 +22,7 @@ const cronLimiter = getRateLimiter({
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
     // P0-3: Verify admin access
@@ -48,7 +48,7 @@ export async function POST(
       return response;
     }
 
-    const jobId = params.jobId;
+    const { jobId } = await params;
 
     // P0-4: Validate jobId parameter
     const validation = validateRequest(AdminCronJobExecuteSchema, { jobId });

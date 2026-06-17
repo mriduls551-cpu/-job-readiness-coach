@@ -1,8 +1,10 @@
-import { NextRequest } from 'next/server';
+import { after, NextRequest } from 'next/server';
 import { z } from 'zod';
 import { success, error } from '@/lib/api-response';
 import { getDB } from '@/lib/db';
 import { resolveRequestUserId } from '@/lib/request-user';
+import { getEmailService } from '@/lib/email-service';
+import { logger } from '@/lib/logger';
 
 const createSchema = z.object({
   companyName: z.string().min(2),
@@ -37,6 +39,28 @@ export async function POST(request: NextRequest) {
       companyName: body.companyName,
       roleTitle: body.roleTitle,
       notes: body.notes,
+    });
+
+    after(async () => {
+      try {
+        const user = await getDB().getUser(userId);
+        if (!user) return;
+
+        const emailService = getEmailService();
+        const email = await emailService.generateApplicationEmail(
+          user.name,
+          user.email,
+          application.companyName,
+          application.roleTitle
+        );
+        await emailService.send(email);
+      } catch (emailError) {
+        logger.error('Application confirmation email failed', {
+          userId,
+          applicationId: application.id,
+          error: emailError instanceof Error ? emailError.message : 'Unknown error',
+        });
+      }
     });
 
     return success({ application }, 'Application logged', 201);

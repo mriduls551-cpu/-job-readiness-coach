@@ -3,15 +3,14 @@
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { LanguageSelect } from '@/components/LanguageSelect';
 import { FullPageLoader } from '@/components/FullPageLoader';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAssessmentState } from '@/hooks/useAssessmentState';
-import {
-  getStoredLocale,
-  setStoredLocale,
-  setStoredUser,
-} from '@/lib/client-session';
-import { ROLE_DEFINITIONS, getLocaleValue, type Locale, type RoleId } from '@/lib/product';
+import { setStoredUser } from '@/lib/client-session';
+import { captureProductEvent } from '@/lib/analytics';
+import { useAppStore } from '@/lib/store';
+import { ROLE_DEFINITIONS, getLocaleValue, type RoleId } from '@/lib/product';
 
 interface ProfileResponseUser {
   id: string;
@@ -27,14 +26,10 @@ export default function ProfilePage() {
     selectedRoleId,
     loading: assessmentLoading,
   } = useAssessmentState();
-  const [locale, setLocale] = useState<Locale>('en');
+  const locale = useAppStore((state) => state.locale);
   const [name, setName] = useState('');
   const [savedName, setSavedName] = useState('');
   const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    setLocale(getStoredLocale());
-  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -102,6 +97,9 @@ export default function ProfilePage() {
 
       setStoredUser(payload.data.user);
       setSavedName(payload.data.user.name);
+      void captureProductEvent('profile_updated', {
+        changed_name: true,
+      });
       toast.success(
         locale === 'en' ? 'Profile updated successfully.' : 'प्रोफ़ाइल सफलतापूर्वक अपडेट हो गई।'
       );
@@ -178,24 +176,8 @@ export default function ProfilePage() {
               <p className="text-sm font-semibold text-slate-700">
                 {locale === 'en' ? 'Preferred language' : 'पसंदीदा भाषा'}
               </p>
-              <div className="mt-3 flex flex-wrap gap-3">
-                {(['en', 'hi'] as Locale[]).map((option) => (
-                  <button
-                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                      locale === option
-                        ? 'bg-[#0a5a60] text-white'
-                        : 'border border-slate-200 bg-white text-slate-700'
-                    }`}
-                    key={option}
-                    onClick={() => {
-                      setStoredLocale(option);
-                      setLocale(option);
-                    }}
-                    type="button"
-                  >
-                    {option === 'en' ? 'English' : 'हिंदी'}
-                  </button>
-                ))}
+              <div className="mt-3">
+                <LanguageSelect surface="profile" />
               </div>
             </div>
 

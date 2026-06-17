@@ -1,11 +1,18 @@
-import { NextRequest } from 'next/server';
+import { after, NextRequest } from 'next/server';
 import { z } from 'zod';
 import { success, error } from '@/lib/api-response';
 import { getDB } from '@/lib/db';
 import { OpenRouterService } from '@/lib/openrouter';
 import { getRequestLocale, resolveRequestUserId } from '@/lib/request-user';
-import { scoreAssessment, type AssessmentProfile, type RoleId } from '@/lib/product';
+import {
+  getLocaleValue,
+  scoreAssessment,
+  type AssessmentProfile,
+  type RoleId,
+} from '@/lib/product';
 import { getRateLimiter } from '@/lib/rate-limiter';
+import { getEmailService } from '@/lib/email-service';
+import { logger } from '@/lib/logger';
 
 const assessmentLimiter = getRateLimiter({
   windowMs: 10 * 60 * 1000,
@@ -127,6 +134,29 @@ export async function POST(request: NextRequest) {
 
     if (hydrated.topRoles[0]) {
       await db.seedReminders(userId, locale, hydrated.topRoles[0].roleId);
+
+      const topRole = hydrated.topRoles[0];
+      after(async () => {
+        try {
+          const user = await getDB().getUser(userId);
+          if (!user) return;
+
+          const emailService = getEmailService();
+          const email = await emailService.generateAssessmentEmail(
+            user.name,
+            user.email,
+            getLocaleValue(topRole.role.name, locale),
+            topRole.score
+          );
+          await emailService.send(email);
+        } catch (emailError) {
+          logger.error('Assessment result email failed', {
+            userId,
+            roleId: topRole.roleId,
+            error: emailError instanceof Error ? emailError.message : 'Unknown error',
+          });
+        }
+      });
     }
 
     return success({

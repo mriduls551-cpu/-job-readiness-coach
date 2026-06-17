@@ -14,7 +14,7 @@ import { verifyAdminRequest } from '@/lib/auth/authorization';
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
     // P0-3: Verify admin access
@@ -24,7 +24,7 @@ export async function PUT(
     }
     const requestingUserId = adminCheck.user.id;
 
-    const jobId = params.jobId;
+    const { jobId } = await params;
     const body = await request.json();
 
     // P0-4: Validate input with Zod

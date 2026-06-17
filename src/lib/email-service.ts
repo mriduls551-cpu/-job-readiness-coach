@@ -1,5 +1,10 @@
 import { Resend } from 'resend';
 import { logger } from './logger';
+import {
+  renderApplicationEmailTemplate,
+  renderAssessmentEmailTemplate,
+  renderPlanReminderEmailTemplate,
+} from './email-templates';
 
 export interface EmailOptions {
   to: string;
@@ -15,15 +20,6 @@ export interface EmailLog {
   status: 'sent' | 'failed';
   timestamp: string;
   error?: string;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 function sanitizeSubject(value: string): string {
@@ -98,79 +94,58 @@ class EmailService {
     this.logs = [];
   }
 
-  generateAssessmentEmail(
+  async generateAssessmentEmail(
     userName: string,
     userEmail: string,
     selectedRole: string,
     score: number
-  ): EmailOptions {
-    const safeUserName = escapeHtml(userName);
-    const safeSelectedRole = escapeHtml(selectedRole);
+  ): Promise<EmailOptions> {
+    const rendered = await renderAssessmentEmailTemplate({
+      userName,
+      selectedRole,
+      score,
+    });
     return {
       to: userEmail,
       subject: sanitizeSubject('Career Assessment Results - You matched ' + selectedRole + '!'),
-      html:
-        '<h2>Your Career Assessment Results</h2>' +
-        '<p>Hi ' + safeUserName + ',</p>' +
-        '<p>Great news! Based on your assessment, we recommend the following role:</p>' +
-        '<h3>' + safeSelectedRole + '</h3>' +
-        '<p>Your match score: <strong>' + score + '%</strong></p>' +
-        '<p>Next steps:</p>' +
-        '<ol>' +
-        '<li>Build your resume</li>' +
-        '<li>Complete your action plan</li>' +
-        '<li>Start applying to jobs</li>' +
-        '</ol>' +
-        '<p>Good luck!</p>',
-      text: 'Your assessment result: ' + selectedRole + ' (' + score + '%)',
+      html: rendered.html,
+      text: rendered.text,
     };
   }
 
-  generatePlanReminderEmail(
+  async generatePlanReminderEmail(
     userName: string,
     userEmail: string,
     weekNumber: number
-  ): EmailOptions {
-    const safeUserName = escapeHtml(userName);
+  ): Promise<EmailOptions> {
+    const rendered = await renderPlanReminderEmailTemplate({
+      userName,
+      weekNumber,
+    });
     return {
       to: userEmail,
       subject: sanitizeSubject('Week ' + weekNumber + ' Action Plan Reminder'),
-      html:
-        '<h2>Your Weekly Action Plan</h2>' +
-        '<p>Hi ' + safeUserName + ',</p>' +
-        '<p>Do not forget to check your action plan for this week!</p>' +
-        '<p>Week ' + weekNumber + ' tasks:</p>' +
-        '<ul>' +
-        '<li>Master core skills</li>' +
-        '<li>Build portfolio project</li>' +
-        '<li>Practice interview questions</li>' +
-        '<li>Network with professionals</li>' +
-        '</ul>' +
-        '<p>Keep up the great work!</p>',
-      text: 'Reminder: Check your Week ' + weekNumber + ' action plan',
+      html: rendered.html,
+      text: rendered.text,
     };
   }
 
-  generateApplicationEmail(
+  async generateApplicationEmail(
     userName: string,
     userEmail: string,
     companyName: string,
     roleTitle: string
-  ): EmailOptions {
-    const safeUserName = escapeHtml(userName);
-    const safeCompanyName = escapeHtml(companyName);
-    const safeRoleTitle = escapeHtml(roleTitle);
+  ): Promise<EmailOptions> {
+    const rendered = await renderApplicationEmailTemplate({
+      userName,
+      companyName,
+      roleTitle,
+    });
     return {
       to: userEmail,
       subject: sanitizeSubject('Application Confirmed - ' + companyName + ' ' + roleTitle),
-      html:
-        '<h2>Application Recorded</h2>' +
-        '<p>Hi ' + safeUserName + ',</p>' +
-        '<p>We have recorded your application to:</p>' +
-        '<p><strong>' + safeCompanyName + '</strong> - ' + safeRoleTitle + '</p>' +
-        '<p>We are tracking this for you and will remind you about follow-ups.</p>' +
-        '<p>Good luck with your application!</p>',
-      text: 'Application recorded: ' + companyName + ' - ' + roleTitle,
+      html: rendered.html,
+      text: rendered.text,
     };
   }
 }

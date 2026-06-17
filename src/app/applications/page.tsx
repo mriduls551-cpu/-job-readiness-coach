@@ -10,6 +10,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import type { Locale } from '@/lib/product';
 import { FullPageLoader } from '@/components/FullPageLoader';
 import { Plus, Send, CalendarCheck, Trophy, XCircle } from 'lucide-react';
+import { captureProductEvent } from '@/lib/analytics';
 
 const applicationSchema = z.object({
   companyName: z.string().min(1),
@@ -97,6 +98,9 @@ export default function ApplicationsPage() {
       const nextApplication = payload.data?.application;
       if (nextApplication) {
         queryClient.setQueryData(['applications'], (old: ApplicationItem[]) => [nextApplication, ...(old ?? [])]);
+        void captureProductEvent('application_logged', {
+          status: nextApplication.status,
+        });
         reset();
       }
     });
@@ -120,6 +124,7 @@ export default function ApplicationsPage() {
       queryClient.setQueryData(['applications'], (old: ApplicationItem[]) =>
         (old ?? []).map((item) => (item.id === applicationId ? { ...item, status } : item))
       );
+      void captureProductEvent('application_status_updated', { status });
     });
   };
 

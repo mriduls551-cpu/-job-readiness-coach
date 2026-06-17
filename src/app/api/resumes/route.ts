@@ -4,12 +4,19 @@ import { success, error } from '@/lib/api-response';
 import { getDB } from '@/lib/db';
 import { resolveRequestUserId } from '@/lib/request-user';
 import type { ResumeDraft, RoleId } from '@/lib/product';
+import {
+  isValidIndianPhoneNumberOrEmpty,
+  normalizeIndianPhoneNumber,
+} from '@/lib/phone';
 
 const resumeSchema = z.object({
   title: z.string(),
   summary: z.string(),
   email: z.string(),
-  phone: z.string(),
+  phone: z
+    .string()
+    .refine(isValidIndianPhoneNumberOrEmpty, 'Enter a valid Indian phone number')
+    .transform(normalizeIndianPhoneNumber),
   location: z.string(),
   skills: z.array(z.string()),
   experience: z.array(

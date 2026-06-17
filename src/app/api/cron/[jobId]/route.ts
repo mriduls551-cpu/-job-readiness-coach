@@ -53,14 +53,16 @@ async function executeCronJob(request: NextRequest, jobId: string) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
-  return executeCronJob(request, params.jobId);
+  const { jobId } = await params;
+  return executeCronJob(request, jobId);
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
-  return executeCronJob(request, params.jobId);
+  const { jobId } = await params;
+  return executeCronJob(request, jobId);
 }
