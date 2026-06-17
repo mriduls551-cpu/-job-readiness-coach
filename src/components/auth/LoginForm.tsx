@@ -1,30 +1,40 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import axios from 'axios';
 import { logger } from '@/lib/logger';
 import { setStoredUser } from '@/lib/client-session';
 
+const loginSchema = z.object({
+  email: z.string().email('Enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+type LoginFields = z.infer<typeof loginSchema>;
+
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFields>({
+    resolver: zodResolver(loginSchema),
+  });
 
+  const onSubmit = async (data: LoginFields) => {
     try {
-      logger.info('Attempting login', { email });
+      logger.info('Attempting login', { email: data.email });
 
       const response = await axios.post('/api/auth/login', {
-        email,
-        password,
+        email: data.email,
+        password: data.password,
       });
 
       if (response.data.success) {
@@ -40,16 +50,14 @@ export function LoginForm() {
           ? err.response.data.error
           : 'Login failed. Please try again.';
 
-      setError(message);
       logger.error('Login failed', { error: message });
-    } finally {
-      setLoading(false);
+      setError('root', { message });
     }
   };
 
   return (
     <div className="mx-auto w-full max-w-md">
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div>
           <label htmlFor="email" className="form-label">
             Email Address
@@ -57,13 +65,14 @@ export function LoginForm() {
           <input
             id="email"
             type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
             placeholder="name@email.com"
             className="input-field"
+            {...register('email')}
           />
+          {errors.email ? (
+            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+          ) : null}
         </div>
 
         <div>
@@ -73,28 +82,28 @@ export function LoginForm() {
           <input
             id="password"
             type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
             placeholder="Your password"
             className="input-field"
+            {...register('password')}
           />
+          {errors.password ? (
+            <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+          ) : null}
         </div>
 
-        {error && (
+        {errors.root ? (
           <div className="rounded-[1.2rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
+            {errors.root.message}
           </div>
-        )}
+        ) : null}
 
-        <button type="submit" disabled={loading} className="btn-primary w-full">
-          {loading ? 'Signing in...' : 'Sign in'}
+        <button type="submit" disabled={isSubmitting} className="btn-primary w-full">
+          {isSubmitting ? 'Signing in...' : 'Sign in'}
         </button>
 
         <div className="warm-note">
-          Use your account to reopen saved progress, results, and resume edits across
-          devices.
+          Use your account to reopen saved progress, results, and resume edits across devices.
         </div>
 
         <p className="text-center text-sm text-[var(--ink-soft)]">

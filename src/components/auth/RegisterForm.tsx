@@ -1,65 +1,67 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import axios from 'axios';
 import { logger } from '@/lib/logger';
 import { setStoredUser } from '@/lib/client-session';
 
+const registerSchema = z
+  .object({
+    name: z.string().min(2, 'Name must be at least 2 characters'),
+    email: z.string().email('Enter a valid email address'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+type RegisterFields = z.infer<typeof registerSchema>;
+
 export function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<RegisterFields>({
+    resolver: zodResolver(registerSchema),
   });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    setLoading(true);
-
+  const onSubmit = async (data: RegisterFields) => {
     try {
-      logger.info('Attempting registration', { email: formData.email });
+      logger.info('Attempting registration', { email: data.email });
 
       const registerResponse = await axios.post('/api/auth/register', {
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
+        name: data.name,
+        email: data.email,
+        password: data.password,
       });
 
-      if (registerResponse.data.success) {
-        logger.info('Registration successful - auto-logging in');
+      if (!registerResponse.data.success) {
+        setError('root', { message: 'Registration failed. Please try again.' });
+        return;
+      }
 
-        const loginResponse = await axios.post('/api/auth/login', {
-          email: formData.email,
-          password: formData.password,
-        });
+      logger.info('Registration successful, logging in…');
 
-        if (loginResponse.data.success) {
-          setStoredUser(loginResponse.data.data.user);
-          const nextPath = searchParams.get('next');
-          const destination =
-            nextPath && nextPath.startsWith('/') ? nextPath : '/career-fit-check';
-          router.push(destination);
-        } else {
-          router.push('/login?registered=true');
-        }
+      const loginResponse = await axios.post('/api/auth/login', {
+        email: data.email,
+        password: data.password,
+      });
+
+      if (loginResponse.data.success) {
+        setStoredUser(loginResponse.data.data.user);
+        const nextPath = searchParams.get('next');
+        const safeNextPath = nextPath && nextPath.startsWith('/') ? nextPath : '/';
+        router.push(safeNextPath);
       }
     } catch (err) {
       const message =
@@ -67,16 +69,14 @@ export function RegisterForm() {
           ? err.response.data.error
           : 'Registration failed. Please try again.';
 
-      setError(message);
       logger.error('Registration failed', { error: message });
-    } finally {
-      setLoading(false);
+      setError('root', { message });
     }
   };
 
   return (
     <div className="mx-auto w-full max-w-md">
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div>
           <label htmlFor="name" className="form-label">
             Full Name
@@ -84,14 +84,14 @@ export function RegisterForm() {
           <input
             id="name"
             type="text"
-            required
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
             autoComplete="name"
             placeholder="Your full name"
             className="input-field"
+            {...register('name')}
           />
+          {errors.name ? (
+            <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+          ) : null}
         </div>
 
         <div>
@@ -101,14 +101,14 @@ export function RegisterForm() {
           <input
             id="email"
             type="email"
-            required
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
             autoComplete="email"
             placeholder="name@email.com"
             className="input-field"
+            {...register('email')}
           />
+          {errors.email ? (
+            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+          ) : null}
         </div>
 
         <div>
@@ -118,15 +118,14 @@ export function RegisterForm() {
           <input
             id="password"
             type="password"
-            required
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
             autoComplete="new-password"
             placeholder="At least 8 characters"
             className="input-field"
+            {...register('password')}
           />
-          <p className="field-note">Minimum 8 characters</p>
+          {errors.password ? (
+            <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+          ) : null}
         </div>
 
         <div>
@@ -136,29 +135,29 @@ export function RegisterForm() {
           <input
             id="confirmPassword"
             type="password"
-            required
-            name="confirmPassword"
-            value={formData.confirmPassword}
-            onChange={handleChange}
             autoComplete="new-password"
-            placeholder="Type the same password again"
+            placeholder="Repeat your password"
             className="input-field"
+            {...register('confirmPassword')}
           />
+          {errors.confirmPassword ? (
+            <p className="mt-1 text-sm text-red-600">{errors.confirmPassword.message}</p>
+          ) : null}
         </div>
 
-        {error && (
+        {errors.root ? (
           <div className="rounded-[1.2rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
+            {errors.root.message}
           </div>
-        )}
+        ) : null}
 
-        <button type="submit" disabled={loading} className="btn-primary w-full">
-          {loading ? 'Creating account...' : 'Create account'}
+        <button type="submit" disabled={isSubmitting} className="btn-primary w-full">
+          {isSubmitting ? 'Creating account…' : 'Create account'}
         </button>
 
         <div className="warm-note">
-          After creating your account, we will take you straight to the career fit
-          check. Your progress will stay linked to this account.
+          Your progress, results, and resume will be saved to this account and accessible from any
+          device.
         </div>
 
         <p className="text-center text-sm text-[var(--ink-soft)]">
@@ -171,7 +170,7 @@ export function RegisterForm() {
             }`}
             className="font-medium text-[var(--accent-ink)] hover:text-[var(--brand-ink)]"
           >
-            Sign in here
+            Sign in
           </a>
         </p>
       </form>

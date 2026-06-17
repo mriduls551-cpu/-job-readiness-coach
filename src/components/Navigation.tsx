@@ -1,18 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { BrandWordmark } from '@/components/BrandWordmark';
 import {
   clearStoredUser,
-  getStoredLocale,
-  getStoredUser,
-  refreshStoredUserFromSession,
   setStoredLocale,
-  type StoredUser,
 } from '@/lib/client-session';
+import { useAppStore } from '@/lib/store';
 import type { Locale } from '@/lib/product';
+import { Home, FileText, ListChecks, Briefcase, MessageSquare, User, ChevronDown, LogOut, Settings } from 'lucide-react';
 import { getFirstName } from '@/lib/presentation';
 
 const HIDE_PATHS = new Set(['/', '/login', '/register']);
@@ -26,6 +24,14 @@ const BOTTOM_NAV = [
   { href: '/interview', label: { en: 'Prep', hi: 'तैयारी' }, icon: '05' },
 ] as const;
 
+const BOTTOM_NAV_ICONS = {
+  '/dashboard': Home,
+  '/resume': FileText,
+  '/plan': ListChecks,
+  '/applications': Briefcase,
+  '/interview': MessageSquare,
+};
+
 const DESKTOP_LINKS = [
   { href: '/career-fit-check', label: { en: 'Fit Check', hi: 'योग्यता जाँच' } },
   { href: '/results', label: { en: 'Results', hi: 'परिणाम' } },
@@ -38,26 +44,9 @@ const DESKTOP_LINKS = [
 export function Navigation() {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<StoredUser | null>(null);
-  const [locale, setLocale] = useState<Locale>('en');
+  const user = useAppStore((state) => state.user);
+  const locale = useAppStore((state) => state.locale);
   const [showMenu, setShowMenu] = useState(false);
-
-  useEffect(() => {
-    const sync = () => {
-      setUser(getStoredUser());
-      setLocale(getStoredLocale());
-    };
-
-    sync();
-    void refreshStoredUserFromSession();
-    window.addEventListener('auth-change', sync);
-    window.addEventListener('locale-change', sync);
-
-    return () => {
-      window.removeEventListener('auth-change', sync);
-      window.removeEventListener('locale-change', sync);
-    };
-  }, []);
 
   const handleLogout = async () => {
     try {
@@ -73,7 +62,6 @@ export function Navigation() {
 
   const toggleLocale = (nextLocale: Locale) => {
     setStoredLocale(nextLocale);
-    setLocale(nextLocale);
   };
 
   if (HIDE_PATHS.has(pathname)) {
@@ -142,11 +130,13 @@ export function Navigation() {
                 <button
                   aria-expanded={showMenu}
                   aria-haspopup="true"
-                  className="rounded-full border border-white/60 bg-white/80 px-4 py-2 text-sm font-semibold text-[var(--brand-ink)]"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-2 text-sm font-semibold text-[var(--brand-ink)]"
                   onClick={() => setShowMenu((current) => !current)}
                   type="button"
                 >
+                  <User aria-hidden="true" size={14} />
                   {getFirstName(user.name, locale === 'en' ? 'Account' : 'खाता')}
+                  <ChevronDown aria-hidden="true" size={12} />
                 </button>
                 {showMenu ? (
                   <div className="absolute right-0 mt-3 w-56 rounded-3xl border border-white/70 bg-white/95 p-3 shadow-2xl">
@@ -154,22 +144,25 @@ export function Navigation() {
                       {user.email}
                     </p>
                     <Link
-                      className="block rounded-2xl px-3 py-2 text-sm text-[var(--brand-ink)] hover:bg-slate-100"
+                      className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--brand-ink)] hover:bg-slate-100"
                       href="/applications"
                     >
+                      <Briefcase aria-hidden="true" size={14} />
                       {locale === 'en' ? 'Applications' : 'आवेदन'}
                     </Link>
                     <Link
-                      className="block rounded-2xl px-3 py-2 text-sm text-[var(--brand-ink)] hover:bg-slate-100"
+                      className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--brand-ink)] hover:bg-slate-100"
                       href="/profile"
                     >
+                      <Settings aria-hidden="true" size={14} />
                       {locale === 'en' ? 'Account' : 'खाता'}
                     </Link>
                     <button
-                      className="mt-1 w-full rounded-2xl px-3 py-2 text-left text-sm text-[var(--brand-ink)] hover:bg-slate-100"
+                      className="mt-1 flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-left text-sm text-[var(--brand-ink)] hover:bg-slate-100"
                       onClick={handleLogout}
                       type="button"
                     >
+                      <LogOut aria-hidden="true" size={14} />
                       {locale === 'en' ? 'Log out' : 'साइन आउट'}
                     </button>
                   </div>
@@ -199,7 +192,7 @@ export function Navigation() {
           className="fixed bottom-0 left-0 right-0 z-40 border-t border-[rgba(17,63,69,0.1)] bg-[rgba(255,253,248,0.97)] pb-safe backdrop-blur-xl md:hidden"
         >
           <div className="flex items-stretch">
-            {BOTTOM_NAV.map(({ href, label, icon }) => {
+            {BOTTOM_NAV.map(({ href, label }) => {
               const active = isActive(href);
               return (
                 <Link
@@ -212,12 +205,10 @@ export function Navigation() {
                   href={href}
                   key={href}
                 >
-                  <span
-                    aria-hidden="true"
-                    className="text-[9px] font-bold tracking-[0.12em] text-current/70"
-                  >
-                    {icon}
-                  </span>
+                  {(() => {
+                    const NavIcon = BOTTOM_NAV_ICONS[href];
+                    return NavIcon ? <NavIcon size={22} aria-hidden="true" /> : null;
+                  })()}
                   <span className="text-[10px] font-semibold leading-tight">
                     {label[locale]}
                   </span>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import { FullPageLoader } from '@/components/FullPageLoader';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAssessmentState } from '@/hooks/useAssessmentState';
@@ -29,8 +30,6 @@ export default function ProfilePage() {
   const [locale, setLocale] = useState<Locale>('en');
   const [name, setName] = useState('');
   const [savedName, setSavedName] = useState('');
-  const [statusMessage, setStatusMessage] = useState('');
-  const [saveError, setSaveError] = useState('');
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -79,27 +78,20 @@ export default function ProfilePage() {
     if (!user) return;
 
     startTransition(async () => {
-      setStatusMessage('');
-      setSaveError('');
-
       const response = await fetch('/api/profile', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ name }),
       });
 
       const payload = (await response.json()) as {
         error?: string;
-        data?: {
-          user?: ProfileResponseUser;
-        };
+        data?: { user?: ProfileResponseUser };
       };
 
       if (!response.ok || !payload.data?.user) {
-        setSaveError(
+        toast.error(
           payload.error ||
             (locale === 'en'
               ? 'We could not save your profile right now.'
@@ -110,10 +102,8 @@ export default function ProfilePage() {
 
       setStoredUser(payload.data.user);
       setSavedName(payload.data.user.name);
-      setStatusMessage(
-        locale === 'en'
-          ? 'Profile updated successfully.'
-          : 'प्रोफ़ाइल सफलतापूर्वक अपडेट हो गई।'
+      toast.success(
+        locale === 'en' ? 'Profile updated successfully.' : 'प्रोफ़ाइल सफलतापूर्वक अपडेट हो गई।'
       );
     });
   };
@@ -208,17 +198,6 @@ export default function ProfilePage() {
                 ))}
               </div>
             </div>
-
-            {statusMessage ? (
-              <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                {statusMessage}
-              </p>
-            ) : null}
-            {saveError ? (
-              <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                {saveError}
-              </p>
-            ) : null}
 
             <div className="flex flex-wrap gap-3">
               <button

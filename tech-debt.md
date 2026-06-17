@@ -3,6 +3,27 @@ _Refreshed: 2026-06-16 (supersedes 2026-06-08 audit; previous saved as `tech-deb
 
 Priority score = (Impact + Risk) × (6 − Effort), each axis 1–5 (Effort inverted).
 
+## Update — 2026-06-16 (post commit `529f061`)
+Progress since the recovery session:
+- ✅ **TD-11 resolved** — `.fuse_hidden`/logs/debug scripts no longer tracked; `.gitignore`
+  patterns + `.gitattributes` added and committed.
+- ✅ **TD-01 resolved** — `InMemoryDB` non-persistence warning committed and live.
+- ✅ **Engine dead `roleScores` logic** — fixed + committed (4 scoring fixes).
+- ✅ **TD-13 resolved (new)** — duplicate `jest.config.js` removed; only the canonical
+  `jest.config.ts` (next/jest, git-tracked, referenced by all npm scripts) remains, so bare
+  `jest` no longer aborts with "Multiple configurations found."
+- ⚠️ **TD-03 worsened** — client-IP duplication grew 7 → **11** sites in the feature commit;
+  still no `getClientIp()` helper. Extract it before it spreads further.
+- 🟢 **TD-10 downgraded** — acute truncation recovered, orphans out of git, root cause traced to
+  the cowork FUSE mount (not the Codex/dev loop). 75 orphan files remain physically on disk
+  (untracked) and no pre-commit `tsc` guard yet, but it is no longer critical.
+
+**Current top open items:** TD-02 (28) · TD-03 (25, ↑) · TD-04 (25) · TD-10 (24) · TD-07 (21) ·
+TD-05 (20) · TD-06 (20) · TD-08 (15) · TD-12 (8).
+
+> Note: Jest cannot execute in the cowork sandbox (SWC "Bus error"), so TD-05 route tests can be
+> authored here but must be verified locally via `npm test`.
+
 ## What changed since the last audit (8 days)
 - 🔴 **A repo-wide file-truncation event occurred** — 26 source files (incl. `package.json`,
   `globals.css`, the assessment engine, most pages/routes) were silently truncated, breaking the

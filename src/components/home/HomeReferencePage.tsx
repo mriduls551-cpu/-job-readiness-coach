@@ -1,15 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { BrandWordmark } from '@/components/BrandWordmark';
 import {
-  getStoredLocale,
-  getStoredUser,
-  refreshStoredUserFromSession,
   setStoredLocale,
-  type StoredUser,
 } from '@/lib/client-session';
+import { useAppStore } from '@/lib/store';
 import { getFirstName } from '@/lib/presentation';
 
 type Locale = 'en' | 'hi';
@@ -111,26 +108,9 @@ const copy = {
 } as const;
 
 export default function HomeReferencePage() {
-  const [user, setUser] = useState<StoredUser | null>(null);
-  const [locale, setLocale] = useState<Locale>('en');
+  const user = useAppStore((state) => state.user);
+  const locale = useAppStore((state) => state.locale);
   const [focus, setFocus] = useState<Focus>('clarity');
-
-  useEffect(() => {
-    const sync = () => {
-      setUser(getStoredUser());
-      setLocale(getStoredLocale());
-    };
-
-    sync();
-    void refreshStoredUserFromSession();
-    window.addEventListener('auth-change', sync);
-    window.addEventListener('locale-change', sync);
-
-    return () => {
-      window.removeEventListener('auth-change', sync);
-      window.removeEventListener('locale-change', sync);
-    };
-  }, []);
 
   const currentCopy = copy[locale];
   const currentFocus = currentCopy.focus[focus];
@@ -139,7 +119,6 @@ export default function HomeReferencePage() {
 
   const changeLocale = (nextLocale: Locale) => {
     setStoredLocale(nextLocale);
-    setLocale(nextLocale);
   };
 
   return (

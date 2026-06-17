@@ -1,10 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
-import {
-  getStoredLocale,
-} from '@/lib/client-session';
+import { useAppStore } from '@/lib/store';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAssessmentState } from '@/hooks/useAssessmentState';
 import { ROLE_DEFINITIONS, getLocaleValue, type Locale, type RoleId } from '@/lib/product';
@@ -46,15 +44,8 @@ interface DashboardSnapshot {
 export default function DashboardPage() {
   const { user, loading } = useCurrentUser({ requireAuth: true });
   const { assessment, selectedRoleId: persistedSelectedRoleId } = useAssessmentState();
-  const [locale, setLocale] = useState<Locale>('en');
+  const locale = useAppStore((state) => state.locale);
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
-
-  useEffect(() => {
-    const syncLocale = () => setLocale(getStoredLocale());
-    syncLocale();
-    window.addEventListener('locale-change', syncLocale);
-    return () => window.removeEventListener('locale-change', syncLocale);
-  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -80,35 +71,165 @@ export default function DashboardPage() {
     void load();
   }, [locale, user]);
 
+  const copy = (en: string, hi: string) => (locale === 'en' ? en : hi);
+
   const selectedRoleId =
     ((snapshot?.selectedRole || persistedSelectedRoleId || assessment?.topRoles?.[0]?.roleId) as
       | RoleId
       | undefined) || null;
   const selectedRole = selectedRoleId ? ROLE_DEFINITIONS[selectedRoleId] : null;
 
-  const selectedRationale = useMemo(() => {
-    if (!selectedRoleId) return '';
-    return (
-      assessment?.topRoles?.find((item) => item.roleId === selectedRoleId)?.rationale?.[
-        locale
-      ] || ''
-    );
-  }, [assessment?.topRoles, locale, selectedRoleId]);
-
-  const completedTasks =
-    snapshot?.plan?.tasks?.filter((task) => task.completed).length || 0;
+  const completedTasks = snapshot?.plan?.tasks?.filter((task) => task.completed).length || 0;
   const totalTasks = snapshot?.plan?.tasks?.length || 0;
-  const planProgress =
-    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const planProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const latestApplications = snapshot?.applications?.slice(0, 3) || [];
-  const firstName = getFirstName(user?.name, locale === 'en' ? 'there' : 'दोस्त');
+  const firstName = getFirstName(user?.name, locale === 'en' ? 'there' : 'dost');
+  const hasAssessment = !!(snapshot?.assessment || assessment?.topRoles?.length);
+  const hasResume = !!snapshot?.resume;
+  const hasPlan = totalTasks > 0;
+  const hasApplications = (snapshot?.applications?.length || 0) > 0;
+  const roleChips = assessment?.topRoles?.slice(0, 3) || [];
+  const completedJourneySteps =
+    Number(hasAssessment) +
+    Number(!!selectedRole) +
+    Number(hasResume) +
+    Number(hasPlan) +
+    Number(hasApplications);
+
+  const journeySteps = [
+    {
+      id: 'fit-check',
+      title: copy('Finish fit check', 'Fit check poori karein'),
+      detail: copy('Unlock realistic role matches.', 'Vastavik role matches dekhein.'),
+      complete: hasAssessment,
+      href: '/career-fit-check',
+    },
+    {
+      id: 'role',
+      title: copy('Lock one role direction', 'Ek role direction chunen'),
+      detail: copy('Carry it into resume and plan.', 'Resume aur plan ko usi se jodiye.'),
+      complete: !!selectedRole,
+      href: '/results',
+    },
+    {
+      id: 'resume',
+      title: copy('Build your resume draft', 'Resume draft banaiye'),
+      detail: copy('Turn your role fit into a sharper story.', 'Role fit ko ek spasht kahani banaiye.'),
+      complete: hasResume,
+      href: '/resume',
+    },
+    {
+      id: 'plan',
+      title: copy('Start weekly plan', 'Weekly plan shuru karein'),
+      detail: copy('Focus on the highest-leverage work first.', 'Sabse upyogi kaam par dhyan rakhein.'),
+      complete: hasPlan,
+      href: '/plan',
+    },
+    {
+      id: 'applications',
+      title: copy('Track real applications', 'Vastavik applications track karein'),
+      detail: copy('Make follow-through visible.', 'Agle steps ko visible rakhein.'),
+      complete: hasApplications,
+      href: '/applications',
+    },
+  ];
+
+  const nextStep = !hasAssessment
+    ? {
+        eyebrow: copy('Next best step', 'Agla sabse upyogi kadam'),
+        title: copy('Start your fit check and get a grounded direction.', 'Fit check shuru karke ek spasht direction paaiye.'),
+        body: copy(
+          'Five to seven minutes now unlocks your role matches, resume draft, weekly plan, and interview prep.',
+          '5 se 7 minute ab lagane se aapke role matches, resume draft, weekly plan aur interview prep unlock ho jayenge.'
+        ),
+        primaryLabel: copy('Start fit check', 'Fit check shuru karein'),
+        primaryHref: '/career-fit-check',
+        secondaryLabel: copy('See landing page', 'Landing page dekhein'),
+        secondaryHref: '/',
+      }
+    : !hasResume
+      ? {
+          eyebrow: copy('Next best step', 'Agla sabse upyogi kadam'),
+          title: copy('Turn your selected role into a resume draft.', 'Apni chuni hui role ko resume draft mein badaliye.'),
+          body: copy(
+            'Your top role is ready. The fastest progress now is writing a role-aware resume before random applications start.',
+            'Aapki top role taiyar hai. Ab sabse tez progress ek role-aware resume likhne se aayegi.'
+          ),
+          primaryLabel: copy('Open resume workspace', 'Resume workspace kholiye'),
+          primaryHref: '/resume',
+          secondaryLabel: copy('Review role matches', 'Role matches dekhein'),
+          secondaryHref: '/results',
+        }
+      : !hasPlan
+        ? {
+            eyebrow: copy('Next best step', 'Agla sabse upyogi kadam'),
+            title: copy('Set this week up before the search gets noisy.', 'Is hafte ko set karein, phir search ko aage badhaiye.'),
+            body: copy(
+              'Your resume is underway. Add a weekly plan so the next actions stay visible and realistic.',
+              'Resume progress mein hai. Ab weekly plan jodiye taaki agle kadam visible aur realistic rahein.'
+            ),
+            primaryLabel: copy('View weekly plan', 'Weekly plan dekhein'),
+            primaryHref: '/plan',
+            secondaryLabel: copy('Open resume workspace', 'Resume workspace kholiye'),
+            secondaryHref: '/resume',
+          }
+        : !hasApplications
+          ? {
+              eyebrow: copy('Next best step', 'Agla sabse upyogi kadam'),
+              title: copy('Log the first real applications this week.', 'Is hafte pehle real applications log karein.'),
+              body: copy(
+                'The prep work is taking shape. Tracking applications now will keep momentum honest instead of fuzzy.',
+                'Preparation shape le rahi hai. Ab applications track karne se momentum spasht rahega.'
+              ),
+              primaryLabel: copy('Track applications', 'Applications track karein'),
+              primaryHref: '/applications',
+              secondaryLabel: copy('Refine weekly plan', 'Weekly plan sudhariye'),
+              secondaryHref: '/plan',
+            }
+          : {
+              eyebrow: copy('Next best step', 'Agla sabse upyogi kadam'),
+              title: copy('Keep the system moving with one focused session.', 'Ek focused session se poori system ko aage badhaiye.'),
+              body: copy(
+                'You already have the core pieces in place. Use today to close one plan task, update one application, and rehearse one interview story.',
+                'Core pieces jagah par hain. Aaj ek plan task poora kijiye, ek application update kijiye aur ek interview story rehearse kijiye.'
+              ),
+              primaryLabel: copy('Open weekly plan', 'Weekly plan kholiye'),
+              primaryHref: '/plan',
+              secondaryLabel: copy('Open interview prep', 'Interview prep kholiye'),
+              secondaryHref: '/interview',
+            };
+
+  const metrics = [
+    {
+      label: copy('Journey done', 'Journey done'),
+      value: `${completedJourneySteps}/5`,
+      detail: copy('Core steps unlocked', 'Core steps unlocked'),
+    },
+    {
+      label: copy('Resume', 'Resume'),
+      value: hasResume ? copy('Ready', 'Ready') : copy('Start', 'Start'),
+      detail: hasResume
+        ? copy('Draft in workspace', 'Draft workspace mein hai')
+        : copy('Needs first pass', 'Pehla pass baaki hai'),
+    },
+    {
+      label: copy('Applications', 'Applications'),
+      value: String(snapshot?.applications?.length || 0),
+      detail: copy('Visible follow-through', 'Visible follow-through'),
+    },
+    {
+      label: copy('This week', 'This week'),
+      value: totalTasks ? `${completedTasks}/${totalTasks}` : '0',
+      detail: copy('Tasks completed', 'Tasks completed'),
+    },
+  ];
 
   if (loading) {
     return (
       <FullPageLoader
         eyebrow="Personal workspace"
-        title="Loading your dashboard…"
-        message="We’re pulling together your role, plan, resume, and reminders."
+        title="Loading your dashboard..."
+        message="We're pulling together your role, plan, resume, and reminders."
       />
     );
   }
@@ -117,42 +238,59 @@ export default function DashboardPage() {
     return (
       <FullPageLoader
         eyebrow="Personal workspace"
-        title="Redirecting to sign in…"
-        message="Your dashboard is protected, so we’re taking you back to your account flow."
+        title="Redirecting to sign in..."
+        message="Your dashboard is protected, so we're taking you back to your account flow."
       />
     );
   }
 
-  // New user — no assessment yet. Show a clear starting point.
-  const hasAssessment = !!(snapshot?.assessment || assessment?.topRoles?.length);
-  if (snapshot !== null && !hasAssessment && !loading) {
+  if (snapshot !== null && !hasAssessment) {
     return (
       <main className="section-shell">
-        <div className="container-main max-w-2xl">
+        <div className="container-main space-y-5">
           <section className="workspace-hero">
-            <p className="eyebrow-copy">
-              {locale === 'en' ? 'Personal workspace' : 'पर्सनल वर्कस्पेस'}
-            </p>
-            <h1 className="mt-4 text-4xl leading-tight text-slate-950">
-              {locale === 'en'
-                ? `Welcome, ${firstName}. Let's find your best-fit role.`
-                : `स्वागत है, ${firstName}। आइए आपके लिए सबसे उपयुक्त भूमिका खोजें।`}
-            </h1>
-            <p className="mt-4 text-base leading-8 text-slate-600">
-              {locale === 'en'
-                ? 'Start with a 5–7 minute career fit check. It will suggest your top entry-level roles and build your resume and weekly plan around them.'
-                : '5–7 मिनट की योग्यता जाँच शुरू करें। यह आपके लिए उपयुक्त शुरुआती भूमिकाएँ सुझाएगी और उनके आधार पर जीवनवृत्त तथा साप्ताहिक योजना बनाएगी।'}
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link className="btn-primary" href="/career-fit-check">
-                {locale === 'en' ? 'Start career fit check' : 'योग्यता जाँच शुरू करें'}
-              </Link>
+            <div className="grid gap-5 lg:grid-cols-[1.2fr,0.8fr]">
+              <div>
+                <p className="eyebrow-copy">{copy('Personal workspace', 'Personal workspace')}</p>
+                <h1 className="mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
+                  {copy(
+                    `Welcome, ${firstName}. Let's build your direction step by step.`,
+                    `Swagat hai, ${firstName}. Chaliye aapki direction step by step banate hain.`
+                  )}
+                </h1>
+                <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+                  {copy(
+                    'This workspace becomes useful quickly once you finish the fit check. It will anchor your role direction, resume, weekly plan, and applications in one place.',
+                    'Fit check poori hote hi yeh workspace kaafi upyogi ho jata hai. Isi se aapki role direction, resume, weekly plan aur applications ek jagah judte hain.'
+                  )}
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link className="btn-primary" href="/career-fit-check">
+                    {copy('Start career fit check', 'Career fit check shuru karein')}
+                  </Link>
+                  <Link className="btn-outline" href="/">
+                    {copy('Back to landing', 'Landing par wapas')}
+                  </Link>
+                </div>
+              </div>
+
+              <div className="route-shell bg-white/90">
+                <p className="eyebrow-copy">{copy('What unlocks next', 'Aage kya unlock hoga')}</p>
+                <div className="mt-5 space-y-3">
+                  {journeySteps.map((step, index) => (
+                    <div className="workspace-row flex items-start gap-4" key={step.id}>
+                      <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-[#0a5a60] text-xs font-semibold text-white">
+                        {index + 1}
+                      </span>
+                      <div>
+                        <h2 className="font-semibold text-slate-950">{step.title}</h2>
+                        <p className="mt-1 text-sm leading-6 text-slate-600">{step.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <p className="mt-4 text-sm text-slate-500">
-              {locale === 'en'
-                ? '⚡ Takes 5–7 minutes • Free • Bilingual'
-                : '5–7 मिनट • बिल्कुल मुफ़्त • हिंदी और अंग्रेज़ी'}
-            </p>
           </section>
         </div>
       </main>
@@ -161,243 +299,161 @@ export default function DashboardPage() {
 
   return (
     <main className="section-shell">
-      <div className="container-main space-y-6">
+      <div className="container-main space-y-5">
         <section className="workspace-hero">
-          <div className="flex flex-wrap items-start justify-between gap-5">
-            <div>
-              <p className="eyebrow-copy">
-                {locale === 'en' ? 'Personal workspace' : 'पर्सनल वर्कस्पेस'}
-              </p>
-              <h1 className="mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
-                {locale === 'en'
-                  ? `Hi ${firstName}, keep your job search moving with one calm system.`
-                  : `नमस्ते ${firstName}, अपनी नौकरी की खोज को एक सरल व्यवस्था के साथ आगे बढ़ाइए।`}
-              </h1>
-              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
-                {locale === 'en'
-                  ? 'Your selected role, resume progress, weekly plan, reminders, and application momentum now live in one place.'
-                  : 'आपकी चुनी हुई भूमिका, जीवनवृत्त की प्रगति, साप्ताहिक योजना, स्मरण और आवेदन अब एक ही जगह जुड़े हुए हैं।'}
-              </p>
-            </div>
-
-            <div className="progress-orbit" aria-label={`${planProgress}%`}>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                {locale === 'en' ? 'Plan progress' : 'योजना की प्रगति'}
-              </p>
-              <div
-                className="progress-orbit__ring"
-                style={{ '--progress': `${planProgress * 3.6}deg` } as CSSProperties}
-              >
-                <span>{planProgress}%</span>
-              </div>
-              <p className="mt-2 text-sm text-slate-600">
-                {locale === 'en'
-                  ? `${completedTasks} of ${totalTasks} tasks completed`
-                  : `${totalTasks} में से ${completedTasks} कार्य पूरे`}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
-            <div className="workspace-section">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                {locale === 'en' ? 'Current role direction' : 'वर्तमान करियर दिशा'}
-              </p>
-              <h2 className="mt-2 text-3xl leading-tight text-slate-950">
-                {selectedRole ? getLocaleValue(selectedRole.name, locale) : '--'}
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-slate-600">
-                {selectedRationale ||
-                  (selectedRole
-                    ? getLocaleValue(selectedRole.summary, locale)
-                    : locale === 'en'
-                      ? 'Choose a role from your fit-check to anchor the rest of your journey.'
-                      : 'अपनी योग्यता जाँच से एक भूमिका चुनें, ताकि आगे की पूरी तैयारी उसी दिशा में रहे।')}
-              </p>
-              {assessment?.topRoles?.length ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {assessment.topRoles.map((match) => (
-                    <span className="accent-chip" key={match.roleId}>
-                      {getLocaleValue(match.role.shortLabel, locale)}
-                    </span>
-                  ))}
+          <div className="grid gap-5 xl:grid-cols-[1.25fr,0.75fr]">
+            <div className="space-y-5">
+              <div>
+                <p className="eyebrow-copy">{copy('Personal workspace', 'Personal workspace')}</p>
+                <h1 className="mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
+                  {copy(
+                    `Hi ${firstName}, your search now has one working home base.`,
+                    `Namaste ${firstName}, ab aapki search ka ek working home base hai.`
+                  )}
+                </h1>
+                <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+                  {copy(
+                    'Role direction, resume progress, weekly plan, reminders, and applications now move together instead of living in separate tabs.',
+                    'Role direction, resume progress, weekly plan, reminders aur applications ab alag-alag tabs mein bikharne ke bajay ek saath move karte hain.'
+                  )}
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {roleChips.length ? (
+                    roleChips.map((match) => (
+                      <span className="accent-chip" key={match.roleId}>
+                        {getLocaleValue(match.role.shortLabel, locale)}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="accent-chip">{copy('Role direction pending', 'Role direction pending')}</span>
+                  )}
                 </div>
-              ) : null}
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {metrics.map((metric) => (
+                  <div className="metric-tile p-4" key={metric.label}>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      {metric.label}
+                    </p>
+                    <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">{metric.value}</p>
+                    <p className="mt-2 text-sm text-slate-600">{metric.detail}</p>
+                  </div>
+                ))}
+              </div>
             </div>
 
-              <div className="metric-strip">
-              <div className="metric-tile p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  {locale === 'en' ? 'Resume' : 'जीवनवृत्त'}
-                </p>
-                <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
-                  {snapshot?.resume ? '1' : '0'}
-                </p>
-                <p className="mt-2 text-sm text-slate-600">
-                  {snapshot?.resume
-                    ? locale === 'en'
-                      ? 'Draft initialized'
-                      : 'प्रारूप तैयार'
-                    : locale === 'en'
-                      ? 'Not started'
-                      : 'शुरू नहीं हुआ'}
-                </p>
+            <div className="space-y-4">
+              <div className="route-shell bg-white/92">
+                <p className="eyebrow-copy">{nextStep.eyebrow}</p>
+                <h2 className="mt-3 text-3xl leading-tight text-slate-950">{nextStep.title}</h2>
+                <p className="mt-3 text-sm leading-7 text-slate-600">{nextStep.body}</p>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <Link className="btn-primary" href={nextStep.primaryHref}>
+                    {nextStep.primaryLabel}
+                  </Link>
+                  <Link className="btn-outline" href={nextStep.secondaryHref}>
+                    {nextStep.secondaryLabel}
+                  </Link>
+                </div>
               </div>
-              <div className="metric-tile p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  {locale === 'en' ? 'Applications' : 'आवेदन'}
-                </p>
-                <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
-                  {snapshot?.applications?.length || 0}
-                </p>
-                <p className="mt-2 text-sm text-slate-600">
-                  {locale === 'en'
-                    ? 'Tracked in one place'
-                    : 'एक ही जगह दर्ज'}
-                </p>
-              </div>
-              <div className="metric-tile p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  {locale === 'en' ? 'This week' : 'इस हफ्ते'}
-                </p>
-                <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">{totalTasks}</p>
-                <p className="mt-2 text-sm text-slate-600">
-                  {locale === 'en' ? 'Tasks in motion' : 'चल रहे कार्य'}
+
+              <div className="route-shell bg-[rgba(255,255,255,0.82)]">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="eyebrow-copy">{copy('Plan progress', 'Plan progress')}</p>
+                    <h2 className="mt-3 text-2xl text-slate-950">
+                      {copy('Keep the highest-leverage work moving.', 'Sabse upyogi kaam ko moving rakhiye.')}
+                    </h2>
+                  </div>
+                  <div className="progress-orbit min-w-[9rem]" aria-label={`${planProgress}%`}>
+                    <div
+                      className="progress-orbit__ring"
+                      style={{ '--progress': `${planProgress * 3.6}deg` } as CSSProperties}
+                    >
+                      <span>{planProgress}%</span>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm leading-7 text-slate-600">
+                  {copy(
+                    `${completedTasks} of ${totalTasks} tasks are already completed this week.`,
+                    `Is hafte ${totalTasks} me se ${completedTasks} tasks poore ho chuke hain.`
+                  )}
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[0.92fr,1.08fr]">
-          <div className="space-y-6">
-            <div className="workspace-section">
-              <p className="eyebrow-copy">
-                {locale === 'en' ? 'Quick actions' : 'त्वरित कार्य'}
-              </p>
-              <div className="mt-5 grid gap-3">
-                <Link className="btn-primary" href="/resume">
-                  {locale === 'en' ? 'Open resume workspace' : 'जीवनवृत्त पर काम करें'}
-                </Link>
-                <Link className="btn-secondary" href="/applications">
-                  {locale === 'en' ? 'Track applications' : 'आवेदन दर्ज करें'}
-                </Link>
-                <Link className="btn-outline" href="/plan">
-                  {locale === 'en' ? 'View weekly plan' : 'साप्ताहिक योजना देखें'}
-                </Link>
-                <Link className="btn-outline" href="/interview">
-                  {locale === 'en' ? 'Interview prep' : 'साक्षात्कार की तैयारी'}
-                </Link>
+        <section className="grid gap-5 xl:grid-cols-[1.05fr,0.95fr]">
+          <div className="route-shell bg-white/90">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="eyebrow-copy">{copy('Journey checkpoint', 'Journey checkpoint')}</p>
+                <h2 className="mt-3 text-3xl text-slate-950">
+                  {copy('See where you are, then move forward.', 'Apni progress dekhe, phir aage badhiye.')}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {copy(
+                    `${completedJourneySteps} of ${journeySteps.length} milestones reached`,
+                    `${journeySteps.length} me se ${completedJourneySteps} milestones poore`
+                  )}
+                </p>
               </div>
             </div>
-
-            <div className="workspace-section">
-              <p className="eyebrow-copy">
-                {locale === 'en' ? 'Timely reminders' : 'समय पर स्मरण'}
-              </p>
-              <div className="mt-5 space-y-3">
-                {snapshot?.reminders?.map((reminder) => (
-                  <article
-                    className="workspace-row"
-                    key={reminder.id}
-                  >
-                    <h2 className="text-lg font-semibold text-slate-950">
-                      {reminder.title[locale]}
-                    </h2>
-                    <p className="mt-2 text-sm leading-7 text-slate-600">
-                      {reminder.body[locale]}
-                    </p>
-                  </article>
-                ))}
-              </div>
+            <div className="mt-5 space-y-3">
+              {journeySteps.map((step) => (
+                <Link
+                  className={`flex items-start gap-3 rounded-2xl px-4 py-3 transition hover:bg-slate-100 ${step.complete ? 'opacity-60' : ''}`}
+                  href={step.href}
+                  key={step.id}
+                >
+                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${step.complete ? 'bg-[#0a5a60] text-white' : 'bg-slate-200 text-slate-500'}`}>
+                    {step.complete ? '✓' : '·'}
+                  </span>
+                  <div>
+                    <p className={`text-sm font-semibold ${step.complete ? 'line-through text-slate-400' : 'text-slate-900'}`}>{step.title}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{step.detail}</p>
+                  </div>
+                </Link>
+              ))}
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="workspace-section">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="eyebrow-copy">
-                    {locale === 'en' ? 'This week' : 'इस हफ्ते'}
-                  </p>
-                  <h2 className="mt-3 text-3xl text-slate-950">
-                    {locale === 'en'
-                      ? 'Keep momentum on the highest-leverage tasks.'
-                      : 'सबसे उपयोगी कार्यों पर अपनी गति बनाए रखें।'}
-                  </h2>
-                </div>
-                <span className="rounded-full bg-[#ebf7f5] px-4 py-2 text-sm font-semibold text-[#0a5a60]">
-                  {planProgress}%
-                </span>
+          <div className="route-shell">
+            <p className="eyebrow-copy">
+              {copy('Recent applications', 'हाल के आवेदन')}
+            </p>
+            {latestApplications.length ? (
+              <div className="mt-5 space-y-3">
+                {latestApplications.map((application) => (
+                  <div
+                    className="flex items-center justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-3"
+                    key={application.id}
+                  >
+                    <div>
+                      <h3 className="font-semibold text-slate-950">{application.companyName}</h3>
+                      <p className="mt-0.5 text-sm text-slate-500">{application.roleTitle}</p>
+                    </div>
+                    <span className="accent-chip">{application.status}</span>
+                  </div>
+                ))}
+                <Link
+                  className="mt-2 block text-center text-sm font-semibold text-[var(--accent-ink)]"
+                  href="/applications"
+                >
+                  {copy('View all →', 'सभी देखें →')}
+                </Link>
               </div>
-
-              {snapshot?.plan?.tasks?.length ? (
-                <div className="mt-5 space-y-3">
-                  {snapshot.plan.tasks.slice(0, 4).map((task) => (
-                    <div
-                      className={`workspace-row flex items-start justify-between gap-4 ${
-                        task.completed
-                          ? 'workspace-row--complete'
-                          : ''
-                      }`}
-                      key={task.id}
-                    >
-                      <div>
-                        <h3 className="font-semibold text-slate-950">{task.title}</h3>
-                        <p className="mt-1 text-sm leading-7 text-slate-600">
-                          {task.description}
-                        </p>
-                      </div>
-                      <span className="accent-chip">
-                        {task.completed
-                          ? locale === 'en'
-                            ? 'Done'
-                            : 'पूरा'
-                          : task.priority}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-5 rounded-[1.4rem] bg-slate-50 p-5 text-sm leading-7 text-slate-600">
-                  {locale === 'en'
-                    ? 'Create your first weekly plan from the resume workspace or after choosing your top role.'
-                    : 'जीवनवृत्त बनाते समय या अपनी प्रमुख भूमिका चुनने के बाद पहली साप्ताहिक योजना तैयार करें।'}
-                </div>
-              )}
-            </div>
-
-            <div className="workspace-section">
-              <p className="eyebrow-copy">
-                {locale === 'en' ? 'Recent applications' : 'हाल के आवेदन'}
-              </p>
-              {latestApplications.length ? (
-                <div className="mt-5 space-y-3">
-                  {latestApplications.map((application) => (
-                    <div
-                      className="workspace-row flex items-center justify-between"
-                      key={application.id}
-                    >
-                      <div>
-                        <h3 className="font-semibold text-slate-950">
-                          {application.companyName}
-                        </h3>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {application.roleTitle}
-                        </p>
-                      </div>
-                      <span className="accent-chip">{application.status}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-5 rounded-[1.4rem] bg-slate-50 p-5 text-sm leading-7 text-slate-600">
-                  {locale === 'en'
-                    ? 'No applications tracked yet. Start with 5 realistic openings tied to your selected role.'
-                    : 'अभी कोई आवेदन दर्ज नहीं है। अपनी चुनी हुई भूमिका से जुड़े 5 उपयुक्त अवसरों से शुरुआत करें।'}
-                </div>
-              )}
-            </div>
+            ) : (
+              <div className="mt-5 rounded-[1.4rem] bg-slate-50 p-5 text-sm leading-7 text-slate-600">
+                {copy(
+                  'No applications tracked yet. Start with 5 realistic openings tied to your selected role.',
+                  'अभी कोई आवेदन दर्ज नहीं है। अपनी चुनी हुई भूमिका से जुड़े 5 उपयुक्त अवसरों से शुरुआत करें।'
+                )}
+              </div>
+            )}
           </div>
         </section>
       </div>

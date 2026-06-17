@@ -1,61 +1,43 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  getLatestAssessment,
-  getSelectedRole,
-  refreshStoredAssessmentFromServer,
-} from '@/lib/client-session';
-import type { AssessmentResult, RoleId } from '@/lib/product';
+import { refreshStoredAssessmentFromServer } from '@/lib/client-session';
+import { useAppStore } from '@/lib/store';
+import type { RoleId } from '@/lib/product';
 
 export function useAssessmentState() {
-  const [assessment, setAssessment] = useState<AssessmentResult | null>(null);
-  const [selectedRoleId, setSelectedRoleId] = useState<RoleId | null>(null);
+  const assessment = useAppStore((state) => state.latestAssessment);
+  const storedRoleId = useAppStore((state) => state.selectedRole);
   const [loading, setLoading] = useState(true);
+
+  // Derive the effective selectedRoleId: stored override > top assessment role
+  const selectedRoleId: RoleId | null =
+    storedRoleId ?? assessment?.topRoles?.[0]?.roleId ?? null;
 
   useEffect(() => {
     let active = true;
 
-    const syncLocal = () => {
-      const localAssessment = getLatestAssessment();
-      const localRoleId =
-        getSelectedRole() || localAssessment?.topRoles?.[0]?.roleId || null;
-
-      if (!active) {
-        return;
-      }
-
-      setAssessment(localAssessment);
-      setSelectedRoleId(localRoleId);
-      setLoading(!localAssessment);
-    };
-
-    const syncServer = async () => {
-      const payload = await refreshStoredAssessmentFromServer();
-      if (!active) {
-        return;
-      }
-
-      setAssessment(payload?.result || null);
-      setSelectedRoleId(
-        payload?.selectedRoleId || payload?.result?.topRoles?.[0]?.roleId || null
-      );
+    // If we already have assessment data from the store (hydrated from localStorage),
+    // stop showing the loading state immediately.
+    if (assessment) {
       setLoading(false);
+    }
+
+    // Always refresh from server in the background to catch server-side changes.
+    // refreshStoredAssessmentFromServer calls syncStore internally, so the store
+    // (and all subscribers) update automatically when it resolves.
+    const sync = async () => {
+      await refreshStoredAssessmentFromServer();
+      if (active) setLoading(false);
     };
 
-    syncLocal();
-    window.addEventListener('assessment-change', syncLocal);
-    void syncServer();
+    void sync();
 
     return () => {
       active = false;
-      window.removeEventListener('assessment-change', syncLocal);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return {
-    assessment,
-    selectedRoleId,
-    loading,
-  };
+  return { assessment, selectedRoleId, loading };
 }

@@ -1,3 +1,4 @@
+import { Resend } from 'resend';
 import { logger } from './logger';
 
 export interface EmailOptions {
@@ -29,41 +30,62 @@ function sanitizeSubject(value: string): string {
   return value.replace(/[\r\n]+/g, ' ').trim();
 }
 
-class MockEmailService {
+class EmailService {
   private logs: EmailLog[] = [];
+  private resend: Resend | null = null;
+  private fromAddress: string;
+
+  constructor() {
+    if (process.env.RESEND_API_KEY) {
+      this.resend = new Resend(process.env.RESEND_API_KEY);
+    }
+    this.fromAddress =
+      process.env.RESEND_FROM_EMAIL || 'Job Readiness Coach <noreply@jobreadinesscoach.in>';
+  }
 
   async send(options: EmailOptions): Promise<boolean> {
-    try {
-      const log: EmailLog = {
-        id: `email-${Date.now()}`,
-        to: options.to,
-        subject: options.subject,
-        status: 'sent',
-        timestamp: new Date().toISOString(),
-      };
+    const logEntry: EmailLog = {
+      id: `email-${Date.now()}`,
+      to: options.to,
+      subject: options.subject,
+      status: 'sent',
+      timestamp: new Date().toISOString(),
+    };
 
-      this.logs.push(log);
-
-      logger.info('Mock email sent', {
+    // No API key — log only (dev / local mode)
+    if (!this.resend) {
+      this.logs.push(logEntry);
+      logger.info('[Email mock] Would send email', {
         to: options.to,
         subject: options.subject,
       });
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
       return true;
-    } catch (error) {
-      const log: EmailLog = {
-        id: `email-${Date.now()}`,
+    }
+
+    try {
+      const { error } = await this.resend.emails.send({
+        from: this.fromAddress,
         to: options.to,
         subject: options.subject,
-        status: 'failed',
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+        html: options.html,
+        text: options.text,
+      });
 
-      this.logs.push(log);
-      logger.error('Mock email failed', { to: options.to, error });
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      this.logs.push(logEntry);
+      logger.info('Email sent via Resend', { to: options.to, subject: options.subject });
+      return true;
+    } catch (err) {
+      const failed: EmailLog = {
+        ...logEntry,
+        status: 'failed',
+        error: err instanceof Error ? err.message : 'Unknown error',
+      };
+      this.logs.push(failed);
+      logger.error('Email failed via Resend', { to: options.to, error: err });
       return false;
     }
   }
@@ -86,22 +108,21 @@ class MockEmailService {
     const safeSelectedRole = escapeHtml(selectedRole);
     return {
       to: userEmail,
-      subject: sanitizeSubject(`Career Assessment Results - You matched ${selectedRole}!`),
-      html: `
-        <h2>Your Career Assessment Results</h2>
-        <p>Hi ${safeUserName},</p>
-        <p>Great news! Based on your assessment, we recommend the following role:</p>
-        <h3>${safeSelectedRole}</h3>
-        <p>Your match score: <strong>${score}%</strong></p>
-        <p>Next steps:</p>
-        <ol>
-          <li>Build your resume</li>
-          <li>Complete your action plan</li>
-          <li>Start applying to jobs</li>
-        </ol>
-        <p>Good luck!</p>
-      `,
-      text: `Your assessment result: ${selectedRole} (${score}%)`,
+      subject: sanitizeSubject('Career Assessment Results - You matched ' + selectedRole + '!'),
+      html:
+        '<h2>Your Career Assessment Results</h2>' +
+        '<p>Hi ' + safeUserName + ',</p>' +
+        '<p>Great news! Based on your assessment, we recommend the following role:</p>' +
+        '<h3>' + safeSelectedRole + '</h3>' +
+        '<p>Your match score: <strong>' + score + '%</strong></p>' +
+        '<p>Next steps:</p>' +
+        '<ol>' +
+        '<li>Build your resume</li>' +
+        '<li>Complete your action plan</li>' +
+        '<li>Start applying to jobs</li>' +
+        '</ol>' +
+        '<p>Good luck!</p>',
+      text: 'Your assessment result: ' + selectedRole + ' (' + score + '%)',
     };
   }
 
@@ -113,21 +134,20 @@ class MockEmailService {
     const safeUserName = escapeHtml(userName);
     return {
       to: userEmail,
-      subject: sanitizeSubject(`Week ${weekNumber} Action Plan Reminder`),
-      html: `
-        <h2>Your Weekly Action Plan</h2>
-        <p>Hi ${safeUserName},</p>
-        <p>Don't forget to check your action plan for this week!</p>
-        <p>Week ${weekNumber} tasks:</p>
-        <ul>
-          <li>Master core skills</li>
-          <li>Build portfolio project</li>
-          <li>Practice interview questions</li>
-          <li>Network with professionals</li>
-        </ul>
-        <p>Keep up the great work!</p>
-      `,
-      text: `Reminder: Check your Week ${weekNumber} action plan`,
+      subject: sanitizeSubject('Week ' + weekNumber + ' Action Plan Reminder'),
+      html:
+        '<h2>Your Weekly Action Plan</h2>' +
+        '<p>Hi ' + safeUserName + ',</p>' +
+        '<p>Do not forget to check your action plan for this week!</p>' +
+        '<p>Week ' + weekNumber + ' tasks:</p>' +
+        '<ul>' +
+        '<li>Master core skills</li>' +
+        '<li>Build portfolio project</li>' +
+        '<li>Practice interview questions</li>' +
+        '<li>Network with professionals</li>' +
+        '</ul>' +
+        '<p>Keep up the great work!</p>',
+      text: 'Reminder: Check your Week ' + weekNumber + ' action plan',
     };
   }
 
@@ -142,25 +162,24 @@ class MockEmailService {
     const safeRoleTitle = escapeHtml(roleTitle);
     return {
       to: userEmail,
-      subject: sanitizeSubject(`Application Confirmed - ${companyName} ${roleTitle}`),
-      html: `
-        <h2>Application Recorded</h2>
-        <p>Hi ${safeUserName},</p>
-        <p>We've recorded your application to:</p>
-        <p><strong>${safeCompanyName}</strong> - ${safeRoleTitle}</p>
-        <p>We're tracking this for you and will remind you about follow-ups.</p>
-        <p>Good luck with your application!</p>
-      `,
-      text: `Application recorded: ${companyName} - ${roleTitle}`,
+      subject: sanitizeSubject('Application Confirmed - ' + companyName + ' ' + roleTitle),
+      html:
+        '<h2>Application Recorded</h2>' +
+        '<p>Hi ' + safeUserName + ',</p>' +
+        '<p>We have recorded your application to:</p>' +
+        '<p><strong>' + safeCompanyName + '</strong> - ' + safeRoleTitle + '</p>' +
+        '<p>We are tracking this for you and will remind you about follow-ups.</p>' +
+        '<p>Good luck with your application!</p>',
+      text: 'Application recorded: ' + companyName + ' - ' + roleTitle,
     };
   }
 }
 
-let emailService: MockEmailService | null = null;
+let emailService: EmailService | null = null;
 
-export function getEmailService(): MockEmailService {
+export function getEmailService(): EmailService {
   if (!emailService) {
-    emailService = new MockEmailService();
+    emailService = new EmailService();
   }
   return emailService;
 }

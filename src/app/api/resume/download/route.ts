@@ -1,40 +1,8 @@
 import { NextRequest } from 'next/server';
 import { getDB } from '@/lib/db';
-import { createSimplePdf } from '@/lib/pdf';
+import { createResumePdf } from '@/lib/resume-pdf';
 import { resolveRequestUserId } from '@/lib/request-user';
-
-function buildResumeLines(resume: Awaited<ReturnType<ReturnType<typeof getDB>['getUserResume']>>) {
-  if (!resume) return [];
-
-  const lines = [
-    resume.title,
-    '',
-    `${resume.email} ${resume.phone ? `| ${resume.phone}` : ''}`,
-    resume.location,
-    '',
-    'Summary',
-    resume.summary,
-    '',
-    'Skills',
-    resume.skills.join(', '),
-    '',
-    'Experience',
-    ...resume.experience.flatMap((item) => [
-      `${item.role} - ${item.company}`,
-      `${item.duration}`,
-      item.description,
-      '',
-    ]),
-    'Education',
-    ...resume.education.flatMap((item) => [
-      `${item.degree} - ${item.school}`,
-      `${item.field} | ${item.year}`,
-      '',
-    ]),
-  ];
-
-  return lines.filter(Boolean);
-}
+import type { ResumeDraft } from '@/lib/product';
 
 export async function GET(request: NextRequest) {
   const userId = await resolveRequestUserId(request);
@@ -47,9 +15,9 @@ export async function GET(request: NextRequest) {
     return new Response('Resume not found', { status: 404 });
   }
 
-  const pdfBytes = createSimplePdf(buildResumeLines(resume));
+  const pdfBuffer = await createResumePdf(resume as ResumeDraft);
 
-  return new Response(pdfBytes, {
+  return new Response(pdfBuffer as unknown as BodyInit, {
     status: 200,
     headers: {
       'Content-Type': 'application/pdf',

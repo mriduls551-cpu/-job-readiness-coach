@@ -81,6 +81,9 @@
     "e2e",
     "jest.setup.ts",
     "jest.config.ts",
-    "playwright.config.ts"
+    "playwright.config.ts",
+    "sentry.client.config.ts",
+    "sentry.server.config.ts",
+    "sentry.edge.config.ts"
   ]
 }

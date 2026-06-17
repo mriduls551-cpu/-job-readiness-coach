@@ -1,14 +1,16 @@
 'use client';
 
-import { FormEvent, useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import {
   getLatestAssessment,
   getSelectedRole,
-  getStoredLocale,
   setStoredLocale,
 } from '@/lib/client-session';
+import { useAppStore } from '@/lib/store';
 import type { Locale } from '@/lib/product';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatMessage {
   id: string;
@@ -20,136 +22,106 @@ const HIDE_PATHS = new Set([
   '/',
   '/career-fit-check',
   '/results',
-  // /resume intentionally removed — users need coaching help while building their resume
   '/login',
   '/register',
 ]);
 
+function makeWelcome(locale: Locale): ChatMessage {
+  return {
+    id: 'welcome',
+    role: 'assistant',
+    content:
+      locale === 'en'
+        ? 'I can help you narrow your role fit, improve your resume, or decide the next 3 actions for this week.'
+        : 'मैं आपके लिए उपयुक्त भूमिका पहचानने, जीवनवृत्त बेहतर करने और इस सप्ताह के अगले 3 कदम तय करने में सहायता कर सकता हूँ।',
+  };
+}
+
 export function CoachWidget() {
   const [open, setOpen] = useState(false);
-  const [locale, setLocale] = useState<Locale>('en');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [draft, setDraft] = useState('');
-  const [isPending, startTransition] = useTransition();
+  const locale = useAppStore((state) => state.locale);
   const pathname = usePathname();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const assessment = getLatestAssessment();
+  const roleId = getSelectedRole() ?? assessment?.topRoles?.[0]?.roleId;
+
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [makeWelcome(locale)]);
+  const [input, setInput] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+
+  // Auto-scroll to latest message
   useEffect(() => {
-    const nextLocale = getStoredLocale();
-    setLocale(nextLocale);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isStreaming]);
 
-    const loadContext = async () => {
-      const response = await fetch('/api/agent/context', {
-        headers: {
-          'x-user-locale': nextLocale,
-        },
-      });
+  const switchLocale = (nextLocale: Locale) => {
+    setStoredLocale(nextLocale);
+  };
 
-      if (!response.ok) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || isStreaming) return;
 
-      const payload = (await response.json()) as {
-        data?: {
-          messages?: ChatMessage[];
-        };
-      };
+    setInput('');
+    const userMsg: ChatMessage = { id: `user-${Date.now()}`, role: 'user', content: text };
+    setMessages((prev) => [...prev, userMsg]);
+    setIsStreaming(true);
 
-      setMessages(
-        payload.data?.messages?.length
-          ? payload.data.messages
-          : [
-              {
-                id: 'welcome',
-                role: 'assistant',
-                content:
-                  nextLocale === 'en'
-                    ? 'I can help you narrow your role fit, improve your resume, or decide the next 3 actions for this week.'
-                    : 'मैं आपके लिए उपयुक्त भूमिका पहचानने, जीवनवृत्त बेहतर करने और इस सप्ताह के अगले 3 कदम तय करने में सहायता कर सकता हूँ।',
-              },
-            ]
-      );
-    };
+    const assistantId = `assistant-${Date.now()}`;
 
-    void loadContext();
-  }, []);
-
-  useEffect(() => {
-    const handleLocaleChange = () => setLocale(getStoredLocale());
-    window.addEventListener('locale-change', handleLocaleChange);
-    return () => window.removeEventListener('locale-change', handleLocaleChange);
-  }, []);
-
-  const submitMessage = (event: FormEvent) => {
-    event.preventDefault();
-    const trimmed = draft.trim();
-    if (!trimmed) return;
-
-    const assessment = getLatestAssessment();
-    const roleId = getSelectedRole() || assessment?.topRoles?.[0]?.roleId;
-    const optimisticUserMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user' as const,
-      content: trimmed,
-    };
-
-    setMessages((current) => [...current, optimisticUserMessage]);
-    setDraft('');
-
-    startTransition(async () => {
+    try {
       const response = await fetch('/api/agent/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-user-locale': locale,
         },
-        body: JSON.stringify({
-          message: trimmed,
-          roleId,
-          profile: assessment?.profile,
-        }),
+        body: JSON.stringify({ message: text, roleId, profile: assessment?.profile }),
       });
 
-      if (!response.ok) {
-        setMessages((current) => [
-          ...current,
-          {
-            id: `assistant-error-${Date.now()}`,
-            role: 'assistant',
-            content:
-              locale === 'en'
-                ? 'I hit a temporary issue, but you can still continue with the form and results flow.'
-                : 'अभी कुछ तकनीकी समस्या आई है, लेकिन आप प्रश्नों और परिणामों की प्रक्रिया जारी रख सकते हैं।',
-          },
-        ]);
-        return;
+      if (!response.ok || !response.body) {
+        throw new Error('Request failed');
       }
 
-      const payload = (await response.json()) as {
-        data?: {
-          reply: string;
-        };
-      };
+      setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
 
-      if (payload.data?.reply) {
-        const reply = payload.data.reply;
-        setMessages((current) => [
-          ...current,
-          {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant',
-            content: reply,
-          },
-        ]);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = '';
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+        const snap = accumulated;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: snap } : m))
+        );
       }
-    });
-  };
-
-  const switchLocale = (nextLocale: Locale) => {
-    setLocale(nextLocale);
-    setStoredLocale(nextLocale);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `error-${Date.now()}`,
+          role: 'assistant',
+          content:
+            locale === 'en'
+              ? 'I hit a temporary issue, but you can still continue with the form and results flow.'
+              : 'अभी कुछ तकनीकी समस्या आई है, लेकिन आप प्रश्नों और परिणामों की प्रक्रिया जारी रख सकते हैं।',
+        },
+      ]);
+    } finally {
+      setIsStreaming(false);
+    }
   };
 
   if (HIDE_PATHS.has(pathname)) {
     return null;
   }
+
+  const showThinking = isStreaming && messages.length > 0 && messages[messages.length - 1].role === 'user';
 
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3">
@@ -205,26 +177,43 @@ export function CoachWidget() {
                     : 'ml-auto bg-[var(--accent-ink)] text-white'
                 }`}
               >
-                {message.content}
+                {message.role === 'assistant' ? (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                      ul: ({ children }) => <ul className="my-1 ml-4 list-disc space-y-0.5">{children}</ul>,
+                      ol: ({ children }) => <ol className="my-1 ml-4 list-decimal space-y-0.5">{children}</ol>,
+                      li: ({ children }) => <li>{children}</li>,
+                      strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                      code: ({ children }) => <code className="rounded bg-black/10 px-1 font-mono text-xs">{children}</code>,
+                    }}
+                  >
+                    {message.content}
+                  </ReactMarkdown>
+                ) : (
+                  message.content
+                )}
               </div>
             ))}
-            {isPending && (
+            {showThinking && (
               <div className="max-w-[75%] rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-500">
                 {locale === 'en' ? 'Thinking...' : 'सोच रहा/रही हूं...'}
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
 
-          <form className="border-t border-slate-200/80 p-4" onSubmit={submitMessage}>
+          <form className="border-t border-slate-200/80 p-4" onSubmit={handleSubmit}>
             <textarea
               className="min-h-[5rem] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-[var(--accent-ink)]"
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(e) => setInput(e.target.value)}
               placeholder={
                 locale === 'en'
                   ? 'Ask about your resume, role fit, or next steps...'
                   : 'अपने जीवनवृत्त, उपयुक्त भूमिका या अगले कदम के बारे में पूछें...'
               }
-              value={draft}
+              value={input}
             />
             <div className="mt-3 flex items-center justify-between">
               <p className="text-xs text-slate-500">
@@ -232,7 +221,7 @@ export function CoachWidget() {
                   ? 'Optional help. The core flow still works without AI.'
                   : 'यह अतिरिक्त सहायता है। मुख्य प्रक्रिया कृत्रिम बुद्धिमत्ता के बिना भी काम करती है।'}
               </p>
-              <button className="btn-primary" disabled={isPending || !draft.trim()} type="submit">
+              <button className="btn-primary" disabled={isStreaming || !input.trim()} type="submit">
                 {locale === 'en' ? 'Send' : 'भेजें'}
               </button>
             </div>

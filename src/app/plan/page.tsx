@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
   getStoredLocale,
@@ -9,6 +10,8 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAssessmentState } from '@/hooks/useAssessmentState';
 import { ROLE_DEFINITIONS, getLocaleValue, type Locale, type RoleId } from '@/lib/product';
 import { FullPageLoader } from '@/components/FullPageLoader';
+import { differenceInDays, isToday, isPast } from 'date-fns';
+import { CheckCircle2, BookOpen, Target, Users, FolderKanban } from 'lucide-react';
 
 interface PlanTask {
   id: string;
@@ -26,6 +29,40 @@ interface PlanData {
   tasks: PlanTask[];
 }
 
+const CATEGORY_ICONS = {
+  skill: BookOpen,
+  assessment: Target,
+  networking: Users,
+  project: FolderKanban,
+};
+
+
+function getDueDateLabel(dueDate: string, locale: Locale): { label: string; color: string } {
+  const date = new Date(dueDate);
+  date.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (isToday(date)) {
+    return {
+      label: locale === 'en' ? 'Due today' : 'आज देय है',
+      color: 'text-amber-600 font-medium',
+    };
+  }
+  if (isPast(date)) {
+    const days = Math.abs(differenceInDays(today, date));
+    return {
+      label: locale === 'en' ? `Overdue ${days}d` : `${days} दिन विलंब`,
+      color: 'text-rose-600 font-medium',
+    };
+  }
+  const days = differenceInDays(date, today);
+  return {
+    label: locale === 'en' ? `Due in ${days}d` : `${days} दिन में`,
+    color: days <= 2 ? 'text-amber-500 font-medium' : 'text-slate-500',
+  };
+}
+
 export default function PlanPage() {
   const { user, loading } = useCurrentUser({ requireAuth: true });
   const {
@@ -34,59 +71,47 @@ export default function PlanPage() {
     loading: assessmentLoading,
   } = useAssessmentState();
   const [locale, setLocale] = useState<Locale>('en');
-  const [plan, setPlan] = useState<PlanData | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    const nextLocale = getStoredLocale();
-    setLocale(nextLocale);
+    setLocale(getStoredLocale());
+  }, []);
 
-    if (!user) {
-      return;
-    }
+  const queryClient = useQueryClient();
 
-    const load = async () => {
+  const { data: plan, isPending: planLoading } = useQuery({
+    queryKey: ['plan'],
+    queryFn: async () => {
+      const locale = getStoredLocale();
       const existing = await fetch('/api/plan');
       if (existing.ok) {
         const payload = (await existing.json()) as {
-          data?: {
-            plan: PlanData;
-          };
+          data?: { plan: PlanData };
         };
-        setPlan(payload.data?.plan || null);
-        return;
+        return payload.data?.plan ?? null;
       }
 
       const roleId = (persistedSelectedRoleId || assessment?.topRoles?.[0]?.roleId) as
         | RoleId
         | undefined;
-      if (!assessment || !roleId) return;
+      if (!assessment || !roleId) return null;
 
       const created = await fetch('/api/plan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-locale': nextLocale,
+          'x-user-locale': locale,
         },
-        body: JSON.stringify({
-          roleId,
-          profile: assessment.profile,
-        }),
+        body: JSON.stringify({ roleId, profile: assessment.profile }),
       });
-      if (!created.ok) return;
+      if (!created.ok) return null;
       const payload = (await created.json()) as {
-        data?: {
-          plan: PlanData;
-        };
+        data?: { plan: PlanData };
       };
-      setPlan({
-        ...payload.data?.plan,
-        roleId,
-      } as PlanData);
-    };
-
-    void load();
-  }, [assessment, persistedSelectedRoleId, user]);
+      return { ...payload.data?.plan, roleId } as PlanData;
+    },
+    enabled: !!user && !assessmentLoading,
+  });
 
   const selectedRoleId =
     plan?.roleId || persistedSelectedRoleId || assessment?.topRoles?.[0]?.roleId || null;
@@ -134,7 +159,7 @@ export default function PlanPage() {
         };
       };
       if (payload.data?.plan) {
-        setPlan({
+        queryClient.setQueryData(['plan'], {
           ...payload.data.plan,
           roleId: selectedRoleId || undefined,
         });
@@ -142,7 +167,7 @@ export default function PlanPage() {
     });
   };
 
-  if (loading || assessmentLoading) {
+  if (loading || assessmentLoading || planLoading) {
     return (
       <FullPageLoader
         eyebrow="Weekly plan"
@@ -278,28 +303,37 @@ export default function PlanPage() {
                 type="button"
               >
                 <div className="flex items-start gap-4">
-                  <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-[#0a5a60] text-sm font-semibold text-white">
-                    {index + 1}
-                  </span>
+                  {task.completed ? (
+                    <CheckCircle2 aria-hidden="true" className="mt-1 h-8 w-8 shrink-0 text-[#0a5a60]" />
+                  ) : (
+                    <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0a5a60] text-sm font-semibold text-white">
+                      {index + 1}
+                    </span>
+                  )}
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-lg font-semibold text-slate-950">{task.title}</h2>
-                      {task.category ? (
-                        <span className="accent-chip">{task.category}</span>
-                      ) : null}
+                      {task.category ? (() => {
+                        const CatIcon = CATEGORY_ICONS[task.category];
+                        return (
+                          <span className="inline-flex items-center gap-1 accent-chip">
+                            {CatIcon ? <CatIcon aria-hidden="true" size={11} /> : null}
+                            {task.category}
+                          </span>
+                        );
+                      })() : null}
                     </div>
                     <p className="mt-2 text-sm leading-7 text-slate-600">
                       {task.description}
                     </p>
-                    {task.dueDate ? (
-                      <p className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">
-                        {locale === 'en' ? 'Due' : 'अंतिम तिथि'}{' '}
-                        {new Date(task.dueDate).toLocaleDateString(locale === 'en' ? 'en-IN' : 'hi-IN', {
-                          day: 'numeric',
-                          month: 'short',
-                        })}
-                      </p>
-                    ) : null}
+                    {task.dueDate ? (() => {
+                        const due = getDueDateLabel(task.dueDate, locale);
+                        return (
+                          <p className={`mt-2 text-xs uppercase tracking-[0.18em] ${due.color}`}>
+                            {due.label}
+                          </p>
+                        );
+                      })() : null}
                   </div>
                 </div>
                 <span className="accent-chip">

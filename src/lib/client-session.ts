@@ -3,6 +3,7 @@
  */
 
 import type { AssessmentResult, RoleId } from '@/lib/product';
+import { useAppStore } from '@/lib/store';
 
 export interface StoredUser {
   id: string;
@@ -66,9 +67,9 @@ function saveSession(session: SessionData): void {
   }
 }
 
-function emitSessionEvent(name: 'auth-change' | 'assessment-change' | 'locale-change') {
+function syncStore(patch: Partial<import('@/lib/store').AppState>) {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event(name));
+    useAppStore.setState(patch);
   }
 }
 
@@ -76,8 +77,7 @@ export function clearSession(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(SESSION_KEY);
   }
-  emitSessionEvent('auth-change');
-  emitSessionEvent('assessment-change');
+  syncStore({ user: null, latestAssessment: null, selectedRole: null });
 }
 
 export function clearStoredUser(): void {
@@ -86,15 +86,14 @@ export function clearStoredUser(): void {
   session.latestAssessment = null;
   session.selectedRole = null;
   saveSession(session);
-  emitSessionEvent('auth-change');
-  emitSessionEvent('assessment-change');
+  syncStore({ user: null, latestAssessment: null, selectedRole: null });
 }
 
 export function setStoredUser(user: StoredUser): void {
   const session = getSession();
   session.user = user;
   saveSession(session);
-  emitSessionEvent('auth-change');
+  syncStore({ user });
 }
 
 export function getStoredUser(): StoredUser | null {
@@ -125,7 +124,7 @@ export function setLatestAssessment(assessment: AssessmentResult): void {
   const session = getSession();
   session.latestAssessment = assessment;
   saveSession(session);
-  emitSessionEvent('assessment-change');
+  syncStore({ latestAssessment: assessment });
 }
 
 export function clearLatestAssessment(): void {
@@ -133,7 +132,7 @@ export function clearLatestAssessment(): void {
   session.latestAssessment = null;
   session.selectedRole = null;
   saveSession(session);
-  emitSessionEvent('assessment-change');
+  syncStore({ latestAssessment: null, selectedRole: null });
 }
 
 export function getLatestAssessment(): AssessmentResult | null {
@@ -144,7 +143,7 @@ export function setSelectedRole(roleId: RoleId | null): void {
   const session = getSession();
   session.selectedRole = roleId;
   saveSession(session);
-  emitSessionEvent('assessment-change');
+  syncStore({ selectedRole: roleId });
 }
 
 export async function persistSelectedRole(
@@ -200,7 +199,7 @@ export function setStoredLocale(locale: 'en' | 'hi'): void {
   if (typeof window !== 'undefined') {
     localStorage.setItem(LOCALE_KEY, locale);
   }
-  emitSessionEvent('locale-change');
+  syncStore({ locale });
 }
 
 export function getStoredLocale(): 'en' | 'hi' {

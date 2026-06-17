@@ -1,8 +1,10 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { success, error } from '@/lib/api-response';
+import { streamText } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
+import { error } from '@/lib/api-response';
 import { getDB } from '@/lib/db';
-import { OpenRouterService } from '@/lib/openrouter';
+import { generateCoachFallbackReply, ROLE_DEFINITIONS } from '@/lib/product';
 import { getRequestLocale, resolveRequestUserId } from '@/lib/request-user';
 import type { RoleId } from '@/lib/product';
 import { getRateLimiter } from '@/lib/rate-limiter';
@@ -54,6 +56,14 @@ export async function POST(request: NextRequest) {
       return response;
     }
 
+    // No API key — return static fallback as plain text
+    if (!process.env.OPENROUTER_API_KEY) {
+      const fallback = generateCoachFallbackReply(body.message, locale, body.roleId);
+      return new Response(fallback, {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
+
     const db = getDB();
     const history = await db.getConversation(userId);
 
@@ -64,30 +74,57 @@ export async function POST(request: NextRequest) {
       locale,
     });
 
-    const reply = await OpenRouterService.chat(body.message, locale, {
-      roleId: body.roleId,
-      profile: body.profile
-        ? {
-            locale,
-            ...body.profile,
-          }
-        : undefined,
-      history: history.map((message) => ({
-        role: message.role,
-        content: message.content,
-      })),
+    const role = body.roleId ? ROLE_DEFINITIONS[body.roleId] : null;
+
+    const openrouter = createOpenAI({
+      baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY,
+      headers: {
+        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+        'X-Title': 'Job Readiness Coach',
+      },
     });
 
-    await db.appendConversation(userId, {
-      agentType: 'coach',
-      role: 'assistant',
-      content: reply,
-      locale,
+    const model = process.env.OPENROUTER_CHAT_MODEL || 'openai/gpt-4o-mini';
+
+    const result = streamText({
+      model: openrouter(model),
+      maxOutputTokens: 600,
+      temperature: 0.5,
+      system:
+        locale === 'en'
+          ? 'You are Job Readiness Coach, a practical and supportive AI coach for entry-level white-collar job seekers in India. Keep replies short, helpful, and realistic. Do not fabricate job openings or legal advice.'
+          : 'आप भारत में शुरुआती कार्यालयी नौकरी खोजने वाले युवाओं के लिए सहायक करियर मार्गदर्शक हैं। उत्तर छोटे, उपयोगी और वास्तविक हिंदी में रखें।',
+      messages: [
+        ...(body.profile || role
+          ? [
+              {
+                role: 'system' as const,
+                content: JSON.stringify({
+                  locale,
+                  profile: body.profile ? { locale, ...body.profile } : undefined,
+                  selectedRole: role?.name[locale],
+                }),
+              },
+            ]
+          : []),
+        ...history.map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        })),
+        { role: 'user' as const, content: body.message },
+      ],
+      onFinish: async ({ text }) => {
+        await db.appendConversation(userId, {
+          agentType: 'coach',
+          role: 'assistant',
+          content: text,
+          locale,
+        });
+      },
     });
 
-    return success({
-      reply,
-    });
+    return result.toTextStreamResponse();
   } catch (err) {
     if (err instanceof z.ZodError) {
       return error(err.errors[0]?.message || 'Invalid coach message', 400);
