@@ -1,3 +1,6 @@
+// @ts-check
+const { withSentryConfig } = require('@sentry/nextjs');
+
 /** @type {import('next').NextConfig} */
 const isProduction = process.env.NODE_ENV === 'production';
 const csp = [
@@ -6,7 +9,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' https: data:",
   "img-src 'self' data: https: blob:",
-  `connect-src 'self' https://openrouter.ai https://*.supabase.co${
+  `connect-src 'self' https://openrouter.ai https://*.supabase.co https://sentry.io https://*.ingest.sentry.io${
     isProduction ? '' : ' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*'
   }`,
   "form-action 'self'",
@@ -54,4 +57,17 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = withSentryConfig(nextConfig, {
+  // Sentry webpack plugin options
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: true, // suppress output during build
+  widenClientFileUpload: true,
+  hideSourceMaps: true,
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+    },
+    automaticVercelMonitors: true,
+  },
+});
