@@ -59,5 +59,8 @@ results-*.json
 # QA script output
 /qa-screenshots
 
+# Playwright temp files
+/.tmp-playwright
+
 # Duplicate jest config (disk copy; jest.config.ts is canonical)
 /jest.config.js
