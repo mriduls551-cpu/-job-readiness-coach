@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.test.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "noEmit": false
+  },
+  "include": ["jest.config.ts", "jest.setup.ts"],
+  "exclude": ["node_modules", "next.config.js", "e2e"]
+}
