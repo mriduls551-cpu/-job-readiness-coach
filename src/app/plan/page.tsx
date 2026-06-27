@@ -12,6 +12,7 @@ import { ROLE_DEFINITIONS, getLocaleValue, type Locale, type RoleId } from '@/li
 import { FullPageLoader } from '@/components/FullPageLoader';
 import { differenceInDays, isToday, isPast } from 'date-fns';
 import { CheckCircle2, BookOpen, Target, Users, FolderKanban } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface PlanTask {
   id: string;
@@ -34,6 +35,13 @@ const CATEGORY_ICONS = {
   assessment: Target,
   networking: Users,
   project: FolderKanban,
+};
+
+const CATEGORY_LABELS: Record<NonNullable<PlanTask['category']>, Record<Locale, string>> = {
+  skill: { en: 'Skill', hi: 'कौशल' },
+  assessment: { en: 'Assessment', hi: 'मूल्यांकन' },
+  networking: { en: 'Networking', hi: 'संपर्क' },
+  project: { en: 'Project', hi: 'परियोजना' },
 };
 
 
@@ -59,7 +67,7 @@ function getDueDateLabel(dueDate: string, locale: Locale): { label: string; colo
   const days = differenceInDays(date, today);
   return {
     label: locale === 'en' ? `Due in ${days}d` : `${days} दिन में`,
-    color: days <= 2 ? 'text-amber-500 font-medium' : 'text-slate-500',
+    color: days <= 2 ? 'text-amber-500 font-medium' : 'text-[var(--ink-muted)]',
   };
 }
 
@@ -140,6 +148,14 @@ export default function PlanPage() {
   const toggleTask = (taskId: string, completed: boolean) => {
     if (!plan || !user) return;
 
+    const previousPlan = plan;
+    queryClient.setQueryData<PlanData>(['plan'], {
+      ...plan,
+      tasks: plan.tasks.map((task) =>
+        task.id === taskId ? { ...task, completed: !completed } : task
+      ),
+    });
+
     startTransition(async () => {
       const response = await fetch('/api/plan', {
         method: 'PUT',
@@ -152,7 +168,15 @@ export default function PlanPage() {
           completed: !completed,
         }),
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        queryClient.setQueryData(['plan'], previousPlan);
+        toast.error(
+          locale === 'en'
+            ? 'Could not update that task. Please try again.'
+            : 'यह कार्य अपडेट नहीं हो सका। कृपया फिर से प्रयास करें।'
+        );
+        return;
+      }
       const payload = (await response.json()) as {
         data?: {
           plan: PlanData;
@@ -195,23 +219,28 @@ export default function PlanPage() {
             <p className="eyebrow-copy">
               {locale === 'en' ? 'Weekly plan' : 'साप्ताहिक योजना'}
             </p>
-            <h1 className="mt-4 text-4xl leading-tight text-slate-950">
-              {locale === 'en'
-                ? 'Complete your fit check to unlock your weekly plan.'
-                : 'अपनी साप्ताहिक योजना पाने के लिए योग्यता जाँच पूरी करें।'}
-            </h1>
-            <p className="mt-4 text-base leading-8 text-slate-600">
-              {locale === 'en'
-                ? 'Your weekly plan is built around your selected role. It takes about 5–7 minutes to set up.'
-                : 'आपकी साप्ताहिक योजना चुनी हुई भूमिका के आधार पर बनती है। इसे तैयार करने में 5–7 मिनट लगते हैं।'}
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link className="btn-primary" href="/career-fit-check">
-                {locale === 'en' ? 'Start career fit check' : 'योग्यता जाँच शुरू करें'}
-              </Link>
-              <Link className="btn-outline" href="/dashboard">
-                {locale === 'en' ? 'Back to dashboard' : 'कार्यस्थल पर वापस जाएँ'}
-              </Link>
+            <div className="story-card mt-6 flex flex-col items-center py-10 text-center">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--wash-forest)]">
+                <FolderKanban aria-hidden="true" className="text-[var(--accent-ink)]" size={26} />
+              </span>
+              <h1 className="mt-5 text-2xl font-semibold leading-tight text-[var(--ink-strong)]">
+                {locale === 'en'
+                  ? 'Complete your fit check to unlock your weekly plan.'
+                  : 'अपनी साप्ताहिक योजना पाने के लिए योग्यता जाँच पूरी करें।'}
+              </h1>
+              <p className="mt-3 max-w-sm text-sm leading-7 text-[var(--ink-muted)]">
+                {locale === 'en'
+                  ? 'Your weekly plan is built around your selected role. It takes about 5–7 minutes to set up.'
+                  : 'आपकी साप्ताहिक योजना चुनी हुई भूमिका के आधार पर बनती है। इसे तैयार करने में 5–7 मिनट लगते हैं।'}
+              </p>
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
+                <Link className="btn-primary" href="/career-fit-check">
+                  {locale === 'en' ? 'Start career fit check' : 'योग्यता जाँच शुरू करें'}
+                </Link>
+                <Link className="btn-outline" href="/dashboard">
+                  {locale === 'en' ? 'Back to dashboard' : 'कार्यस्थल पर वापस जाएँ'}
+                </Link>
+              </div>
             </div>
           </section>
         </div>
@@ -228,12 +257,12 @@ export default function PlanPage() {
               <p className="eyebrow-copy">
                 {locale === 'en' ? 'Weekly plan' : 'साप्ताहिक योजना'}
               </p>
-              <h1 className="mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-4 text-4xl leading-tight text-[var(--ink-strong)] sm:text-5xl">
                 {locale === 'en'
                   ? 'A realistic weekly plan tied to your selected role.'
                   : 'आपकी चुनी हुई भूमिका से जुड़ी एक व्यावहारिक साप्ताहिक योजना।'}
               </h1>
-              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+              <p className="mt-4 max-w-3xl text-base leading-8 text-[var(--ink-soft)]">
                 {selectedRole
                   ? locale === 'en'
                     ? `${getLocaleValue(selectedRole.shortLabel, locale)} is your current direction, so these tasks are meant to tighten your resume, sharpen your story, and move applications forward.`
@@ -245,11 +274,11 @@ export default function PlanPage() {
             </div>
 
             <div className="story-card max-w-sm text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Progress' : 'प्रगति'}
               </p>
-              <p className="mt-3 text-5xl font-semibold text-[#0a5a60]">{progress}%</p>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-3 text-5xl font-semibold text-[var(--accent-ink)]">{progress}%</p>
+              <p className="mt-2 text-sm text-[var(--ink-soft)]">
                 {locale === 'en'
                   ? `${completedTasks} of ${totalTasks} tasks completed`
                   : `${totalTasks} में से ${completedTasks} कार्य पूरे`}
@@ -259,34 +288,34 @@ export default function PlanPage() {
 
           <div className="mt-6 grid gap-4 sm:grid-cols-4">
             <div className="metric-tile p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Skill' : 'कौशल'}
               </p>
-              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+              <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">
                 {groupedCounts.skill}
               </p>
             </div>
             <div className="metric-tile p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Assessment' : 'मूल्यांकन'}
               </p>
-              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+              <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">
                 {groupedCounts.assessment}
               </p>
             </div>
             <div className="metric-tile p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Networking' : 'संपर्क'}
               </p>
-              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+              <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">
                 {groupedCounts.networking}
               </p>
             </div>
             <div className="metric-tile p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Project' : 'परियोजना'}
               </p>
-              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+              <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">
                 {groupedCounts.project}
               </p>
             </div>
@@ -304,26 +333,26 @@ export default function PlanPage() {
               >
                 <div className="flex items-start gap-4">
                   {task.completed ? (
-                    <CheckCircle2 aria-hidden="true" className="mt-1 h-8 w-8 shrink-0 text-[#0a5a60]" />
+                    <CheckCircle2 aria-hidden="true" className="mt-1 h-8 w-8 shrink-0 text-[var(--accent-ink)]" />
                   ) : (
-                    <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0a5a60] text-sm font-semibold text-white">
+                    <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent-ink)] text-sm font-semibold text-white">
                       {index + 1}
                     </span>
                   )}
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-semibold text-slate-950">{task.title}</h2>
+                      <h2 className="text-lg font-semibold text-[var(--ink-strong)]">{task.title}</h2>
                       {task.category ? (() => {
                         const CatIcon = CATEGORY_ICONS[task.category];
                         return (
                           <span className="inline-flex items-center gap-1 accent-chip">
                             {CatIcon ? <CatIcon aria-hidden="true" size={11} /> : null}
-                            {task.category}
+                            {CATEGORY_LABELS[task.category][locale]}
                           </span>
                         );
                       })() : null}
                     </div>
-                    <p className="mt-2 text-sm leading-7 text-slate-600">
+                    <p className="mt-2 text-sm leading-7 text-[var(--ink-soft)]">
                       {task.description}
                     </p>
                     {task.dueDate ? (() => {
@@ -352,7 +381,7 @@ export default function PlanPage() {
               <p className="eyebrow-copy">
                 {locale === 'en' ? 'Why this plan works' : 'यह योजना क्यों उपयोगी है'}
               </p>
-              <div className="mt-5 space-y-3 text-sm leading-7 text-slate-600">
+              <div className="mt-5 space-y-3 text-sm leading-7 text-[var(--ink-soft)]">
                 <p>
                   {locale === 'en'
                     ? 'The first task is usually the highest leverage move for your selected role.'
@@ -373,13 +402,13 @@ export default function PlanPage() {
 
             {selectedRole ? (
               <div className="route-shell bg-[rgba(255,255,255,0.78)] p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0a5a60]">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-ink)]">
                   {locale === 'en' ? 'Selected role' : 'चुनी हुई भूमिका'}
                 </p>
-                <h2 className="mt-3 text-2xl text-slate-950">
+                <h2 className="mt-3 text-2xl text-[var(--ink-strong)]">
                   {getLocaleValue(selectedRole.name, locale)}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-3 text-sm leading-7 text-[var(--ink-soft)]">
                   {getLocaleValue(selectedRole.summary, locale)}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -405,7 +434,7 @@ export default function PlanPage() {
             </div>
 
             {isPending ? (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-[var(--ink-muted)]">
                 {locale === 'en'
                   ? 'Updating your progress...'
                   : 'आपकी प्रगति सहेजी जा रही है...'}

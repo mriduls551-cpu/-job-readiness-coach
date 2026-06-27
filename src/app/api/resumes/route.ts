@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { success, error } from '@/lib/api-response';
 import { getDB } from '@/lib/db';
 import { resolveRequestUserId } from '@/lib/request-user';
-import type { ResumeDraft, RoleId } from '@/lib/product';
+import { isActiveRoleId, type ResumeDraft, type RoleId } from '@/lib/product';
 import {
   isValidIndianPhoneNumberOrEmpty,
   normalizeIndianPhoneNumber,
@@ -38,8 +38,13 @@ const resumeSchema = z.object({
   certifications: z.array(z.string()),
 });
 
+const activeRoleSchema = z
+  .string()
+  .refine(isActiveRoleId, 'Role is not active')
+  .transform((value) => value as RoleId);
+
 const initSchema = z.object({
-  roleId: z.custom<RoleId>(),
+  roleId: activeRoleSchema,
   profile: z.object({
     fullName: z.string().optional(),
     city: z.string().optional(),

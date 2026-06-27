@@ -8,6 +8,7 @@ import axios from 'axios';
 import { logger } from '@/lib/logger';
 import { setStoredUser } from '@/lib/client-session';
 import { captureProductEvent, identifyProductUser } from '@/lib/analytics';
+import { useAppStore } from '@/lib/store';
 
 const loginSchema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -19,6 +20,8 @@ type LoginFields = z.infer<typeof loginSchema>;
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const locale = useAppStore((state) => state.locale);
+  const copy = (en: string, hi: string) => (locale === 'en' ? en : hi);
 
   const {
     register,
@@ -66,7 +69,7 @@ export function LoginForm() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div>
           <label htmlFor="email" className="form-label">
-            Email Address
+            {copy('Email Address', 'ईमेल पता')}
           </label>
           <input
             id="email"
@@ -77,13 +80,13 @@ export function LoginForm() {
             {...register('email')}
           />
           {errors.email ? (
-            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+            <p className="mt-1 text-sm text-rose-600">{copy('Enter a valid email address', 'एक मान्य ईमेल पता दर्ज करें')}</p>
           ) : null}
         </div>
 
         <div>
           <label htmlFor="password" className="form-label">
-            Password
+            {copy('Password', 'पासवर्ड')}
           </label>
           <input
             id="password"
@@ -94,26 +97,26 @@ export function LoginForm() {
             {...register('password')}
           />
           {errors.password ? (
-            <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+            <p className="mt-1 text-sm text-rose-600">{copy('Password is required', 'पासवर्ड आवश्यक है')}</p>
           ) : null}
         </div>
 
         {errors.root ? (
-          <div className="rounded-[1.2rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-[1.2rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {errors.root.message}
           </div>
         ) : null}
 
         <button type="submit" disabled={isSubmitting} className="btn-primary w-full">
-          {isSubmitting ? 'Signing in...' : 'Sign in'}
+          {isSubmitting ? copy('Signing in...', 'साइन इन हो रहा है...') : copy('Sign in', 'साइन इन')}
         </button>
 
         <div className="warm-note">
-          Use your account to reopen saved progress, results, and resume edits across devices.
+          {copy('Use your account to reopen saved progress, results, and resume edits across devices.', 'अपने खाते से सेव की गई प्रगति, परिणाम और जीवनवृत्त के बदलाव किसी भी डिवाइस पर खोलें।')}
         </div>
 
         <p className="text-center text-sm text-[var(--ink-soft)]">
-          Don&apos;t have an account?{' '}
+          {copy("Don't have an account?", 'खाता नहीं है?')}{' '}
           <a
             href={`/register${
               searchParams.get('next')
@@ -122,7 +125,7 @@ export function LoginForm() {
             }`}
             className="font-medium text-[var(--accent-ink)] hover:text-[var(--brand-ink)]"
           >
-            Register here
+            {copy('Register here', 'यहाँ रजिस्टर करें')}
           </a>
         </p>
       </form>

@@ -5,6 +5,7 @@ import {
   ASSESSMENT_QUESTIONS,
   BRANCH_QUESTIONS,
   ROLE_DEFINITIONS,
+  ROLE_ORDER,
   TIE_BREAKER_QUESTION,
   getLocaleValue,
   getNextQuestions,
@@ -19,15 +20,15 @@ function peopleFacingPhase1(): Record<string, string> {
 
 function deskOpsFullResponse(): Record<string, string> {
   return {
-    r1: 'r1_c', r2: 'r2_b', r3: 'r3_b', r4: 'r4_b', r5: 'r5_b',
-    b1: 'do_b1_a', b2: 'do_b2_a', b3: 'do_b3_a', b4: 'do_b4_a',
+    r1: 'r1_c', r2: 'r2_b', r3: 'r3_b', r4: 'r4_b', r5: 'r5_b', rtb: 'rtb_b',
+    b1: 'do_b1_a', b2: 'do_b2_a', b3: 'do_b3_a', b4: 'do_b4_a', rf: 'rf_data-entry-mis',
   };
 }
 
 function peopleFacingFullResponse(): Record<string, string> {
   return {
     ...peopleFacingPhase1(),
-    b1: 'pf_b1_a', b2: 'pf_b2_a', b3: 'pf_b3_a', b4: 'pf_b4_a',
+    b1: 'pf_b1_a', b2: 'pf_b2_a', b3: 'pf_b3_a', b4: 'pf_b4_a', rf: 'rf_customer-support',
   };
 }
 
@@ -53,7 +54,7 @@ describe('getNextQuestions', () => {
     const nonRoutingIds = questions
       .filter((q) => !ASSESSMENT_QUESTIONS.some((rq) => rq.id === q.id))
       .filter((q) => q.id !== TIE_BREAKER_QUESTION.id);
-    expect(nonRoutingIds.length).toBe(4);
+    expect(nonRoutingIds.length).toBe(5);
   });
 
   it('every returned question id belongs to a known question set', () => {
@@ -96,9 +97,9 @@ describe('scoreAssessment', () => {
       });
     });
 
-    it('allScores contains exactly 12 roles', () => {
+    it('allScores contains every active role', () => {
       const result = scoreAssessment(peopleFacingFullResponse(), {}, 'en');
-      expect(Object.keys(result.allScores).length).toBe(12);
+      expect(Object.keys(result.allScores)).toHaveLength(ROLE_ORDER.length);
     });
 
     it('dimensionSnapshot has all 6 dimensions', () => {
@@ -180,15 +181,12 @@ describe('scoreAssessment', () => {
   });
 
   describe('empty / missing responses', () => {
-    it('does not throw when responses is empty', () => {
-      expect(() => scoreAssessment({}, {}, 'en')).not.toThrow();
+    it('rejects empty responses', () => {
+      expect(() => scoreAssessment({}, {}, 'en')).toThrow('Missing answer for r1');
     });
 
-    it('returns a valid result shape even with empty responses', () => {
-      const result = scoreAssessment({}, {}, 'en');
-      expect(result).toHaveProperty('topRoles');
-      expect(result).toHaveProperty('cluster');
-      expect(Array.isArray(result.topRoles)).toBe(true);
+    it('rejects incomplete responses', () => {
+      expect(() => scoreAssessment({ r1: 'r1_a' }, {}, 'en')).toThrow('Missing answer for r2');
     });
   });
 
@@ -196,12 +194,6 @@ describe('scoreAssessment', () => {
     it('every role has a 6-element vector', () => {
       Object.values(ROLE_DEFINITIONS).forEach((role) => {
         expect(role.vector).toHaveLength(6);
-      });
-    });
-
-    it('every role has a 6-element dimensionWeights', () => {
-      Object.values(ROLE_DEFINITIONS).forEach((role) => {
-        expect(role.dimensionWeights).toHaveLength(6);
       });
     });
 
@@ -245,26 +237,26 @@ describe('getLocaleValue', () => {
 // ─── Cluster-forcing response sets (all 4 clusters) ───────────────────────────
 //
 // Scores confirmed via tsx probe (see tech-debt work log):
-//   people-facing : r1_a(pf:3) r2_a(pf:3) r3_d(pf:2) r4_a(pf:3) r5_d(pf:3) → pf=14
-//   desk-ops      : r1_c(desk:3) r2_d(desk:3) r3_b(desk:1) r4_b(desk:1+pf:1) r5_c(desk:3) → desk=11
-//   analytical    : r1_d(ana:3) r2_b(desk:2+ana:1) r3_c(ana:2) r4_c(ana:2) r5_b(ana:3) → ana=11
+//   people-facing : r1_a(pf:3) r2_a(pf:3) r3_c(desk:2+ana:1) r4_a(pf:3) r5_a(pf:3) -> pf=12
+//   desk-ops      : r1_c(desk:3) r2_b(desk:3) r3_a(desk:2+ana:3) r4_c(desk:2+ana:1) r5_c(desk:3) -> desk=10
+//   analytical    : r1_d(ana:3) r2_d(ana:3) r3_a(ana:3+desk:2) r4_c(ana:1+desk:2) r5_b(ana:3) -> ana=13
 //   creative      : no 5-answer clean win; needs tie-breaker via rtb_c
 
 function peopleFacingClusterResponses(): Record<string, string> {
-  return { r1: 'r1_a', r2: 'r2_a', r3: 'r3_d', r4: 'r4_a', r5: 'r5_d' };
+  return { r1: 'r1_a', r2: 'r2_a', r3: 'r3_c', r4: 'r4_a', r5: 'r5_a' };
 }
 
 function deskOpsClusterResponses(): Record<string, string> {
-  return { r1: 'r1_c', r2: 'r2_d', r3: 'r3_b', r4: 'r4_b', r5: 'r5_c' };
+  return { r1: 'r1_c', r2: 'r2_b', r3: 'r3_a', r4: 'r4_c', r5: 'r5_c' };
 }
 
 function analyticalClusterResponses(): Record<string, string> {
-  return { r1: 'r1_d', r2: 'r2_b', r3: 'r3_c', r4: 'r4_c', r5: 'r5_b' };
+  return { r1: 'r1_d', r2: 'r2_d', r3: 'r3_a', r4: 'r4_c', r5: 'r5_b' };
 }
 
 function creativeClusterResponses(): Record<string, string> {
   // Last options on all routing Qs trigger the tie-breaker; rtb_c forces creative
-  return { r1: 'r1_d', r2: 'r2_d', r3: 'r3_d', r4: 'r4_d', r5: 'r5_d', rtb: 'rtb_c' };
+  return { r1: 'r1_d', r2: 'r2_c', r3: 'r3_c', r4: 'r4_d', r5: 'r5_d', rtb: 'rtb_c' };
 }
 
 describe('All 4 clusters are reachable via routing + tie-breaker', () => {
@@ -280,7 +272,7 @@ describe('All 4 clusters are reachable via routing + tie-breaker', () => {
     branchQs.forEach((q) => {
       branchAnswers[q.id] = q.options[0].id;
     });
-    const result = scoreAssessment(phase1, branchAnswers, 'en');
+    const result = scoreAssessment({ ...phase1, ...branchAnswers }, {}, 'en');
     expect(result.cluster).toBe('people-facing');
   });
 
@@ -295,7 +287,7 @@ describe('All 4 clusters are reachable via routing + tie-breaker', () => {
     branchQs.forEach((q) => {
       branchAnswers[q.id] = q.options[0].id;
     });
-    const result = scoreAssessment(phase1, branchAnswers, 'en');
+    const result = scoreAssessment({ ...phase1, ...branchAnswers }, {}, 'en');
     expect(result.cluster).toBe('desk-ops');
   });
 
@@ -310,7 +302,7 @@ describe('All 4 clusters are reachable via routing + tie-breaker', () => {
     branchQs.forEach((q) => {
       branchAnswers[q.id] = q.options[0].id;
     });
-    const result = scoreAssessment(phase1, branchAnswers, 'en');
+    const result = scoreAssessment({ ...phase1, ...branchAnswers }, {}, 'en');
     expect(result.cluster).toBe('analytical');
   });
 
@@ -326,7 +318,7 @@ describe('All 4 clusters are reachable via routing + tie-breaker', () => {
     branchQs.forEach((q) => {
       branchAnswers[q.id] = q.options[0].id;
     });
-    const result = scoreAssessment(phase1WithTB, branchAnswers, 'en');
+    const result = scoreAssessment({ ...phase1WithTB, ...branchAnswers }, {}, 'en');
     expect(result.cluster).toBe('creative');
   });
 });
@@ -363,7 +355,7 @@ describe('scoreAssessment – Hindi locale', () => {
       branchAnswers[q.id] = q.options[0].id;
     });
 
-    const result = scoreAssessment(phase1, branchAnswers, 'hi');
+    const result = scoreAssessment({ ...phase1, ...branchAnswers }, {}, 'hi');
     expect(result.topRoles.length).toBeGreaterThan(0);
     // Each topRole carries a role definition with localized name and rationale
     result.topRoles.forEach((match) => {

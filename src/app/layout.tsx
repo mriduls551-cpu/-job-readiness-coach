@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Inter, Lora, Noto_Sans_Devanagari } from 'next/font/google';
 import { Toaster } from 'sonner';
 import { SessionBootstrap } from '@/components/auth/SessionBootstrap';
 import { CoachWidget } from '@/components/CoachWidget';
@@ -8,6 +9,27 @@ import { QueryProvider } from '@/components/providers/QueryProvider';
 import { AnalyticsProvider } from '@/components/providers/AnalyticsProvider';
 import { LocaleProvider } from '@/components/providers/LocaleProvider';
 import './globals.css';
+
+const lora = Lora({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-heading-loaded',
+  display: 'swap',
+});
+
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-body-loaded',
+  display: 'swap',
+});
+
+const notoSansDevanagari = Noto_Sans_Devanagari({
+  subsets: ['devanagari'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-devanagari-loaded',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Job Readiness Coach',
@@ -21,7 +43,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${lora.variable} ${inter.variable} ${notoSansDevanagari.variable}`}>
       <body>
         <QueryProvider>
           <LocaleProvider>

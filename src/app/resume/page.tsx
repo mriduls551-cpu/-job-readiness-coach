@@ -23,6 +23,8 @@ import {
   formatIndianPhoneInput,
   isValidIndianPhoneNumberOrEmpty,
 } from '@/lib/phone';
+import { toast } from 'sonner';
+import * as Dialog from '@radix-ui/react-dialog';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -70,6 +72,7 @@ export default function ResumePage() {
   const [statusMessage, setStatusMessage] = useState('');
   const [isPending, startTransition] = useTransition();
   const [isLoaded, setIsLoaded] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ type: 'experience' | 'education'; index: number } | null>(null);
 
   useEffect(() => {
     const nextLocale = getStoredLocale();
@@ -193,6 +196,11 @@ export default function ResumePage() {
               ? 'Could not save right now, but your local draft is safe.'
               : 'अभी खाते में सुरक्षित नहीं हो सका, लेकिन इस उपकरण पर आपका प्रारूप सुरक्षित है।'
           );
+          toast.error(
+            locale === 'en'
+              ? 'Could not save right now, but your local draft is safe.'
+              : 'अभी खाते में सुरक्षित नहीं हो सका, लेकिन इस उपकरण पर आपका प्रारूप सुरक्षित है।'
+          );
           return;
         }
 
@@ -206,6 +214,9 @@ export default function ResumePage() {
             ? 'Saved to your workspace.'
             : 'आपके कार्यस्थल में सुरक्षित हो गया।'
         );
+        toast.success(
+          locale === 'en' ? 'Resume saved.' : 'जीवनवृत्त सुरक्षित हो गया।'
+        );
       });
     }, 450);
 
@@ -216,8 +227,8 @@ export default function ResumePage() {
 
   const selectedRole = selectedRoleId ? ROLE_DEFINITIONS[selectedRoleId] : null;
   const topMatches = assessment?.topRoles || [];
-  const scoreLabel =
-    selectedRoleId && topMatches.find((item) => item.roleId === selectedRoleId)?.score;
+  const directionLabel =
+    selectedRoleId && topMatches.find((item) => item.roleId === selectedRoleId)?.strengthLabel;
 
   const experienceCount = resume?.experience.filter(
     (item) => item.company || item.role || item.description
@@ -319,7 +330,7 @@ export default function ResumePage() {
     ]);
   };
 
-  const removeExperience = (index: number) => {
+  const confirmRemoveExperience = (index: number) => {
     updateResume(
       'experience',
       resume.experience.filter((_, itemIndex) => itemIndex !== index)
@@ -333,7 +344,7 @@ export default function ResumePage() {
     ]);
   };
 
-  const removeEducation = (index: number) => {
+  const confirmRemoveEducation = (index: number) => {
     updateResume(
       'education',
       resume.education.filter((_, itemIndex) => itemIndex !== index)
@@ -351,6 +362,9 @@ export default function ResumePage() {
         locale === 'en'
           ? 'Could not create the PDF right now.'
           : 'अभी पीडीएफ़ तैयार नहीं हो सका।'
+      );
+      toast.error(
+        locale === 'en' ? 'Could not create the PDF right now.' : 'अभी पीडीएफ़ तैयार नहीं हो सका।'
       );
       return;
     }
@@ -370,6 +384,7 @@ export default function ResumePage() {
   };
 
   return (
+    <>
     <main className="section-shell">
       <div className="container-main space-y-6">
         <section className="workspace-hero">
@@ -378,12 +393,12 @@ export default function ResumePage() {
               <p className="eyebrow-copy">
                 {locale === 'en' ? 'Resume co-writer' : 'रिज्यूमे को-राइटर'}
               </p>
-              <h1 className="mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-4 text-4xl leading-tight text-[var(--ink-strong)] sm:text-5xl">
                 {locale === 'en'
                   ? 'Build a role-aware resume from your fit-check.'
                   : 'योग्यता जाँच के आधार पर भूमिका-केंद्रित जीवनवृत्त बनाएँ।'}
               </h1>
-              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+              <p className="mt-4 max-w-3xl text-base leading-8 text-[var(--ink-soft)]">
                 {selectedRole
                   ? locale === 'en'
                     ? `${headerTitle} is selected right now, so the draft is tuned for that path instead of a generic fresher resume.`
@@ -399,13 +414,13 @@ export default function ResumePage() {
                 <span
                   className={`h-3 w-3 rounded-full ${
                     saveState === 'error'
-                      ? 'bg-red-500'
+                      ? 'bg-rose-500'
                       : saveState === 'saved'
                         ? 'bg-emerald-500'
                         : 'bg-amber-400'
                   }`}
                 />
-                <p className="text-sm font-medium text-slate-700">
+                <p className="text-sm font-medium text-[var(--ink-soft)]">
                   {statusMessage ||
                     (locale === 'en'
                       ? 'Ready to save to your workspace.'
@@ -415,7 +430,7 @@ export default function ResumePage() {
               <div className="mt-3 flex gap-2">
                 <button
                   className={`rounded-full px-4 py-2 text-sm transition ${
-                    step === 'edit' ? 'bg-[#0a5a60] text-white' : 'bg-slate-100 text-slate-600'
+                    step === 'edit' ? 'bg-[var(--accent-ink)] text-white' : 'bg-[var(--wash-forest)] text-[var(--ink-soft)]'
                   }`}
                   onClick={() => setStep('edit')}
                   type="button"
@@ -425,8 +440,8 @@ export default function ResumePage() {
                 <button
                   className={`rounded-full px-4 py-2 text-sm transition ${
                     step === 'preview'
-                      ? 'bg-[#0a5a60] text-white'
-                      : 'bg-slate-100 text-slate-600'
+                      ? 'bg-[var(--accent-ink)] text-white'
+                      : 'bg-[var(--wash-forest)] text-[var(--ink-soft)]'
                   }`}
                   onClick={() => setStep('preview')}
                   type="button"
@@ -439,12 +454,12 @@ export default function ResumePage() {
 
           <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
             <div className="route-shell">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Current direction' : 'वर्तमान दिशा'}
               </p>
-              <h2 className="mt-2 text-2xl text-slate-950">{headerTitle}</h2>
+              <h2 className="mt-2 text-2xl text-[var(--ink-strong)]">{headerTitle}</h2>
               {selectedRole ? (
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-3 text-sm leading-7 text-[var(--ink-soft)]">
                   {getLocaleValue(selectedRole.summary, locale)}
                 </p>
               ) : null}
@@ -453,8 +468,8 @@ export default function ResumePage() {
                   <button
                     className={`rounded-full border px-3 py-2 text-sm transition ${
                       selectedRoleId === match.roleId
-                        ? 'border-[#0a5a60] bg-[#ebf7f5] text-[#0a5a60]'
-                        : 'border-slate-200 bg-white text-slate-600'
+                        ? 'border-[var(--accent-ink)] bg-[var(--wash-forest)] text-[var(--accent-ink)]'
+                        : 'border-[var(--border-soft)] bg-white text-[var(--ink-soft)]'
                     }`}
                     key={match.roleId}
                     onClick={() => {
@@ -470,26 +485,26 @@ export default function ResumePage() {
 
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="metric-tile p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  {locale === 'en' ? 'Match strength' : 'भूमिका से मेल'}
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
+                  {locale === 'en' ? 'Assessment direction' : 'आकलन की दिशा'}
                 </p>
-                <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
-                  {scoreLabel ?? '--'}
+                <p className="mt-3 text-xl font-semibold text-[var(--accent-ink)]">
+                  {directionLabel ? getLocaleValue(directionLabel, locale) : '--'}
                 </p>
               </div>
               <div className="metric-tile p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                   {locale === 'en' ? 'Experience sections' : 'अनुभव के भाग'}
                 </p>
-                <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+                <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">
                   {experienceCount || 0}
                 </p>
               </div>
               <div className="metric-tile p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                   {locale === 'en' ? 'Education sections' : 'शिक्षा के भाग'}
                 </p>
-                <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+                <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">
                   {educationCount || 0}
                 </p>
               </div>
@@ -499,9 +514,9 @@ export default function ResumePage() {
 
         <section className="grid gap-6 xl:grid-cols-[0.98fr,1.02fr]">
           <div className={`${step === 'preview' ? 'hidden xl:block' : ''} space-y-5`}>
-            <div className="route-shell space-y-5 bg-[#fffefb]">
+            <div className="route-shell space-y-5 bg-white/90">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-2xl text-slate-950">
+                <h2 className="text-3xl text-[var(--ink-strong)]">
                   {locale === 'en' ? 'Edit your resume' : 'अपना जीवनवृत्त संपादित करें'}
                 </h2>
                 <button className="btn-outline" onClick={downloadResume} type="button">
@@ -513,7 +528,7 @@ export default function ResumePage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="text-sm font-semibold text-slate-700">
+                  <span className="text-sm font-semibold text-[var(--ink-soft)]">
                     {locale === 'en' ? 'Resume title' : 'जीवनवृत्त का शीर्षक'}
                   </span>
                   <input
@@ -523,7 +538,7 @@ export default function ResumePage() {
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-sm font-semibold text-slate-700">
+                  <span className="text-sm font-semibold text-[var(--ink-soft)]">
                     {locale === 'en' ? 'Location' : 'स्थान'}
                   </span>
                   <input
@@ -533,7 +548,7 @@ export default function ResumePage() {
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-sm font-semibold text-slate-700">
+                  <span className="text-sm font-semibold text-[var(--ink-soft)]">
                     {locale === 'en' ? 'Email' : 'ईमेल'}
                   </span>
                   <input
@@ -543,7 +558,7 @@ export default function ResumePage() {
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-sm font-semibold text-slate-700">
+                  <span className="text-sm font-semibold text-[var(--ink-soft)]">
                     {locale === 'en' ? 'Phone' : 'फोन'}
                   </span>
                   <input
@@ -566,7 +581,7 @@ export default function ResumePage() {
               </div>
 
               <label className="space-y-2">
-                <span className="text-sm font-semibold text-slate-700">
+                <span className="text-sm font-semibold text-[var(--ink-soft)]">
                   {locale === 'en' ? 'Professional summary' : 'व्यावसायिक परिचय'}
                 </span>
                 <textarea
@@ -578,7 +593,7 @@ export default function ResumePage() {
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-slate-950">
+                  <h3 className="text-lg font-semibold text-[var(--ink-strong)]">
                     {locale === 'en' ? 'Skills' : 'कौशल'}
                   </h3>
                   <div className="flex gap-2">
@@ -608,7 +623,7 @@ export default function ResumePage() {
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-slate-950">
+                  <h3 className="text-lg font-semibold text-[var(--ink-strong)]">
                     {locale === 'en' ? 'Experience' : 'अनुभव'}
                   </h3>
                   <button className="btn-outline" onClick={addExperience} type="button">
@@ -645,7 +660,7 @@ export default function ResumePage() {
                       <button
                         className="btn-outline"
                         disabled={resume.experience.length === 1}
-                        onClick={() => removeExperience(index)}
+                        onClick={() => setPendingDelete({ type: 'experience', index })}
                         type="button"
                       >
                         {locale === 'en' ? 'Remove block' : 'ब्लॉक हटाएं'}
@@ -669,7 +684,7 @@ export default function ResumePage() {
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-slate-950">
+                  <h3 className="text-lg font-semibold text-[var(--ink-strong)]">
                     {locale === 'en' ? 'Education' : 'शिक्षा'}
                   </h3>
                   <button className="btn-outline" onClick={addEducation} type="button">
@@ -715,7 +730,7 @@ export default function ResumePage() {
                         <button
                           className="btn-outline"
                           disabled={resume.education.length === 1}
-                          onClick={() => removeEducation(index)}
+                          onClick={() => setPendingDelete({ type: 'education', index })}
                           type="button"
                         >
                           {locale === 'en' ? 'Remove' : 'हटाएं'}
@@ -728,7 +743,7 @@ export default function ResumePage() {
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-slate-950">
+                  <h3 className="text-lg font-semibold text-[var(--ink-strong)]">
                     {locale === 'en' ? 'Certifications' : 'प्रमाणपत्र'}
                   </h3>
                   <div className="flex gap-2">
@@ -767,24 +782,24 @@ export default function ResumePage() {
               <p className="eyebrow-copy">
                 {locale === 'en' ? 'Live preview' : 'तुरंत दिखाई देने वाला रूप'}
               </p>
-              <h2 className="mt-4 text-3xl leading-tight text-slate-950">
+              <h2 className="mt-4 text-3xl leading-tight text-[var(--ink-strong)]">
                 {resume.title || (locale === 'en' ? 'Your name - selected role' : 'आपका नाम - चुनी हुई भूमिका')}
               </h2>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-2 text-sm text-[var(--ink-soft)]">
                 {[resume.location, resume.phone].filter(Boolean).join(' • ')}
               </p>
-              <p className="text-sm text-slate-600">{resume.email}</p>
+              <p className="text-sm text-[var(--ink-soft)]">{resume.email}</p>
 
               <div className="mt-6 space-y-5">
                 <div>
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                     {locale === 'en' ? 'Summary' : 'परिचय'}
                   </h3>
-                  <p className="mt-2 text-sm leading-7 text-slate-700">{resume.summary}</p>
+                  <p className="mt-2 text-sm leading-7 text-[var(--ink-soft)]">{resume.summary}</p>
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                     {locale === 'en' ? 'Skills' : 'कौशल'}
                   </h3>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -797,17 +812,17 @@ export default function ResumePage() {
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                     {locale === 'en' ? 'Experience' : 'अनुभव'}
                   </h3>
                   <div className="mt-3 space-y-4">
                     {resume.experience.map((item, index) => (
                       <div key={`preview-exp-${index}`}>
-                        <p className="font-semibold text-slate-950">
+                        <p className="font-semibold text-[var(--ink-strong)]">
                           {[item.role, item.company].filter(Boolean).join(' • ')}
                         </p>
-                        <p className="text-sm text-slate-500">{item.duration}</p>
-                        <p className="mt-1 text-sm leading-7 text-slate-700">
+                        <p className="text-sm text-[var(--ink-muted)]">{item.duration}</p>
+                        <p className="mt-1 text-sm leading-7 text-[var(--ink-soft)]">
                           {item.description}
                         </p>
                       </div>
@@ -816,16 +831,16 @@ export default function ResumePage() {
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                     {locale === 'en' ? 'Education' : 'शिक्षा'}
                   </h3>
                   <div className="mt-3 space-y-4">
                     {resume.education.map((item, index) => (
                       <div key={`preview-edu-${index}`}>
-                        <p className="font-semibold text-slate-950">
+                        <p className="font-semibold text-[var(--ink-strong)]">
                           {[item.degree, item.school].filter(Boolean).join(' • ')}
                         </p>
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-[var(--ink-muted)]">
                           {[item.field, item.year].filter(Boolean).join(' • ')}
                         </p>
                       </div>
@@ -835,7 +850,7 @@ export default function ResumePage() {
 
                 {resume.certifications.length ? (
                   <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                       {locale === 'en' ? 'Certifications' : 'प्रमाणपत्र'}
                     </h3>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -851,8 +866,8 @@ export default function ResumePage() {
             </div>
 
             {selectedRole ? (
-              <div className="rounded-[1.6rem] border border-[rgba(10,90,96,0.14)] bg-[rgba(255,255,255,0.78)] p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0a5a60]">
+              <div className="rounded-[1.6rem] border border-[var(--accent-ink)]/14 bg-[rgba(255,255,255,0.78)] p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-ink)]">
                   {locale === 'en' ? 'Role-specific cues' : 'भूमिका के अनुसार सुझाव'}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -865,10 +880,10 @@ export default function ResumePage() {
                 <div className="mt-4 space-y-3">
                   {selectedRole.starterTasks.map((task, index) => (
                     <div className="flex gap-3" key={`${selectedRole.id}-cue-${index + 1}`}>
-                      <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-[#0a5a60] text-xs font-semibold text-white">
+                      <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent-ink)] text-xs font-semibold text-white">
                         {index + 1}
                       </span>
-                      <p className="text-sm leading-7 text-slate-700">
+                      <p className="text-sm leading-7 text-[var(--ink-soft)]">
                         {getLocaleValue(task, locale)}
                       </p>
                     </div>
@@ -896,6 +911,38 @@ export default function ResumePage() {
         </section>
       </div>
     </main>
+
+    <Dialog.Root open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-[var(--ink-strong)]/40" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-2xl">
+          <Dialog.Title className="text-xl font-semibold text-[var(--ink-strong)]">
+            {locale === 'en' ? 'Remove this block?' : 'इस ब्लॉक को हटाएँ?'}
+          </Dialog.Title>
+          <Dialog.Description className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
+            {locale === 'en'
+              ? 'This removes it from your resume draft immediately. This cannot be undone.'
+              : 'यह आपके जीवनवृत्त प्रारूप से तुरंत हटा दिया जाएगा। इसे वापस नहीं किया जा सकता।'}
+          </Dialog.Description>
+          <div className="mt-6 flex justify-end gap-3">
+            <Dialog.Close className="btn-outline" type="button">
+              {locale === 'en' ? 'Cancel' : 'रद्द करें'}
+            </Dialog.Close>
+            <button
+              className="btn-primary bg-rose-600 hover:bg-rose-700"
+              onClick={() => {
+                if (pendingDelete?.type === 'experience') confirmRemoveExperience(pendingDelete.index);
+                if (pendingDelete?.type === 'education') confirmRemoveEducation(pendingDelete.index);
+                setPendingDelete(null);
+              }}
+              type="button"
+            >
+              {locale === 'en' ? 'Remove' : 'हटाएँ'}
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+    </>
   );
 }
-

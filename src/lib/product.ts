@@ -1,12 +1,15 @@
 import {
   ASSESSMENT_QUESTIONS,
   BRANCH_QUESTIONS,
+  ROLE_ORDER,
   ROLE_DEFINITIONS,
   TIE_BREAKER_QUESTION,
+  AssessmentValidationError,
   buildRoleRationale,
   getLocaleValue,
   getNextQuestions,
   scoreAssessment,
+  validateAssessmentResponses,
   type AssessmentProfile,
   type AssessmentQuestion,
   type AssessmentResult,
@@ -17,17 +20,32 @@ import {
   type RoleId,
   type RoleMatch,
 } from '@/lib/assessment-engine';
+import { getRolePolicy } from '@/lib/matcher/catalog';
 
 export {
   ASSESSMENT_QUESTIONS,
   BRANCH_QUESTIONS,
+  ROLE_ORDER,
   ROLE_DEFINITIONS,
   TIE_BREAKER_QUESTION,
+  AssessmentValidationError,
   buildRoleRationale,
   getLocaleValue,
   getNextQuestions,
   scoreAssessment,
+  validateAssessmentResponses,
 };
+
+export function isActiveRoleId(value: unknown): value is RoleId {
+  return typeof value === 'string' && ROLE_ORDER.includes(value as RoleId);
+}
+
+export function getRoleCluster(roleId: RoleId): ClusterId {
+  const policy = getRolePolicy(roleId);
+  if (!policy) throw new Error(`Missing matching policy for ${roleId}`);
+  return policy.cluster as ClusterId;
+}
+
 
 export type {
   AssessmentProfile,

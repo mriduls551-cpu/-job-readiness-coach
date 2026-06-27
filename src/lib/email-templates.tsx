@@ -16,7 +16,7 @@ const panelStyle: CSSProperties = {
 };
 
 const headingStyle: CSSProperties = {
-  color: '#0a5a60',
+  color: '#0f6d66',
   margin: '0 0 12px',
 };
 
@@ -43,11 +43,11 @@ async function renderEmail(element: ReactNode) {
 export async function renderAssessmentEmailTemplate({
   userName,
   selectedRole,
-  score,
+  directionLabel,
 }: {
   userName: string;
   selectedRole: string;
-  score: number;
+  directionLabel: string;
 }) {
   return renderEmail(
     <EmailShell>
@@ -56,7 +56,7 @@ export async function renderAssessmentEmailTemplate({
       <p>Great news. Based on your assessment, we recommend this role:</p>
       <h3>{selectedRole}</h3>
       <p>
-        Your match score: <strong>{score}%</strong>
+        Assessment direction: <strong>{directionLabel}</strong>
       </p>
       <p>Next steps:</p>
       <ol>

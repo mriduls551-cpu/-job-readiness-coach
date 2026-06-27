@@ -9,6 +9,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAssessmentState } from '@/hooks/useAssessmentState';
 import {
   ROLE_DEFINITIONS,
+  getRoleCluster,
   getLocaleValue,
   type Locale,
   type LocalizedText,
@@ -37,12 +38,12 @@ function t(en: string, hi: string): LocalizedText {
 }
 
 function getInterviewPack(roleId: RoleId): InterviewPack {
+  const roleCluster = getRoleCluster(roleId);
   const peopleFacingRoles: RoleId[] = [
     'customer-support',
     'sales-support',
     'academic-counsellor',
     'hr-coordinator',
-    'telemedicine-coordinator',
   ];
   const operationsRoles: RoleId[] = [
     'data-entry-mis',
@@ -58,14 +59,14 @@ function getInterviewPack(roleId: RoleId): InterviewPack {
     'content-writer',
   ];
 
-  if (peopleFacingRoles.includes(roleId)) {
+  if (peopleFacingRoles.includes(roleId) || roleCluster === 'people-facing') {
     return {
       focus: t(
         'Show calm communication, follow-through, and trust-building.',
         'शांत संवाद, काम पूरा करने की निरंतरता और भरोसा बनाने की क्षमता दिखाइए।'
       ),
       questions: [
-        t('How do you handle an upset customer, student, or patient?', 'यदि कोई ग्राहक, विद्यार्थी या रोगी परेशान हो, तो आप स्थिति को कैसे संभालेंगे?'),
+        t('How do you handle an upset customer or student?', 'यदि कोई ग्राहक या विद्यार्थी परेशान हो, तो आप स्थिति को कैसे संभालेंगे?'),
         t('Tell us about a time you explained something clearly.', 'ऐसा समय बताइए जब आपने कुछ साफ तरीके से समझाया हो।'),
         t('How do you follow up when someone does not respond?', 'यदि कोई उत्तर न दे, तो आप दोबारा संपर्क कैसे करेंगे?'),
       ],
@@ -82,7 +83,7 @@ function getInterviewPack(roleId: RoleId): InterviewPack {
     };
   }
 
-  if (operationsRoles.includes(roleId)) {
+  if (operationsRoles.includes(roleId) || roleCluster === 'desk-ops') {
     return {
       focus: t(
         'Show process clarity, ownership, and attention to detail.',
@@ -106,7 +107,7 @@ function getInterviewPack(roleId: RoleId): InterviewPack {
     };
   }
 
-  if (accuracyRoles.includes(roleId)) {
+  if (accuracyRoles.includes(roleId) || roleCluster === 'analytical') {
     return {
       focus: t(
         'Show accuracy, documentation discipline, and careful review habits.',
@@ -130,7 +131,7 @@ function getInterviewPack(roleId: RoleId): InterviewPack {
     };
   }
 
-  if (growthRoles.includes(roleId)) {
+  if (growthRoles.includes(roleId) || roleCluster === 'creative') {
     return {
       focus: t(
         'Show audience understanding, ideas, and practical execution.',
@@ -257,12 +258,12 @@ export default function InterviewPage() {
             <p className="eyebrow-copy">
               {locale === 'en' ? 'Interview prep' : 'साक्षात्कार की तैयारी'}
             </p>
-            <h1 className="mt-4 text-4xl leading-tight text-slate-950">
+            <h1 className="mt-4 text-4xl leading-tight text-[var(--ink-strong)]">
               {locale === 'en'
                 ? 'Choose a role first so your interview prep stays specific.'
                 : 'पहले एक भूमिका चुनें, ताकि साक्षात्कार की तैयारी उसी के अनुसार हो।'}
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-8 text-slate-600">
+            <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--ink-soft)]">
               {locale === 'en'
                 ? 'This prep workspace works best after your fit check and role selection.'
                 : 'यह तैयारी योग्यता जाँच पूरी करने और भूमिका चुनने के बाद सबसे अधिक उपयोगी होती है।'}
@@ -290,51 +291,51 @@ export default function InterviewPage() {
               <p className="eyebrow-copy">
                 {locale === 'en' ? 'Interview prep' : 'साक्षात्कार की तैयारी'}
               </p>
-              <h1 className="mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-4 text-4xl leading-tight text-[var(--ink-strong)] sm:text-5xl">
                 {locale === 'en'
                   ? `Prepare for ${selectedRole.shortLabel.en} interviews with one clear story.`
                   : `${selectedRole.shortLabel.hi} interviews के लिए एक clear story तैयार करें।`}
               </h1>
-              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+              <p className="mt-4 max-w-3xl text-base leading-8 text-[var(--ink-soft)]">
                 {pack.focus[locale]}
               </p>
             </div>
 
             <div className="story-card max-w-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Selected role' : 'चुनी हुई भूमिका'}
               </p>
-              <p className="mt-3 text-2xl font-semibold text-[#0a5a60]">
+              <p className="mt-3 text-2xl font-semibold text-[var(--accent-ink)]">
                 {getLocaleValue(selectedRole.shortLabel, locale)}
               </p>
-              <p className="mt-2 text-sm text-slate-600">
-                {topMatch ? `${locale === 'en' ? 'Match score' : 'उपयुक्तता अंक'}: ${topMatch.score}` : '--'}
+              <p className="mt-2 text-sm text-[var(--ink-soft)]">
+                {topMatch ? getLocaleValue(topMatch.strengthLabel, locale) : '--'}
               </p>
             </div>
           </div>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
             <div className="metric-tile p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Interview-stage applications' : 'साक्षात्कार तक पहुँचे आवेदन'}
               </p>
-              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+              <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">
                 {interviewApplications.length}
               </p>
             </div>
             <div className="metric-tile p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Stories to prepare' : 'तैयार करने योग्य उदाहरण'}
               </p>
-              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+              <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">
                 {pack.stories.length}
               </p>
             </div>
             <div className="metric-tile p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Role strengths' : 'भूमिका से जुड़ी खूबियाँ'}
               </p>
-              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">
+              <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">
                 {selectedRole.strengths.length}
               </p>
             </div>
@@ -343,17 +344,17 @@ export default function InterviewPage() {
 
         <section className="grid gap-6 xl:grid-cols-[1fr,1fr]">
           <div className="space-y-5">
-            <div className="route-shell bg-[#fffefb]">
+            <div className="route-shell bg-white/90">
               <p className="eyebrow-copy">
                 {locale === 'en' ? '60-second introduction' : '60 सेकंड का परिचय'}
               </p>
-              <p className="step-panel mt-4 text-sm leading-7 text-slate-700">
+              <p className="step-panel mt-4 text-sm leading-7 text-[var(--ink-soft)]">
                 {introPrompt}
               </p>
             </div>
 
-            <div className="route-shell space-y-4 bg-[#fffefb]">
-              <h2 className="text-2xl text-slate-950">
+            <div className="route-shell space-y-4 bg-white/90">
+              <h2 className="text-3xl text-[var(--ink-strong)]">
                 {locale === 'en' ? 'Questions to practice' : 'अभ्यास के प्रश्न'}
               </h2>
               {pack.questions.map((question) => (
@@ -361,21 +362,21 @@ export default function InterviewPage() {
                   className="step-panel"
                   key={question.en}
                 >
-                  <p className="font-semibold text-slate-900">{question[locale]}</p>
+                  <p className="font-semibold text-[var(--ink-strong)]">{question[locale]}</p>
                 </div>
               ))}
             </div>
 
-            <div className="route-shell space-y-4 bg-[#fffefb]">
-              <h2 className="text-2xl text-slate-950">
+            <div className="route-shell space-y-4 bg-white/90">
+              <h2 className="text-3xl text-[var(--ink-strong)]">
                 {locale === 'en' ? 'Stories to prepare' : 'तैयार करने योग्य उदाहरण'}
               </h2>
               {pack.stories.map((story, index) => (
                 <div className="flex gap-3" key={story.en}>
-                  <span className="mt-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#0a5a60] text-xs font-semibold text-white">
+                  <span className="mt-1 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent-ink)] text-xs font-semibold text-white">
                     {index + 1}
                   </span>
-                  <p className="text-sm leading-7 text-slate-700">{story[locale]}</p>
+                  <p className="text-sm leading-7 text-[var(--ink-soft)]">{story[locale]}</p>
                 </div>
               ))}
             </div>
@@ -393,13 +394,13 @@ export default function InterviewPage() {
                   </span>
                 ))}
               </div>
-              <p className="mt-4 text-sm leading-7 text-slate-600">
+              <p className="mt-4 text-sm leading-7 text-[var(--ink-soft)]">
                 {getLocaleValue(selectedRole.summary, locale)}
               </p>
             </div>
 
             <div className="route-shell bg-white/90">
-              <h2 className="text-2xl text-slate-950">
+              <h2 className="text-3xl text-[var(--ink-strong)]">
                 {locale === 'en' ? 'Before the interview' : 'साक्षात्कार से पहले'}
               </h2>
               <div className="mt-4 space-y-3">
@@ -408,17 +409,17 @@ export default function InterviewPage() {
                     className="step-panel flex gap-3"
                     key={item.en}
                   >
-                    <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-[#d97b2f] text-xs font-semibold text-white">
+                    <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent-saffron)] text-xs font-semibold text-white">
                       {index + 1}
                     </span>
-                    <p className="text-sm leading-7 text-slate-700">{item[locale]}</p>
+                    <p className="text-sm leading-7 text-[var(--ink-soft)]">{item[locale]}</p>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="route-shell bg-white/90">
-              <h2 className="text-2xl text-slate-950">
+              <h2 className="text-3xl text-[var(--ink-strong)]">
                 {locale === 'en' ? 'Interview pipeline' : 'साक्षात्कार की स्थिति'}
               </h2>
               {interviewApplications.length ? (
@@ -428,10 +429,10 @@ export default function InterviewPage() {
                       className="step-panel"
                       key={application.id}
                     >
-                      <p className="font-semibold text-slate-900">{application.companyName}</p>
-                      <p className="mt-1 text-sm text-slate-600">{application.roleTitle}</p>
+                      <p className="font-semibold text-[var(--ink-strong)]">{application.companyName}</p>
+                      <p className="mt-1 text-sm text-[var(--ink-soft)]">{application.roleTitle}</p>
                       {application.notes ? (
-                        <p className="mt-2 text-sm leading-7 text-slate-500">
+                        <p className="mt-2 text-sm leading-7 text-[var(--ink-muted)]">
                           {application.notes}
                         </p>
                       ) : null}
@@ -439,7 +440,7 @@ export default function InterviewPage() {
                   ))}
                 </div>
               ) : (
-                <p className="mt-4 text-sm leading-7 text-slate-600">
+                <p className="mt-4 text-sm leading-7 text-[var(--ink-soft)]">
                   {locale === 'en'
                     ? 'No applications are marked as interview-stage yet. Use this page to prepare before that first recruiter call or interview round.'
                     : 'अभी कोई आवेदन साक्षात्कार चरण में दर्ज नहीं है। पहली भर्ती संबंधी बातचीत या साक्षात्कार से पहले तैयारी के लिए इस पृष्ठ का उपयोग करें।'}

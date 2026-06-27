@@ -225,6 +225,17 @@ export default function HomeReferencePage() {
             </span>
           ))}
         </div>
+
+        <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-[var(--border-soft)] py-8 text-sm text-[var(--ink-muted)]">
+          <p>© {new Date().getFullYear()} Job Readiness Coach</p>
+          <div className="flex gap-6">
+            <span>{locale === 'en' ? 'Privacy' : 'गोपनीयता'}</span>
+            <span>{locale === 'en' ? 'Terms' : 'नियम'}</span>
+            <a className="hover:text-[var(--brand-ink)]" href="mailto:support@jobreadinesscoach.example">
+              {locale === 'en' ? 'Contact' : 'संपर्क करें'}
+            </a>
+          </div>
+        </footer>
       </div>
     </main>
   );

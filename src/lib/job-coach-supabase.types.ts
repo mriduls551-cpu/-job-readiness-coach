@@ -46,6 +46,9 @@ export interface JobCoachDatabase {
           profile: Json;
           selected_role: string | null;
           role_scores: Json;
+          result_snapshot: Json | null;
+          scoring_version: string | null;
+          catalog_version: string | null;
           status: 'completed' | 'in_progress';
           created_at: string;
           updated_at: string;
@@ -57,6 +60,9 @@ export interface JobCoachDatabase {
           profile: Json;
           selected_role?: string | null;
           role_scores: Json;
+          result_snapshot?: Json | null;
+          scoring_version?: string | null;
+          catalog_version?: string | null;
           status?: 'completed' | 'in_progress';
           created_at?: string;
           updated_at?: string;
@@ -68,6 +74,9 @@ export interface JobCoachDatabase {
           profile?: Json;
           selected_role?: string | null;
           role_scores?: Json;
+          result_snapshot?: Json | null;
+          scoring_version?: string | null;
+          catalog_version?: string | null;
           status?: 'completed' | 'in_progress';
           created_at?: string;
           updated_at?: string;

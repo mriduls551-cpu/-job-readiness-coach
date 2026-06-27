@@ -2,10 +2,12 @@ import { after, NextRequest } from 'next/server';
 import { z } from 'zod';
 import { success, error } from '@/lib/api-response';
 import { getDB } from '@/lib/db';
-import { OpenRouterService } from '@/lib/openrouter';
 import { getRequestLocale, resolveRequestUserId } from '@/lib/request-user';
 import {
+  AssessmentValidationError,
+  ROLE_ORDER,
   getLocaleValue,
+  isActiveRoleId,
   scoreAssessment,
   type AssessmentProfile,
   type RoleId,
@@ -31,12 +33,23 @@ const schema = z.object({
     fullName: z.string().max(120).optional(),
     city: z.string().max(120).optional(),
     degreeName: z.string().max(160).optional(),
+    educationStream: z.enum([
+      'commerce',
+      'management',
+      'arts-humanities',
+      'science',
+      'healthcare',
+      'law',
+      'open',
+    ]).optional(),
+    // Objective checks must be created and verified server-side; the public
+    // assessment endpoint deliberately cannot accept self-awarded scores.
     locale: z.enum(['en', 'hi']).optional(),
-  }),
+  }).strict(),
 });
 
 const selectedRoleSchema = z.object({
-  roleId: z.string().min(1),
+  roleId: z.enum(ROLE_ORDER as [RoleId, ...RoleId[]]),
 });
 
 function buildPersistedAssessmentResult(
@@ -44,17 +57,25 @@ function buildPersistedAssessmentResult(
     responses: Record<string, string>;
     profile: AssessmentProfile;
     selectedRole?: RoleId;
+    resultSnapshot?: ReturnType<typeof scoreAssessment>;
   },
   locale: 'en' | 'hi'
 ) {
-  const result = scoreAssessment(
-    assessment.responses,
-    {
-      ...assessment.profile,
-      locale,
-    },
-    locale
-  );
+  if (
+    assessment.resultSnapshot?.topRoles.some((role) => !isActiveRoleId(role.roleId))
+  ) {
+    throw new AssessmentValidationError([
+      'This assessment contains a retired role and must be retaken.',
+    ]);
+  }
+  const result = assessment.resultSnapshot || scoreAssessment(
+      assessment.responses,
+      {
+        ...assessment.profile,
+        locale,
+      },
+      locale
+    );
 
   return {
     result,
@@ -79,10 +100,24 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const persisted = buildPersistedAssessmentResult(latest, locale);
+  let persisted: ReturnType<typeof buildPersistedAssessmentResult>;
+  try {
+    persisted = buildPersistedAssessmentResult(latest, locale);
+  } catch (err) {
+    if (err instanceof AssessmentValidationError) {
+      return success({
+        questionsAvailable: true,
+        result: null,
+        selectedRoleId: null,
+        retakeRequired: true,
+      });
+    }
+    throw err;
+  }
 
   return success({
     questionsAvailable: true,
+    retakeRequired: false,
     ...persisted,
   });
 }
@@ -115,22 +150,7 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getDB();
-    const { result } = await db.saveAssessment(userId, body.responses, baseProfile);
-    const aiRationales = await OpenRouterService.generateRoleExplanations(
-      result.topRoles,
-      result.profile,
-      locale
-    );
-
-    const hydrated = {
-      ...result,
-      topRoles: result.topRoles.map((match) => ({
-        ...match,
-        rationale:
-          aiRationales.find((item) => item.roleId === match.roleId)?.rationale ||
-          match.rationale,
-      })),
-    };
+    const { result: hydrated } = await db.saveAssessment(userId, body.responses, baseProfile);
 
     if (hydrated.topRoles[0]) {
       await db.seedReminders(userId, locale, hydrated.topRoles[0].roleId);
@@ -146,7 +166,7 @@ export async function POST(request: NextRequest) {
             user.name,
             user.email,
             getLocaleValue(topRole.role.name, locale),
-            topRole.score
+            getLocaleValue(topRole.strengthLabel, locale)
           );
           await emailService.send(email);
         } catch (emailError) {
@@ -166,6 +186,9 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     if (err instanceof z.ZodError) {
       return error(err.errors[0]?.message || 'Invalid assessment payload', 400);
+    }
+    if (err instanceof AssessmentValidationError) {
+      return error(err.message, 400);
     }
     return error('Unable to score assessment right now', 500);
   }

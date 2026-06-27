@@ -5,6 +5,7 @@ import {
   TIE_BREAKER_QUESTION,
   BRANCH_QUESTIONS,
   ROLE_DEFINITIONS,
+  ROLE_ORDER,
   ASSESSMENT_QUESTIONS,
 } from './src/lib/assessment-engine';
 
@@ -28,12 +29,11 @@ assert(ASSESSMENT_QUESTIONS === ROUTING_QUESTIONS, 'ASSESSMENT_QUESTIONS is alia
 assert(TIE_BREAKER_QUESTION.id === 'rtb', 'Tie-breaker id is rtb');
 assert(Object.keys(BRANCH_QUESTIONS).length === 4, 'BRANCH_QUESTIONS has 4 clusters');
 for (const cluster of ['people-facing','desk-ops','analytical','creative'] as const) {
-  assert(BRANCH_QUESTIONS[cluster].length === 4, `${cluster} has 4 branch questions`);
+  assert(BRANCH_QUESTIONS[cluster].length === 5, `${cluster} has 5 branch questions`);
 }
-assert(Object.keys(ROLE_DEFINITIONS).length === 12, '12 roles defined');
+assert(Object.keys(ROLE_DEFINITIONS).length === ROLE_ORDER.length, 'active roles defined');
 for (const [id, role] of Object.entries(ROLE_DEFINITIONS)) {
   assert(role.vector.length === 6, `${id} vector is 6D`);
-  assert(role.dimensionWeights.length === 6, `${id} weights is 6D`);
 }
 
 // ─── 2. getNextQuestions adaptive routing ────────────────────────────────────
@@ -97,7 +97,7 @@ console.log(`    TB branch ids: ${crWithTB.slice(6).map((q:any)=>q.id).join(', '
 console.log('\n[4] scoreAssessment — 4 cluster paths');
 
 // PF full
-const pfFull: Record<string,string> = { ...PF, b1: 'pf_b1_a', b2: 'pf_b2_a', b3: 'pf_b3_a', b4: 'pf_b4_a' };
+const pfFull: Record<string,string> = { ...PF, b1: 'pf_b1_a', b2: 'pf_b2_a', b3: 'pf_b3_a', b4: 'pf_b4_a', rf: 'rf_customer-support' };
 const pfResult = scoreAssessment(pfFull, {}, 'en');
 assert(pfResult.cluster === 'people-facing', `PF cluster = people-facing (got ${pfResult.cluster})`);
 assert(pfResult.topRoles.length === 3, 'PF topRoles = 3');
@@ -105,7 +105,7 @@ assert(pfResult.topRoles[0].score > 0, `PF top score = ${pfResult.topRoles[0].sc
 console.log(`    → ${pfResult.topRoles.map(r => `${r.roleId}(${r.score})`).join(', ')}`);
 
 // DO full
-const doFull: Record<string,string> = { ...DO, b1: 'do_b1_a', b2: 'do_b2_a', b3: 'do_b3_a', b4: 'do_b4_a' };
+const doFull: Record<string,string> = { ...DO, b1: 'do_b1_a', b2: 'do_b2_a', b3: 'do_b3_a', b4: 'do_b4_a', rf: 'rf_data-entry-mis' };
 const doResult = scoreAssessment(doFull, {}, 'en');
 assert(doResult.cluster === 'desk-ops', `DO cluster = desk-ops (got ${doResult.cluster})`);
 assert(doResult.topRoles.length === 3, 'DO topRoles = 3');
@@ -113,10 +113,10 @@ assert(doResult.topRoles[0].score > 0, `DO top score = ${doResult.topRoles[0].sc
 console.log(`    → ${doResult.topRoles.map(r => `${r.roleId}(${r.score})`).join(', ')}`);
 
 // AN full — with or without tie-breaker
-const anFull: Record<string,string> = { ...AN, b1: 'an_b1_a', b2: 'an_b2_a', b3: 'an_b3_a', b4: 'an_b4_a' };
+const anFull: Record<string,string> = { ...AN, b1: 'an_b1_a', b2: 'an_b2_a', b3: 'an_b3_a', b4: 'an_b4_a', rf: 'rf_operations-analyst' };
 const anBase = getNextQuestions(AN);
 const anNeedsTB = anBase.some((q:any) => q.id === 'rtb');
-const anFullWithTB = anNeedsTB ? { ...AN, rtb: 'rtb_c', b1: 'an_b1_a', b2: 'an_b2_a', b3: 'an_b3_a', b4: 'an_b4_a' } : anFull;
+const anFullWithTB = anNeedsTB ? { ...AN, rtb: 'rtb_c', b1: 'an_b1_a', b2: 'an_b2_a', b3: 'an_b3_a', b4: 'an_b4_a', rf: 'rf_operations-analyst' } : anFull;
 const anResult = scoreAssessment(anFullWithTB, {}, 'en');
 assert(anResult.cluster === 'analytical', `AN cluster = analytical (got ${anResult.cluster})`);
 assert(anResult.topRoles.length === 3, 'AN topRoles = 3');
@@ -124,7 +124,7 @@ assert(anResult.topRoles[0].score > 0, `AN top score = ${anResult.topRoles[0].sc
 console.log(`    → ${anResult.topRoles.map(r => `${r.roleId}(${r.score})`).join(', ')}`);
 
 // CR full (needs tb=rtb_b to route to creative)
-const crFull: Record<string,string> = { ...CR_routing, rtb: 'rtb_b', b1: 'cr_b1_a', b2: 'cr_b2_a', b3: 'cr_b3_a', b4: 'cr_b4_a' };
+const crFull: Record<string,string> = { ...CR_routing, rtb: 'rtb_b', b1: 'cr_b1_a', b2: 'cr_b2_a', b3: 'cr_b3_a', b4: 'cr_b4_a', rf: 'rf_content-writer' };
 const crResult = scoreAssessment(crFull, {}, 'en');
 assert(crResult.cluster === 'creative', `CR cluster = creative (got ${crResult.cluster})`);
 assert(crResult.topRoles.length === 3, 'CR topRoles = 3');
@@ -135,7 +135,7 @@ console.log(`    → ${crResult.topRoles.map(r => `${r.roleId}(${r.score})`).joi
 console.log('\n[5] Disqualifier rules');
 // Numbers-avoider: r3_d patches numbersConfidence=low (via profilePatch in routing question)
 // Use a path that goes through r3_d
-const naPath: Record<string,string> = { ...PF, b1: 'pf_b1_a', b2: 'pf_b2_a', b3: 'pf_b3_a', b4: 'pf_b4_a' };
+const naPath: Record<string,string> = { ...PF, b1: 'pf_b1_a', b2: 'pf_b2_a', b3: 'pf_b3_a', b4: 'pf_b4_a', rf: 'rf_customer-support' };
 // r3_d is already in PF path — profilePatch sets numbersConfidence=low, dataConfidence=low
 const naResult = scoreAssessment(naPath, {}, 'en');
 const bannedNA = ['accounting-finance-assistant','data-entry-mis','operations-analyst'];
@@ -152,7 +152,7 @@ for (const role of bannedNA) {
 // Speaking-avoider: r4_d patches speakingConfidence=low
 // Use a modified PF path with r4_d instead of r4_a
 const saPath: Record<string,string> = { r1: 'r1_a', r2: 'r2_a', r3: 'r3_d', r4: 'r4_d', r5: 'r5_d',
-  b1: 'pf_b1_a', b2: 'pf_b2_a', b3: 'pf_b3_a', b4: 'pf_b4_a' };
+  b1: 'pf_b1_a', b2: 'pf_b2_a', b3: 'pf_b3_a', b4: 'pf_b4_a', rf: 'rf_customer-support' };
 const saResult = scoreAssessment(saPath, {}, 'en');
 const bannedSA = ['customer-support','sales-support','academic-counsellor'];
 const saScores = bannedSA
@@ -170,17 +170,14 @@ const hasLegal = lawResult.topRoles.some(r => r.roleId === 'legal-compliance-ope
 assert(hasLegal, `Law stream → legal-compliance in top 3`);
 console.log(`    law top: ${lawResult.topRoles.map(r => r.roleId).join(', ')}`);
 
-// Healthcare stream boost
-const healthResult = scoreAssessment(pfFull, { educationStream: 'healthcare' }, 'en');
-const hasHealth = healthResult.topRoles.some(r => r.roleId === 'telemedicine-coordinator');
-assert(hasHealth, `Healthcare stream → telemedicine in top 3`);
+assert(!ROLE_ORDER.some((roleId) => roleId === ('patient-care-coordinator' as never)), 'Patient Care is retired');
 
 // ─── 6. AssessmentResult shape ───────────────────────────────────────────────
 console.log('\n[6] AssessmentResult shape');
 assert(typeof pfResult.cluster === 'string', 'cluster is string');
 assert(typeof pfResult.confidenceScore === 'number', 'confidenceScore is number');
 assert(Array.isArray(pfResult.topRoles), 'topRoles is array');
-assert(Object.keys(pfResult.allScores).length === 12, 'allScores has 12 entries');
+assert(Object.keys(pfResult.allScores).length === ROLE_ORDER.length, 'allScores has all active entries');
 assert(Object.keys(pfResult.dimensionSnapshot).length === 6, 'dimensionSnapshot has 6 dims');
 assert(pfResult.summary.en.length > 0, 'summary.en non-empty');
 assert(pfResult.summary.hi.length > 0, 'summary.hi non-empty');

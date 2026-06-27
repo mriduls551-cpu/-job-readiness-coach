@@ -7,7 +7,9 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAssessmentState } from '@/hooks/useAssessmentState';
 import { ROLE_DEFINITIONS, getLocaleValue, type Locale, type RoleId } from '@/lib/product';
 import { FullPageLoader } from '@/components/FullPageLoader';
+import { DashboardSkeleton } from '@/components/DashboardSkeleton';
 import { getFirstName } from '@/lib/presentation';
+import { MapPin, FileText, Briefcase, CheckSquare } from 'lucide-react';
 
 interface DashboardSnapshot {
   assessment: any;
@@ -201,9 +203,12 @@ export default function DashboardPage() {
 
   const metrics = [
     {
-      label: copy('Journey done', 'Journey done'),
+      label: copy('Journey done', 'Journey poori hui'),
       value: `${completedJourneySteps}/5`,
-      detail: copy('Core steps unlocked', 'Core steps unlocked'),
+      detail: copy('Core steps unlocked', 'Zaroori steps unlock hue'),
+      icon: MapPin,
+      active: completedJourneySteps > 0,
+      done: completedJourneySteps === 5,
     },
     {
       label: copy('Resume', 'Resume'),
@@ -211,27 +216,30 @@ export default function DashboardPage() {
       detail: hasResume
         ? copy('Draft in workspace', 'Draft workspace mein hai')
         : copy('Needs first pass', 'Pehla pass baaki hai'),
+      icon: FileText,
+      active: hasResume,
+      done: hasResume,
     },
     {
       label: copy('Applications', 'Applications'),
       value: String(snapshot?.applications?.length || 0),
-      detail: copy('Visible follow-through', 'Visible follow-through'),
+      detail: copy('Visible follow-through', 'Follow-through saaf dikhega'),
+      icon: Briefcase,
+      active: (snapshot?.applications?.length || 0) > 0,
+      done: false,
     },
     {
-      label: copy('This week', 'This week'),
+      label: copy('This week', 'Is hafte'),
       value: totalTasks ? `${completedTasks}/${totalTasks}` : '0',
-      detail: copy('Tasks completed', 'Tasks completed'),
+      detail: copy('Tasks completed', 'Tasks poore hue'),
+      icon: CheckSquare,
+      active: completedTasks > 0,
+      done: totalTasks > 0 && completedTasks === totalTasks,
     },
   ];
 
   if (loading) {
-    return (
-      <FullPageLoader
-        eyebrow="Personal workspace"
-        title="Loading your dashboard..."
-        message="We're pulling together your role, plan, resume, and reminders."
-      />
-    );
+    return <DashboardSkeleton />;
   }
 
   if (!user) {
@@ -251,14 +259,14 @@ export default function DashboardPage() {
           <section className="workspace-hero">
             <div className="grid gap-5 lg:grid-cols-[1.2fr,0.8fr]">
               <div>
-                <p className="eyebrow-copy">{copy('Personal workspace', 'Personal workspace')}</p>
-                <h1 className="mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
+                <p className="eyebrow-copy">{copy('Personal workspace', 'Aapka workspace')}</p>
+                <h1 className="mt-4 text-4xl leading-tight text-[var(--ink-strong)] sm:text-5xl">
                   {copy(
                     `Welcome, ${firstName}. Let's build your direction step by step.`,
                     `Swagat hai, ${firstName}. Chaliye aapki direction step by step banate hain.`
                   )}
                 </h1>
-                <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+                <p className="mt-4 max-w-3xl text-base leading-8 text-[var(--ink-soft)]">
                   {copy(
                     'This workspace becomes useful quickly once you finish the fit check. It will anchor your role direction, resume, weekly plan, and applications in one place.',
                     'Fit check poori hote hi yeh workspace kaafi upyogi ho jata hai. Isi se aapki role direction, resume, weekly plan aur applications ek jagah judte hain.'
@@ -279,12 +287,12 @@ export default function DashboardPage() {
                 <div className="mt-5 space-y-3">
                   {journeySteps.map((step, index) => (
                     <div className="workspace-row flex items-start gap-4" key={step.id}>
-                      <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-[#0a5a60] text-xs font-semibold text-white">
+                      <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent-ink)] text-xs font-semibold text-white">
                         {index + 1}
                       </span>
                       <div>
-                        <h2 className="font-semibold text-slate-950">{step.title}</h2>
-                        <p className="mt-1 text-sm leading-6 text-slate-600">{step.detail}</p>
+                        <h2 className="font-semibold text-[var(--ink-strong)]">{step.title}</h2>
+                        <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">{step.detail}</p>
                       </div>
                     </div>
                   ))}
@@ -304,14 +312,14 @@ export default function DashboardPage() {
           <div className="grid gap-5 xl:grid-cols-[1.25fr,0.75fr]">
             <div className="space-y-5">
               <div>
-                <p className="eyebrow-copy">{copy('Personal workspace', 'Personal workspace')}</p>
-                <h1 className="mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
+                <p className="eyebrow-copy">{copy('Personal workspace', 'Aapka workspace')}</p>
+                <h1 className="mt-4 text-4xl leading-tight text-[var(--ink-strong)] sm:text-5xl">
                   {copy(
                     `Hi ${firstName}, your search now has one working home base.`,
                     `Namaste ${firstName}, ab aapki search ka ek working home base hai.`
                   )}
                 </h1>
-                <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+                <p className="mt-4 max-w-3xl text-base leading-8 text-[var(--ink-soft)]">
                   {copy(
                     'Role direction, resume progress, weekly plan, reminders, and applications now move together instead of living in separate tabs.',
                     'Role direction, resume progress, weekly plan, reminders aur applications ab alag-alag tabs mein bikharne ke bajay ek saath move karte hain.'
@@ -331,23 +339,36 @@ export default function DashboardPage() {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                {metrics.map((metric) => (
-                  <div className="metric-tile p-4" key={metric.label}>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      {metric.label}
-                    </p>
-                    <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">{metric.value}</p>
-                    <p className="mt-2 text-sm text-slate-600">{metric.detail}</p>
-                  </div>
-                ))}
+                {metrics.map((metric) => {
+                  const Icon = metric.icon;
+                  return (
+                    <div
+                      className={`metric-tile p-4 transition ${metric.done ? 'ring-1 ring-[var(--accent-ink)]/20' : ''}`}
+                      key={metric.label}
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
+                          {metric.label}
+                        </p>
+                        <span className={`flex h-7 w-7 items-center justify-center rounded-full ${metric.done ? 'bg-[var(--accent-ink)]/10 text-[var(--accent-ink)]' : metric.active ? 'bg-[var(--accent-saffron)]/12 text-[var(--accent-saffron)]' : 'bg-[var(--wash-forest)] text-[var(--ink-muted)]'}`}>
+                          <Icon size={14} aria-hidden="true" />
+                        </span>
+                      </div>
+                      <p className={`mt-3 text-3xl font-semibold ${metric.done ? 'text-[var(--accent-ink)]' : metric.active ? 'text-[var(--accent-saffron)]' : 'text-[var(--ink-muted)]'}`}>
+                        {metric.value}
+                      </p>
+                      <p className="mt-2 text-sm text-[var(--ink-soft)]">{metric.detail}</p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
             <div className="space-y-4">
               <div className="route-shell bg-white/92">
                 <p className="eyebrow-copy">{nextStep.eyebrow}</p>
-                <h2 className="mt-3 text-3xl leading-tight text-slate-950">{nextStep.title}</h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">{nextStep.body}</p>
+                <h2 className="mt-3 text-3xl leading-tight text-[var(--ink-strong)]">{nextStep.title}</h2>
+                <p className="mt-3 text-sm leading-7 text-[var(--ink-soft)]">{nextStep.body}</p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link className="btn-primary" href={nextStep.primaryHref}>
                     {nextStep.primaryLabel}
@@ -361,8 +382,8 @@ export default function DashboardPage() {
               <div className="route-shell bg-[rgba(255,255,255,0.82)]">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="eyebrow-copy">{copy('Plan progress', 'Plan progress')}</p>
-                    <h2 className="mt-3 text-2xl text-slate-950">
+                    <p className="eyebrow-copy">{copy('Plan progress', 'Plan ki progress')}</p>
+                    <h2 className="mt-3 text-2xl text-[var(--ink-strong)]">
                       {copy('Keep the highest-leverage work moving.', 'Sabse upyogi kaam ko moving rakhiye.')}
                     </h2>
                   </div>
@@ -375,7 +396,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-3 text-sm leading-7 text-[var(--ink-soft)]">
                   {copy(
                     `${completedTasks} of ${totalTasks} tasks are already completed this week.`,
                     `Is hafte ${totalTasks} me se ${completedTasks} tasks poore ho chuke hain.`
@@ -390,11 +411,11 @@ export default function DashboardPage() {
           <div className="route-shell bg-white/90">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="eyebrow-copy">{copy('Journey checkpoint', 'Journey checkpoint')}</p>
-                <h2 className="mt-3 text-3xl text-slate-950">
+                <p className="eyebrow-copy">{copy('Journey checkpoint', 'Journey ka checkpoint')}</p>
+                <h2 className="mt-3 text-3xl text-[var(--ink-strong)]">
                   {copy('See where you are, then move forward.', 'Apni progress dekhe, phir aage badhiye.')}
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-[var(--ink-muted)]">
                   {copy(
                     `${completedJourneySteps} of ${journeySteps.length} milestones reached`,
                     `${journeySteps.length} me se ${completedJourneySteps} milestones poore`
@@ -405,16 +426,16 @@ export default function DashboardPage() {
             <div className="mt-5 space-y-3">
               {journeySteps.map((step) => (
                 <Link
-                  className={`flex items-start gap-3 rounded-2xl px-4 py-3 transition hover:bg-slate-100 ${step.complete ? 'opacity-60' : ''}`}
+                  className={`flex items-start gap-3 rounded-2xl px-4 py-3 transition hover:bg-[var(--wash-forest)] ${step.complete ? 'opacity-60' : ''}`}
                   href={step.href}
                   key={step.id}
                 >
-                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${step.complete ? 'bg-[#0a5a60] text-white' : 'bg-slate-200 text-slate-500'}`}>
+                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${step.complete ? 'bg-[var(--accent-ink)] text-white' : 'bg-[var(--border-soft)] text-[var(--ink-muted)]'}`}>
                     {step.complete ? '✓' : '·'}
                   </span>
                   <div>
-                    <p className={`text-sm font-semibold ${step.complete ? 'line-through text-slate-400' : 'text-slate-900'}`}>{step.title}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{step.detail}</p>
+                    <p className={`text-sm font-semibold ${step.complete ? 'line-through text-[var(--ink-muted)]' : 'text-[var(--ink-strong)]'}`}>{step.title}</p>
+                    <p className="mt-0.5 text-xs text-[var(--ink-muted)]">{step.detail}</p>
                   </div>
                 </Link>
               ))}
@@ -429,12 +450,12 @@ export default function DashboardPage() {
               <div className="mt-5 space-y-3">
                 {latestApplications.map((application) => (
                   <div
-                    className="flex items-center justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-3"
+                    className="flex items-center justify-between gap-4 rounded-2xl bg-[var(--wash-forest)] px-4 py-3"
                     key={application.id}
                   >
                     <div>
-                      <h3 className="font-semibold text-slate-950">{application.companyName}</h3>
-                      <p className="mt-0.5 text-sm text-slate-500">{application.roleTitle}</p>
+                      <h3 className="font-semibold text-[var(--ink-strong)]">{application.companyName}</h3>
+                      <p className="mt-0.5 text-sm text-[var(--ink-muted)]">{application.roleTitle}</p>
                     </div>
                     <span className="accent-chip">{application.status}</span>
                   </div>
@@ -447,7 +468,7 @@ export default function DashboardPage() {
                 </Link>
               </div>
             ) : (
-              <div className="mt-5 rounded-[1.4rem] bg-slate-50 p-5 text-sm leading-7 text-slate-600">
+              <div className="mt-5 rounded-[1.4rem] bg-[var(--wash-forest)] p-5 text-sm leading-7 text-[var(--ink-soft)]">
                 {copy(
                   'No applications tracked yet. Start with 5 realistic openings tied to your selected role.',
                   'अभी कोई आवेदन दर्ज नहीं है। अपनी चुनी हुई भूमिका से जुड़े 5 उपयुक्त अवसरों से शुरुआत करें।'

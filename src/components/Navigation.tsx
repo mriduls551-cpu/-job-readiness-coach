@@ -76,10 +76,10 @@ export function Navigation() {
             {DESKTOP_LINKS.filter((item) => !('auth' in item) || user).map((item) => (
               <Link
                 aria-current={isActive(item.href) ? 'page' : undefined}
-                className={`text-sm transition ${
+                className={`relative text-sm transition after:absolute after:-bottom-1 after:left-0 after:h-0.5 after:w-full after:rounded-full after:transition-transform ${
                   isActive(item.href)
-                    ? 'font-semibold text-[var(--brand-ink)]'
-                    : 'text-[var(--ink-soft)] hover:text-[var(--brand-ink)]'
+                    ? 'font-semibold text-[var(--brand-ink)] after:scale-x-100 after:bg-[var(--accent-saffron)]'
+                    : 'text-[var(--ink-soft)] hover:text-[var(--brand-ink)] after:scale-x-0 after:bg-[var(--accent-saffron)]'
                 }`}
                 href={item.href}
                 key={item.href}
@@ -111,21 +111,21 @@ export function Navigation() {
                       {user.email}
                     </p>
                     <Link
-                      className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--brand-ink)] hover:bg-slate-100"
+                      className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--brand-ink)] hover:bg-[var(--wash-forest)]"
                       href="/applications"
                     >
                       <Briefcase aria-hidden="true" size={14} />
                       {locale === 'en' ? 'Applications' : 'आवेदन'}
                     </Link>
                     <Link
-                      className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--brand-ink)] hover:bg-slate-100"
+                      className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm text-[var(--brand-ink)] hover:bg-[var(--wash-forest)]"
                       href="/profile"
                     >
                       <Settings aria-hidden="true" size={14} />
                       {locale === 'en' ? 'Account' : 'खाता'}
                     </Link>
                     <button
-                      className="mt-1 flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-left text-sm text-[var(--brand-ink)] hover:bg-slate-100"
+                      className="mt-1 flex w-full items-center gap-2 rounded-2xl px-3 py-2 text-left text-sm text-[var(--brand-ink)] hover:bg-[var(--wash-forest)]"
                       onClick={handleLogout}
                       type="button"
                     >

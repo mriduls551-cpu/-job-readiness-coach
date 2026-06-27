@@ -4,14 +4,23 @@ import { streamText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { error } from '@/lib/api-response';
 import { getDB } from '@/lib/db';
-import { generateCoachFallbackReply, ROLE_DEFINITIONS } from '@/lib/product';
+import {
+  generateCoachFallbackReply,
+  isActiveRoleId,
+  ROLE_DEFINITIONS,
+} from '@/lib/product';
 import { getRequestLocale, resolveRequestUserId } from '@/lib/request-user';
 import type { RoleId } from '@/lib/product';
 import { getRateLimiter } from '@/lib/rate-limiter';
 
+const activeRoleSchema = z
+  .string()
+  .refine(isActiveRoleId, 'Role is not active')
+  .transform((value) => value as RoleId);
+
 const chatSchema = z.object({
   message: z.string().min(1).max(2000),
-  roleId: z.custom<RoleId>().optional(),
+  roleId: activeRoleSchema.optional(),
   profile: z
     .object({
       locale: z.enum(['en', 'hi']).optional(),

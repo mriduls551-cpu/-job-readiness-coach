@@ -98,12 +98,12 @@ class EmailService {
     userName: string,
     userEmail: string,
     selectedRole: string,
-    score: number
+    directionLabel: string
   ): Promise<EmailOptions> {
     const rendered = await renderAssessmentEmailTemplate({
       userName,
       selectedRole,
-      score,
+      directionLabel,
     });
     return {
       to: userEmail,

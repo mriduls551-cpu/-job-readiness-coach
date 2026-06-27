@@ -45,7 +45,10 @@ export default function CareerFitCheckPage() {
   const QUESTION_COUNT = questions.length;
 
   const question = questions[currentIndex] ?? questions[0];
-  const selectedOptionId = responses[question.id] || '';
+  const storedOptionId = responses[question.id] || '';
+  const selectedOptionId = question.options.some((option) => option.id === storedOptionId)
+    ? storedOptionId
+    : '';
   const progress = Math.round(((currentIndex + 1) / QUESTION_COUNT) * 100);
   const isLastQuestion = currentIndex === QUESTION_COUNT - 1;
 
@@ -55,10 +58,24 @@ export default function CareerFitCheckPage() {
   };
 
   const chooseOption = (optionId: string) => {
-    setResponses((current) => ({
-      ...current,
-      [question.id]: optionId,
-    }));
+    setResponses((current) => {
+      const next = { ...current, [question.id]: optionId };
+      if (question.id.startsWith('r') && question.id !== 'rtb' && question.id !== 'rf') {
+        delete next.rtb;
+        delete next.b1;
+        delete next.b2;
+        delete next.b3;
+        delete next.b4;
+        delete next.rf;
+      } else if (question.id === 'rtb') {
+        delete next.b1;
+        delete next.b2;
+        delete next.b3;
+        delete next.b4;
+        delete next.rf;
+      }
+      return next;
+    });
     setErrorMessage('');
   };
 
@@ -100,6 +117,7 @@ export default function CareerFitCheckPage() {
             fullName: profile.fullName?.trim(),
             city: profile.city?.trim(),
             degreeName: profile.degreeName?.trim(),
+            educationStream: profile.educationStream || undefined,
             locale,
           },
         }),
@@ -150,17 +168,17 @@ export default function CareerFitCheckPage() {
               <p className="eyebrow-copy">
                 {locale === 'en' ? 'Career fit check' : 'करियर योग्यता जाँच'}
               </p>
-              <h1 className="mt-3 text-4xl leading-tight text-slate-950">
+              <h1 className="mt-3 text-4xl leading-tight text-[var(--ink-strong)]">
                 {locale === 'en'
                   ? 'A focused fit-check for realistic first jobs.'
                   : 'वास्तविक शुरुआती नौकरियों के लिए एक केंद्रित योग्यता जाँच।'}
               </h1>
             </div>
-            <div className="flex rounded-full border border-slate-200 bg-white p-1">
+            <div className="flex rounded-full border border-[var(--border-soft)] bg-white p-1">
               {(['en', 'hi'] as const).map((item) => (
                 <button
                   className={`rounded-full px-4 py-2 text-sm transition ${
-                    locale === item ? 'bg-[#0a5a60] text-white' : 'text-slate-600'
+                    locale === item ? 'bg-[var(--accent-ink)] text-white' : 'text-[var(--ink-soft)]'
                   }`}
                   key={item}
                   onClick={() => updateLocale(item)}
@@ -172,17 +190,17 @@ export default function CareerFitCheckPage() {
             </div>
           </div>
 
-          <p className="mt-5 text-base leading-8 text-slate-600">
+          <p className="mt-5 text-base leading-8 text-[var(--ink-soft)]">
             {locale === 'en'
-              ? 'We are using a tighter MVP role set: support, operations, MIS, finance, HR, counselling, marketing, content, healthcare coordination, and compliance.'
-              : 'यह जाँच ग्राहक सहायता, संचालन, सूचना प्रबंधन, वित्त, मानव संसाधन, परामर्श, विपणन, लेखन, स्वास्थ्य समन्वय और अनुपालन जैसी शुरुआती भूमिकाओं पर केंद्रित है।'}
+              ? 'This fit check now weighs practical constraints, realistic work scenarios, and small proof signals before suggesting entry-level directions.'
+              : 'यह fit check अब शुरुआती भूमिकाएँ सुझाने से पहले practical constraints, realistic work scenarios और छोटे proof signals को साथ में देखता है।'}
           </p>
 
           <div className="story-card mt-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#0a5a60]">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--accent-ink)]">
               {locale === 'en' ? 'Why this is different' : 'यह अलग क्यों है'}
             </p>
-            <ul className="mt-4 space-y-3 text-sm leading-7 text-slate-600">
+            <ul className="mt-4 space-y-3 text-sm leading-7 text-[var(--ink-soft)]">
               <li>
                 {locale === 'en'
                   ? 'Role matches come from a deterministic scoring engine, not AI guessing.'
@@ -190,8 +208,13 @@ export default function CareerFitCheckPage() {
               </li>
               <li>
                 {locale === 'en'
-                  ? 'A few direct-choice questions are included to reduce gaming.'
-                  : 'अधिक सटीक उत्तरों के लिए कुछ सीधे विकल्प वाले प्रश्न भी शामिल हैं।'}
+                  ? 'The questions separate feasibility, judgment, and evidence instead of asking only what sounds interesting.'
+                  : 'प्रश्न सिर्फ पसंद नहीं पूछते; वे feasibility, judgment और evidence को अलग-अलग देखते हैं।'}
+              </li>
+              <li>
+                {locale === 'en'
+                  ? 'Small proof checks, like data accuracy or written replies, help us avoid weak self-reporting.'
+                  : 'data accuracy या written reply जैसे छोटे proof checks weak self-reporting से बचाने में मदद करते हैं।'}
               </li>
               <li>
                 {locale === 'en'
@@ -201,9 +224,9 @@ export default function CareerFitCheckPage() {
             </ul>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="metric-tile space-y-2 p-4">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Name' : 'नाम'}
               </span>
               <input
@@ -217,7 +240,28 @@ export default function CareerFitCheckPage() {
               />
             </label>
             <label className="metric-tile space-y-2 p-4">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
+                {locale === 'en' ? 'Education stream' : 'शिक्षा क्षेत्र'}
+              </span>
+              <select
+                className="input-field"
+                onChange={(event) =>
+                  setProfile((current) => ({ ...current, educationStream: event.target.value }))
+                }
+                value={profile.educationStream || ''}
+              >
+                <option value="">{locale === 'en' ? 'Prefer not to say' : 'नहीं बताना चाहता/चाहती'}</option>
+                <option value="commerce">{locale === 'en' ? 'Commerce' : 'कॉमर्स'}</option>
+                <option value="management">{locale === 'en' ? 'Management' : 'मैनेजमेंट'}</option>
+                <option value="arts-humanities">{locale === 'en' ? 'Arts / Humanities' : 'कला / मानविकी'}</option>
+                <option value="science">{locale === 'en' ? 'Science' : 'विज्ञान'}</option>
+                <option value="healthcare">{locale === 'en' ? 'Healthcare' : 'स्वास्थ्य सेवा'}</option>
+                <option value="law">{locale === 'en' ? 'Law' : 'कानून'}</option>
+                <option value="open">{locale === 'en' ? 'Other / open' : 'अन्य / खुला'}</option>
+              </select>
+            </label>
+            <label className="metric-tile space-y-2 p-4">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'City' : 'शहर'}
               </span>
               <input
@@ -231,7 +275,7 @@ export default function CareerFitCheckPage() {
               />
             </label>
             <label className="metric-tile space-y-2 p-4">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Degree' : 'शैक्षणिक योग्यता'}
               </span>
               <input
@@ -251,28 +295,28 @@ export default function CareerFitCheckPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="eyebrow-copy">{getLocaleValue(question.section, locale)}</p>
-              <h2 className="mt-3 text-3xl leading-tight text-slate-950">
+              <h2 className="mt-3 text-3xl leading-tight text-[var(--ink-strong)]">
                 {getLocaleValue(question.prompt, locale)}
               </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--ink-soft)]">
                 {getLocaleValue(question.helper, locale)}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-[#0a5a60]">
+              <p className="text-sm font-semibold text-[var(--accent-ink)]">
                 {locale === 'en'
                   ? `Question ${currentIndex + 1} of ${QUESTION_COUNT}`
                   : `प्रश्न ${currentIndex + 1} / ${QUESTION_COUNT}`}
               </p>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-[var(--ink-muted)]">
                 {locale === 'en' ? 'About 3 to 5 minutes' : 'लगभग 3 से 5 मिनट'}
               </p>
             </div>
           </div>
 
-          <div className="mt-6 h-3 rounded-full bg-[#e6ece9]">
+          <div className="mt-6 h-3 rounded-full bg-[var(--border-soft)]">
             <div
-              className="h-3 rounded-full bg-[#0a5a60] transition-all"
+              className="h-3 rounded-full bg-[var(--accent-ink)] transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -290,16 +334,16 @@ export default function CareerFitCheckPage() {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-base font-semibold text-slate-950">
+                      <p className="text-base font-semibold text-[var(--ink-strong)]">
                         {getLocaleValue(option.label, locale)}
                       </p>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-1 text-sm text-[var(--ink-muted)]">
                         {getLocaleValue(option.signal, locale)}
                       </p>
                     </div>
                     <span
                       className={`mt-1 h-5 w-5 rounded-full border ${
-                        isActive ? 'border-[#0a5a60] bg-[#0a5a60]' : 'border-slate-300'
+                        isActive ? 'border-[var(--accent-ink)] bg-[var(--accent-ink)]' : 'border-[var(--border-soft)]'
                       }`}
                     />
                   </div>

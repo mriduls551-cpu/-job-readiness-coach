@@ -10,7 +10,20 @@
 
   /* Add bottom spacing so content isn't hidden behind the mobile bottom nav */
   .has-bottom-nav {
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Floating action buttons (e.g. CoachWidget) must clear the mobile bottom nav,
+     which .has-bottom-nav content padding doesn't cover since fixed elements
+     ignore it. Resets to a plain corner offset once the bottom nav is hidden at md+. */
+  .coach-fab {
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 0.75rem);
+  }
+
+  @media (min-width: 768px) {
+    .coach-fab {
+      bottom: 1rem;
+    }
   }
 }
 
@@ -38,11 +51,13 @@
     --shadow-lg: 0 26px 48px rgba(17, 63, 69, 0.11);
     --shadow-xl: 0 36px 68px rgba(26, 35, 48, 0.13);
     /* Cross-platform serif stack — Lora loads on Android where Iowan is unavailable */
-    --font-heading: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-    --font-body: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    --font-devanagari: "Nirmala UI", "Mangal", "Segoe UI", sans-serif;
+    --font-heading: var(--font-heading-loaded), "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --font-body: var(--font-body-loaded), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --font-devanagari: var(--font-devanagari-loaded), "Nirmala UI", "Mangal", "Segoe UI", sans-serif;
     /* Safe-area bottom padding for devices with home indicators */
     --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    /* Height of the fixed mobile bottom tab bar (Navigation.tsx), excluding safe-area inset */
+    --bottom-nav-height: 64px;
   }
 
   * {
@@ -192,7 +207,7 @@
   }
 
   .eyebrow-copy {
-    @apply text-xs font-semibold uppercase tracking-[0.25em] text-slate-500;
+    @apply text-xs font-semibold uppercase tracking-[0.25em] text-[var(--ink-muted)];
   }
 
   .btn-primary {
@@ -203,6 +218,15 @@
 
   .btn-primary:hover {
     transform: translateY(-1px);
+  }
+
+  .btn-primary:disabled,
+  .btn-secondary:disabled,
+  .btn-outline:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    transform: none;
+    box-shadow: none;
   }
 
   .btn-secondary {

@@ -74,14 +74,21 @@ function buildDefaultMockUsers(): Record<string, MockUserRecord> {
   };
 }
 
-let mockUsers: Record<string, MockUserRecord> | null = null;
+// Anchored to globalThis (not a plain module-level variable) because Next.js dev-mode
+// hot-reloading re-evaluates this module on every recompile, which would otherwise wipe
+// any user registered via mockAuth.register() before a subsequent mockAuth.login() call
+// can see it. globalThis survives module re-evaluation within the same Node process.
+declare global {
+  // eslint-disable-next-line no-var
+  var __mockAuthUsers: Record<string, MockUserRecord> | undefined;
+}
 
 function getMockUsers() {
-  if (!mockUsers) {
-    mockUsers = buildDefaultMockUsers();
+  if (!globalThis.__mockAuthUsers) {
+    globalThis.__mockAuthUsers = buildDefaultMockUsers();
   }
 
-  return mockUsers;
+  return globalThis.__mockAuthUsers;
 }
 
 function encodeBase64(value: string) {

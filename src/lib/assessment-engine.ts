@@ -1,21 +1,16 @@
-// ─── Assessment Engine v2 ────────────────────────────────────────────────────
-// 2-phase adaptive assessment: 5 routing questions → cluster → 4 branch questions
-// 6-dimension model replaces previous 8-dimension flat cosine-similarity approach
-// Disqualifier rules prevent impossible role recommendations
-// Public API: scoreAssessment() signature unchanged; new getNextQuestions() helper
+import { MATCHING_CATALOG } from '@/lib/matcher/catalog';
+import { buildPersonEvidence } from '@/lib/matcher/quiz-to-vector';
+import { scoreEvidence } from '@/lib/matcher/scorer';
+import type { ConfidenceBand, EligibilityStatus, ObjectiveEvidence } from '@/lib/matcher/types';
+import { ROLE_CANDIDATES } from '@/lib/role-candidates';
+
+// ─── Assessment Engine v4 ────────────────────────────────────────────────────
+// 2-phase adaptive assessment: 5 routing questions → cluster → 4 evidence questions + 1 finalist question
+// One global six-dimension geometry makes role scores comparable.
+// Explicit readiness states keep contradictory roles out of the visible top three when alternatives exist.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type Locale = 'en' | 'hi';
-
-export type StreamId =
-  | 'open'
-  | 'open-switch'
-  | 'commerce'
-  | 'management'
-  | 'arts-humanities'
-  | 'science'
-  | 'healthcare'
-  | 'law';
 
 export type RoleId =
   | 'customer-support'
@@ -28,8 +23,37 @@ export type RoleId =
   | 'accounting-finance-assistant'
   | 'digital-marketing-executive'
   | 'content-writer'
-  | 'telemedicine-coordinator'
-  | 'legal-compliance-operations';
+  | 'legal-compliance-operations'
+  | 'non-voice-support-associate'
+  | 'field-sales-executive'
+  | 'retail-sales-associate'
+  | 'retail-cashier'
+  | 'retail-store-operations-assistant'
+  | 'banking-sales-executive'
+  | 'credit-processing-associate'
+  | 'insurance-sales-associate'
+  | 'microfinance-executive'
+  | 'gst-assistant'
+  | 'recruitment-executive'
+  | 'payroll-employee-data-assistant'
+  | 'logistics-operations-coordinator'
+  | 'courier-operations-executive'
+  | 'warehouse-associate'
+  | 'supply-chain-executive'
+  | 'it-helpdesk-associate'
+  | 'software-testing-assistant'
+  | 'web-development-associate'
+  | 'digital-cataloguer'
+  | 'merchant-relationship-executive'
+  | 'junior-graphic-designer'
+  | 'digital-content-developer'
+  | 'junior-video-editor'
+  | 'hotel-front-office-associate'
+  | 'food-beverage-service-associate'
+  | 'housekeeping-associate'
+  | 'kitchen-trainee'
+  | 'preschool-daycare-facilitator'
+  | 'ev-service-technician';
 
 export type ClusterId = 'people-facing' | 'desk-ops' | 'analytical' | 'creative';
 
@@ -43,15 +67,10 @@ export interface AssessmentProfile {
   city?: string;
   degreeName?: string;
   educationStream?: string;
-  englishLevel?: string;
   speakingConfidence?: string;
   numbersConfidence?: string;
   dataConfidence?: string;
-  workStylePreference?: string;
-  writingConfidence?: string;
-  biggestProblem?: string;
-  preferredEnvironment?: string;
-  weeklyAvailability?: string;
+  objectiveEvidence?: ObjectiveEvidence;
   locale: Locale;
 }
 
@@ -65,10 +84,8 @@ export interface RoleDefinition {
   starterTasks: LocalizedText[];
   strengths: LocalizedText[];
   accent: string;
-  streams: StreamId[];
   // 6-dimension vector: [numerical, people-reactive, people-proactive, process-ops, creative-output, analytical-output]
   vector: number[];
-  dimensionWeights: number[];
 }
 
 export interface AssessmentOption {
@@ -78,6 +95,7 @@ export interface AssessmentOption {
   // 6-dimension vector used for dimensionSnapshot and signal alignment
   vector: number[];
   profilePatch?: Partial<AssessmentProfile>;
+  objectiveEvidencePatch?: ObjectiveEvidence;
   // Phase 1 only: direct cluster score contributions
   clusterScores?: Partial<Record<ClusterId, number>>;
   // Phase 2 only: role score contributions within the winning cluster
@@ -99,12 +117,21 @@ export interface RoleMatch {
   rationale: LocalizedText;
   supportingSignals: LocalizedText[];
   strengthLabel: LocalizedText;
+  eligibility: EligibilityStatus;
+  eligibilityReasons: string[];
+  preferenceScore: number;
+  demonstratedAbilityScore: number | null;
 }
 
 export interface AssessmentResult {
   profile: AssessmentProfile;
   cluster: ClusterId;
   confidenceScore: number;
+  confidenceBand: ConfidenceBand;
+  confidenceReasons: string[];
+  clusterMargin: number;
+  scoringVersion: string;
+  catalogVersion: string;
   topRoles: RoleMatch[];
   allScores: Record<RoleId, number>;
   summary: LocalizedText;
@@ -119,13 +146,6 @@ export interface AssessmentResult {
 
 const DIMENSION_COUNT = 6;
 // Index map: numerical=0, people-reactive=1, people-proactive=2, process-ops=3, creative-output=4, analytical-output=5
-
-const CLUSTER_ROLES: Record<ClusterId, RoleId[]> = {
-  'people-facing': ['customer-support', 'academic-counsellor', 'telemedicine-coordinator', 'hr-coordinator'],
-  'desk-ops': ['back-office-operations', 'data-entry-mis', 'legal-compliance-operations'],
-  'analytical': ['operations-analyst', 'accounting-finance-assistant'],
-  'creative': ['digital-marketing-executive', 'content-writer', 'sales-support'],
-};
 
 const HINDI_TERM_REPLACEMENTS = [
   ['first-generation job seekers', 'पहली बार नौकरी खोजने वाले'],
@@ -624,11 +644,11 @@ export const ROLE_ORDER: RoleId[] = [
   'accounting-finance-assistant',
   'digital-marketing-executive',
   'content-writer',
-  'telemedicine-coordinator',
   'legal-compliance-operations',
+  ...ROLE_CANDIDATES.map((candidate) => candidate.id as RoleId),
 ];
 
-export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
+const ROLE_DEFINITION_SOURCE = {
   'customer-support': {
     id: 'customer-support',
     name: t('Customer Support Associate', 'कस्टमर सपोर्ट एसोसिएट'),
@@ -641,7 +661,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
       'This direction rewards patience, empathy, and clear follow-through.',
       'यह दिशा धैर्य, सहानुभूति और साफ़ फॉलो-थ्रू को महत्व देती है।'
     ),
-    salaryRange: t('Typical starter range: Rs 2.4L to Rs 4.2L annually', 'सामान्य शुरुआती रेंज: Rs 2.4L से Rs 4.2L सालाना'),
+    salaryRange: t('Verify current pay in the target city and employer listing', 'लक्षित शहर और नियोक्ता की नौकरी सूची में वर्तमान वेतन जांचें'),
     starterTasks: [
       t('Practice a 60-second self introduction for recruiter calls.', 'रिक्रूटर कॉल के लिए 60 सेकंड का परिचय तैयार करें।'),
       t('Write 5 short examples of solving a problem calmly.', 'शांत तरीके से समस्या हल करने के 5 छोटे उदाहरण लिखें।'),
@@ -649,9 +669,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
     ],
     strengths: [t('Empathy', 'सहानुभूति'), t('Clear communication', 'साफ़ संवाद'), t('Patience', 'धैर्य')],
     accent: '#1d9a8a',
-    streams: ['open'],
     vector: [1, 9, 3, 5, 2, 1],
-    dimensionWeights: [1, 5, 2, 3, 1, 1],
   },
   'sales-support': {
     id: 'sales-support',
@@ -665,7 +683,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
       'This path values energy, persistence, and confident communication.',
       'यह रास्ता ऊर्जा, लगातार प्रयास और आत्मविश्वास भरे संवाद को महत्व देता है।'
     ),
-    salaryRange: t('Typical starter range: Rs 2.8L to Rs 4.8L annually', 'सामान्य शुरुआती रेंज: Rs 2.8L से Rs 4.8L सालाना'),
+    salaryRange: t('Verify base pay and incentives in the target employer listing', 'लक्षित नियोक्ता की नौकरी सूची में मूल वेतन और इंसेंटिव जांचें'),
     starterTasks: [
       t('Prepare a confident pitch about yourself and your strengths.', 'अपने बारे में और अपनी strengths के बारे में एक confident pitch तैयार करें।'),
       t('Practice objection handling with simple role-play.', 'सरल role-play के साथ objection handling की practice करें।'),
@@ -673,9 +691,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
     ],
     strengths: [t('Follow-up discipline', 'फॉलो-अप अनुशासन'), t('Confidence', 'आत्मविश्वास'), t('Relationship building', 'रिश्ते बनाना')],
     accent: '#d97706',
-    streams: ['open'],
     vector: [2, 4, 9, 2, 5, 2],
-    dimensionWeights: [1, 2, 5, 1, 2, 1],
   },
   'academic-counsellor': {
     id: 'academic-counsellor',
@@ -689,7 +705,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
       'This role rewards communication, trust-building, and patient guidance.',
       'यह रोल communication, trust-building और धैर्यपूर्ण guidance को महत्व देता है।'
     ),
-    salaryRange: t('Typical starter range: Rs 2.6L to Rs 4.8L annually', 'सामान्य शुरुआती रेंज: Rs 2.6L से Rs 4.8L सालाना'),
+    salaryRange: t('Verify current pay in the target city and employer listing', 'लक्षित शहर और नियोक्ता की नौकरी सूची में वर्तमान वेतन जांचें'),
     starterTasks: [
       t('Learn the admission process for 10 common courses or programs.', '10 आम courses या programs का admission process समझें।'),
       t('Practice explaining the same option in simple language.', 'एक ही option को सरल भाषा में समझाने की practice करें।'),
@@ -697,9 +713,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
     ],
     strengths: [t('Guidance', 'मार्गदर्शन'), t('Listening', 'ध्यान से सुनना'), t('Structured communication', 'संरचित संवाद')],
     accent: '#0f766e',
-    streams: ['management', 'arts-humanities', 'open'],
     vector: [1, 7, 6, 5, 2, 2],
-    dimensionWeights: [1, 4, 3, 3, 1, 2],
   },
   'hr-coordinator': {
     id: 'hr-coordinator',
@@ -713,7 +727,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
       'This role rewards coordination, people comfort, and reliability.',
       'यह रोल coordination, लोगों के साथ सहजता और reliability को महत्व देता है।'
     ),
-    salaryRange: t('Typical starter range: Rs 2.8L to Rs 4.8L annually', 'सामान्य शुरुआती रेंज: Rs 2.8L से Rs 4.8L सालाना'),
+    salaryRange: t('Verify current pay in the target city and employer listing', 'लक्षित शहर और नियोक्ता की नौकरी सूची में वर्तमान वेतन जांचें'),
     starterTasks: [
       t('Practice recruiter-style introductions and short screening questions.', 'recruiter-style introductions और short screening questions की practice करें।'),
       t('Build one clean tracker for candidates or interview schedules.', 'candidates या interview schedules के लिए एक साफ़ tracker बनाएं।'),
@@ -721,9 +735,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
     ],
     strengths: [t('People comfort', 'लोगों के साथ सहजता'), t('Coordination', 'कोऑर्डिनेशन'), t('Follow-up', 'फॉलो-अप')],
     accent: '#8b5cf6',
-    streams: ['management', 'arts-humanities', 'commerce', 'open'],
     vector: [2, 5, 7, 6, 2, 2],
-    dimensionWeights: [1, 3, 4, 4, 1, 1],
   },
   'data-entry-mis': {
     id: 'data-entry-mis',
@@ -737,7 +749,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
       'This path rewards consistency, accuracy, and comfort with repetitive structured work.',
       'यह रास्ता consistency, accuracy और repetitive structured work के साथ सहजता को महत्व देता है।'
     ),
-    salaryRange: t('Typical starter range: Rs 2.2L to Rs 4.0L annually', 'सामान्य शुरुआती रेंज: Rs 2.2L से Rs 4.0L सालाना'),
+    salaryRange: t('Verify current pay in the target city and employer listing', 'लक्षित शहर और नियोक्ता की नौकरी सूची में वर्तमान वेतन जांचें'),
     starterTasks: [
       t('Practice sorting, filters, VLOOKUP, and formatting in Excel.', 'Excel में sorting, filters, VLOOKUP और formatting की practice करें।'),
       t('Build one clean sample report to show an employer.', 'employer को दिखाने के लिए एक साफ़ sample report बनाएं।'),
@@ -745,9 +757,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
     ],
     strengths: [t('Accuracy', 'सटीकता'), t('Spreadsheet comfort', 'स्प्रेडशीट सहजता'), t('Consistency', 'निरंतरता')],
     accent: '#2563eb',
-    streams: ['open', 'commerce', 'science'],
     vector: [7, 1, 1, 9, 1, 3],
-    dimensionWeights: [4, 1, 1, 5, 1, 2],
   },
   'back-office-operations': {
     id: 'back-office-operations',
@@ -761,7 +771,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
       'This role values reliability, process discipline, and ownership of routine work.',
       'यह रोल reliability, process discipline और routine work की ownership को महत्व देता है।'
     ),
-    salaryRange: t('Typical starter range: Rs 2.5L to Rs 4.3L annually', 'सामान्य शुरुआती रेंज: Rs 2.5L से Rs 4.3L सालाना'),
+    salaryRange: t('Verify current pay in the target city and employer listing', 'लक्षित शहर और नियोक्ता की नौकरी सूची में वर्तमान वेतन जांचें'),
     starterTasks: [
       t('Prepare examples of coordination, paperwork, or operational discipline.', 'coordination, paperwork या operational discipline के examples तैयार करें।'),
       t('Create one simple checklist for a repeated task.', 'किसी repeated task के लिए एक simple checklist बनाएं।'),
@@ -769,9 +779,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
     ],
     strengths: [t('Process discipline', 'प्रोसेस अनुशासन'), t('Documentation', 'डॉक्यूमेंटेशन'), t('Coordination', 'कोऑर्डिनेशन')],
     accent: '#7c3aed',
-    streams: ['open'],
     vector: [3, 2, 2, 9, 1, 4],
-    dimensionWeights: [2, 1, 1, 5, 1, 3],
   },
   'operations-analyst': {
     id: 'operations-analyst',
@@ -785,7 +793,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
       'This path rewards analytical thinking, structure, and comfort with reporting.',
       'यह रास्ता analytical thinking, structure और reporting के साथ सहजता को महत्व देता है।'
     ),
-    salaryRange: t('Typical starter range: Rs 3.2L to Rs 5.6L annually', 'सामान्य शुरुआती रेंज: Rs 3.2L से Rs 5.6L सालाना'),
+    salaryRange: t('Verify current pay in the target city and employer listing', 'लक्षित शहर और नियोक्ता की नौकरी सूची में वर्तमान वेतन जांचें'),
     starterTasks: [
       t('Build one Excel or Sheets dashboard from raw data.', 'raw data से एक Excel या Sheets dashboard बनाएं।'),
       t('Practice explaining a process bottleneck and your fix.', 'किसी process bottleneck और उसके fix को समझाने की practice करें।'),
@@ -793,9 +801,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
     ],
     strengths: [t('Analytical thinking', 'विश्लेषणात्मक सोच'), t('Structure', 'संरचना'), t('Reporting', 'रिपोर्टिंग')],
     accent: '#0f766e',
-    streams: ['commerce', 'management', 'science'],
     vector: [6, 2, 2, 7, 1, 9],
-    dimensionWeights: [3, 1, 1, 3, 1, 5],
   },
   'accounting-finance-assistant': {
     id: 'accounting-finance-assistant',
@@ -809,7 +815,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
       'This role rewards numerical comfort, accuracy, and trustworthiness.',
       'यह रोल numerical comfort, accuracy और trustworthiness को महत्व देता है।'
     ),
-    salaryRange: t('Typical starter range: Rs 2.8L to Rs 5.0L annually', 'सामान्य शुरुआती रेंज: Rs 2.8L से Rs 5.0L सालाना'),
+    salaryRange: t('Verify current pay in the target city and employer listing', 'लक्षित शहर और नियोक्ता की नौकरी सूची में वर्तमान वेतन जांचें'),
     starterTasks: [
       t('Refresh bookkeeping, Tally, and Excel basics.', 'bookkeeping, Tally और Excel basics को मजबूत करें।'),
       t('Prepare examples that show accuracy with records or budgets.', 'records या budgets में accuracy दिखाने वाले examples तैयार करें।'),
@@ -817,9 +823,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
     ],
     strengths: [t('Numerical comfort', 'नंबर्स में सहजता'), t('Accuracy', 'सटीकता'), t('Record keeping', 'रिकॉर्ड संभालना')],
     accent: '#115e59',
-    streams: ['commerce'],
     vector: [9, 1, 1, 7, 1, 5],
-    dimensionWeights: [5, 1, 1, 3, 1, 2],
   },
   'digital-marketing-executive': {
     id: 'digital-marketing-executive',
@@ -833,7 +837,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
       'This direction rewards creativity, communication, and comfort with experiments.',
       'यह दिशा creativity, communication और experiments के साथ सहजता को महत्व देती है।'
     ),
-    salaryRange: t('Typical starter range: Rs 2.8L to Rs 5.2L annually', 'सामान्य शुरुआती रेंज: Rs 2.8L से Rs 5.2L सालाना'),
+    salaryRange: t('Verify current pay in the target city and employer listing', 'लक्षित शहर और नियोक्ता की नौकरी सूची में वर्तमान वेतन जांचें'),
     starterTasks: [
       t('Build a sample campaign idea with audience, copy, and metrics.', 'audience, copy और metrics के साथ एक sample campaign idea बनाएं।'),
       t('Learn Google Ads or GA4 basics from free modules.', 'निःशुल्क पाठों से गूगल विज्ञापन और गूगल विश्लेषिकी की मूल बातें सीखें।'),
@@ -841,9 +845,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
     ],
     strengths: [t('Creativity', 'रचनात्मकता'), t('Audience understanding', 'audience understanding'), t('Experimentation', 'प्रयोग करने की क्षमता')],
     accent: '#ea580c',
-    streams: ['management', 'arts-humanities', 'open'],
     vector: [2, 3, 5, 2, 9, 5],
-    dimensionWeights: [1, 2, 3, 1, 5, 3],
   },
   'content-writer': {
     id: 'content-writer',
@@ -857,7 +859,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
       'This role rewards writing clarity, curiosity, and audience awareness.',
       'यह रोल writing clarity, curiosity और audience awareness को महत्व देता है।'
     ),
-    salaryRange: t('Typical starter range: Rs 2.4L to Rs 4.8L annually', 'सामान्य शुरुआती रेंज: Rs 2.4L से Rs 4.8L सालाना'),
+    salaryRange: t('Verify current pay in the target city and employer listing', 'लक्षित शहर और नियोक्ता की नौकरी सूची में वर्तमान वेतन जांचें'),
     starterTasks: [
       t('Write 3 short samples: one explain-like-I-am-new, one SEO-style, one social caption.', '3 छोटे samples लिखें: एक simple explain piece, एक SEO-style और एक social caption।'),
       t('Practice rewriting complex information into plain language.', 'complex information को plain language में rewrite करने की practice करें।'),
@@ -865,33 +867,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
     ],
     strengths: [t('Writing clarity', 'स्पष्ट लेखन'), t('Research', 'रिसर्च'), t('Audience awareness', 'दर्शक समझ')],
     accent: '#be185d',
-    streams: ['arts-humanities', 'management', 'open'],
     vector: [1, 2, 2, 3, 9, 4],
-    dimensionWeights: [1, 1, 1, 2, 5, 2],
-  },
-  'telemedicine-coordinator': {
-    id: 'telemedicine-coordinator',
-    name: t('Telemedicine Coordinator', 'टेलीमेडिसिन कोऑर्डिनेटर'),
-    shortLabel: t('Telemedicine Coordination', 'टेलीमेडिसिन कोऑर्डिनेशन'),
-    summary: t(
-      'A helpful path for healthcare-adjacent graduates who can coordinate patients, appointments, and communication with care.',
-      'यह healthcare-adjacent ग्रेजुएट्स के लिए अच्छा रास्ता है जो patients, appointments और communication को care के साथ coordinate कर सकते हैं।'
-    ),
-    whyItFits: t(
-      'This role values calm communication, empathy, and organized follow-through.',
-      'यह रोल calm communication, empathy और organized follow-through को महत्व देता है।'
-    ),
-    salaryRange: t('Typical starter range: Rs 2.8L to Rs 4.8L annually', 'सामान्य शुरुआती रेंज: Rs 2.8L से Rs 4.8L सालाना'),
-    starterTasks: [
-      t('Learn how appointment, triage, and follow-up flows work.', 'appointment, triage और follow-up flows कैसे चलते हैं यह सीखें।'),
-      t('Prepare examples that show patient-facing patience and clarity.', 'patient-facing patience और clarity दिखाने वाले examples तैयार करें।'),
-      t('Show healthcare exposure, volunteering, or coordination work clearly.', 'healthcare exposure, volunteering या coordination work को साफ़ दिखाएं।'),
-    ],
-    strengths: [t('Empathy', 'सहानुभूति'), t('Coordination', 'कोऑर्डिनेशन'), t('Calm communication', 'शांत संवाद')],
-    accent: '#0f766e',
-    streams: ['healthcare', 'open'],
-    vector: [2, 8, 2, 7, 1, 2],
-    dimensionWeights: [1, 5, 1, 4, 1, 1],
   },
   'legal-compliance-operations': {
     id: 'legal-compliance-operations',
@@ -905,7 +881,7 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
       'This role rewards precision, documentation discipline, and rule-based thinking.',
       'यह रोल precision, documentation discipline और rule-based thinking को महत्व देता है।'
     ),
-    salaryRange: t('Typical starter range: Rs 3.0L to Rs 5.4L annually', 'सामान्य शुरुआती रेंज: Rs 3.0L से Rs 5.4L सालाना'),
+    salaryRange: t('Verify current pay in the target city and employer listing', 'लक्षित शहर और नियोक्ता की नौकरी सूची में वर्तमान वेतन जांचें'),
     starterTasks: [
       t('Practice reviewing records or clauses with a checklist.', 'records या clauses को checklist के साथ review करने की practice करें।'),
       t('Build examples that show documentation accuracy.', 'documentation accuracy दिखाने वाले examples बनाएं।'),
@@ -913,231 +889,312 @@ export const ROLE_DEFINITIONS: Record<RoleId, RoleDefinition> = {
     ],
     strengths: [t('Precision', 'सटीकता'), t('Documentation', 'डॉक्यूमेंटेशन'), t('Rule-based thinking', 'नियम-आधारित सोच')],
     accent: '#92400e',
-    streams: ['law', 'commerce'],
     vector: [6, 1, 1, 9, 1, 5],
-    dimensionWeights: [4, 1, 1, 5, 1, 3],
   },
 };
 
+const CANDIDATE_ROLE_DEFINITIONS = Object.fromEntries(
+  ROLE_CANDIDATES.map((candidate) => {
+    const policy = MATCHING_CATALOG.roles.find((role) => role.id === candidate.id);
+    if (!policy) throw new Error(`Missing matching policy for ${candidate.id}`);
+    const readableSignals = candidate.separatorSignals
+      .slice(0, 3)
+      .map((signal) => signal.split('-').join(' '));
+    const definition: RoleDefinition = {
+      id: candidate.id as RoleId,
+      name: candidate.name,
+      shortLabel: candidate.name,
+      summary: t(
+        `An entry-level path centred on ${readableSignals.join(', ')}. Review the listed working conditions before choosing it.`,
+        `${candidate.name.hi} में ${readableSignals.join(', ')} पर काम होता है। चुनने से पहले काम की शर्तें जांचें।`
+      ),
+      whyItFits: t(
+        `This direction is relevant when you prefer ${readableSignals.join(' and ')}. It is guidance, not proof of eligibility.`,
+        `यह दिशा ${readableSignals.join(' और ')} पसंद होने पर उपयोगी हो सकती है। यह पात्रता का प्रमाण नहीं है।`
+      ),
+      salaryRange: t(
+        'Verify current pay in the target city and employer listing',
+        'लक्षित शहर और नियोक्ता की नौकरी सूची में वर्तमान वेतन जांचें'
+      ),
+      starterTasks: [
+        t(
+          `Review current job listings using these titles: ${candidate.aliases.join(', ')}.`,
+          `इन job titles से वर्तमान नौकरियां देखें: ${candidate.aliases.join(', ')}।`
+        ),
+        t(
+          `Check whether you can meet: ${candidate.requirements.slice(0, 3).join(', ')}.`,
+          `जांचें कि आप इन शर्तों को पूरा कर सकते हैं: ${candidate.requirements.slice(0, 3).join(', ')}।`
+        ),
+        t(
+          'Complete the relevant practical check before treating this as a strong direction.',
+          'इसे मजबूत दिशा मानने से पहले संबंधित practical check पूरा करें।'
+        ),
+      ],
+      strengths: readableSignals.map((signal) => t(signal, signal)),
+      accent:
+        policy.cluster === 'people-facing'
+          ? '#0f766e'
+          : policy.cluster === 'desk-ops'
+            ? '#2563eb'
+            : policy.cluster === 'analytical'
+              ? '#7c3aed'
+              : '#be185d',
+      vector: policy.preferenceTarget,
+    };
+    return [candidate.id, definition];
+  })
+);
+
+export const ROLE_DEFINITIONS = Object.fromEntries(
+  ROLE_ORDER.map((roleId) => [
+    roleId,
+    ROLE_DEFINITION_SOURCE[roleId as keyof typeof ROLE_DEFINITION_SOURCE] ||
+      CANDIDATE_ROLE_DEFINITIONS[roleId],
+  ])
+) as Record<RoleId, RoleDefinition>;
+
 // ─── Phase 1: Routing Questions ───────────────────────────────────────────────
-// Same 5 questions for every user. Scenario-based to reduce aspirational answering.
+// Same 5 questions for every user. V2 mixes feasibility gates, job scenarios,
+// and lightweight proof-task evidence so recommendations are not just preference.
 // vector: [numerical, people-reactive, people-proactive, process-ops, creative-output, analytical-output]
 
 export const ROUTING_QUESTIONS: AssessmentQuestion[] = [
   {
     id: 'r1',
-    section: t('How You React', 'आप कैसी प्रतिक्रिया देते हैं'),
+    section: t('Voice and People Work', 'बातचीत और लोगों से जुड़ा काम'),
     prompt: t(
-      'A customer contacts you upset about a delayed order. What do you do first?',
-      'एक ग्राहक देर से पहुँचे आदेश को लेकर परेशान होकर आपसे संपर्क करता है। आप सबसे पहले क्या करेंगे?'
+      'For your first job, how realistic is 5-6 hours a day of calls, chats, or direct customer/student interaction?',
+      'पहली नौकरी में रोज़ 5-6 घंटे कॉल, चैट या सीधे ग्राहक/विद्यार्थी से बातचीत करना आपके लिए कितना realistic है?'
     ),
     helper: t(
-      'Pick the response that feels most natural — not the most impressive.',
-      'वह उत्तर चुनें जो आपको सबसे स्वाभाविक लगे, न कि जो सबसे प्रभावशाली सुनाई दे।'
+      'This is a feasibility check, not a personality question. Be practical.',
+      'यह feasibility check है, personality question नहीं। practical होकर जवाब दें।'
     ),
     options: [
       {
         id: 'r1_a',
-        label: t('Stay calm, acknowledge how they feel, and walk them through what I can do', 'शांत रहकर उनकी परेशानी स्वीकार करता/करती हूँ और समझाता/समझाती हूँ कि मैं क्या मदद कर सकता/सकती हूँ'),
-        signal: t('Empathy under pressure', 'दबाव में सहानुभूति'),
-        vector: [0, 3, 1, 0, 0, 0],
+        label: t('Comfortable with frequent calls and difficult conversations if I get a script/training', 'स्क्रिप्ट या training मिले तो frequent calls और कठिन बातचीत में सहज हूँ'),
+        signal: t('Voice-heavy people work is feasible', 'voice-heavy लोगों वाला काम feasible है'),
+        vector: [0, 3, 3, 0, 0, 0],
+        profilePatch: { speakingConfidence: 'high' },
+        objectiveEvidencePatch: { communication: 75 },
         clusterScores: { 'people-facing': 3 },
       },
       {
         id: 'r1_b',
-        label: t('Look up the order status immediately and give them a clear timeline', 'आदेश की स्थिति तुरंत देखकर उन्हें स्पष्ट समय सीमा देता/देती हूँ'),
-        signal: t('Quick structured problem-solving', 'तेज़ और क्रमबद्ध समस्या समाधान'),
-        vector: [1, 0, 0, 2, 0, 2],
-        clusterScores: { 'desk-ops': 1, 'analytical': 2 },
+        label: t('Prefer chat, email, or ticket replies over long voice calls', 'लंबी voice calls की जगह chat, email या ticket replies पसंद हैं'),
+        signal: t('Written support is more feasible than voice', 'voice से ज़्यादा written support feasible है'),
+        vector: [0, 2, 0, 2, 1, 0],
+        profilePatch: { speakingConfidence: 'medium' },
+        objectiveEvidencePatch: { communication: 65, writing: 60 },
+        clusterScores: { 'people-facing': 1, 'desk-ops': 2 },
       },
       {
         id: 'r1_c',
-        label: t('Check if there is a written escalation process and follow it step by step', 'लिखित शिकायत प्रक्रिया देखकर उसका चरणबद्ध पालन करता/करती हूँ'),
-        signal: t('Process-first approach', 'प्रक्रिया को प्राथमिकता'),
+        label: t('Prefer mostly back-office work with only short clarification calls', 'mostly back-office काम पसंद है, सिर्फ छोटी clarification calls ठीक हैं'),
+        signal: t('Low-intensity interaction constraint', 'कम interaction वाली constraint'),
         vector: [0, 0, 0, 3, 0, 0],
+        profilePatch: { speakingConfidence: 'low' },
         clusterScores: { 'desk-ops': 3 },
       },
       {
         id: 'r1_d',
-        label: t('Figure out if there is a pattern causing this and flag it to prevent future cases', 'यह पता लगाता/लगाती हूँ कि क्या कोई ढर्रा समस्या पैदा कर रहा है, फिर उसे चिह्नित करता/करती हूँ ताकि वह दोबारा न हो'),
-        signal: t('Root-cause analytical thinking', 'मूल कारण पर केंद्रित विश्लेषणात्मक सोच'),
-        vector: [1, 0, 0, 0, 0, 3],
+        label: t('I can talk when needed, but I would rather solve from data, documents, or systems', 'ज़रूरत हो तो बात कर सकता/सकती हूँ, पर data, documents या systems से solve करना पसंद है'),
+        signal: t('Analytical work preferred over front-line interaction', 'front-line interaction से ज़्यादा analytical काम पसंद'),
+        vector: [2, 0, 0, 1, 0, 3],
+        profilePatch: { speakingConfidence: 'medium' },
         clusterScores: { 'analytical': 3 },
       },
     ],
   },
   {
     id: 'r2',
-    section: t('How You Work', 'आप कैसे काम करते हैं'),
+    section: t('Work Conditions', 'काम की स्थितियां'),
     prompt: t(
-      'You have 2 free hours at work with no meetings. What do you genuinely pick?',
-      'काम के दौरान आपको दो खाली घंटे मिलते हैं और कोई बैठक नहीं है। आप वास्तव में क्या करना चुनेंगे?'
+      'Which work condition can you realistically accept in the next 6 months?',
+      'अगले 6 महीनों में आप कौन-सी काम की स्थिति realistic तरीके से accept कर सकते/सकती हैं?'
     ),
     helper: t(
-      'Choose what you would actually do, not what looks good.',
-      'वह चुनें जो आप सच में करेंगे, वह नहीं जो अच्छा दिखे।'
+      'This helps avoid recommending roles that sound good but are hard to sustain.',
+      'इससे ऐसी भूमिकाएं avoid होती हैं जो सुनने में अच्छी लगें पर निभाना कठिन हो।'
     ),
     options: [
       {
         id: 'r2_a',
-        label: t('Call 5 people and move pending conversations forward', 'पाँच लोगों से बात करके लंबित बातचीत आगे बढ़ाना'),
-        signal: t('Pulled toward active outreach', 'सक्रिय संपर्क की ओर झुकाव'),
-        vector: [0, 1, 3, 0, 0, 0],
+        label: t('Targets, follow-ups, and daily outreach are acceptable if the role has clear training', 'clear training हो तो targets, follow-ups और daily outreach acceptable हैं'),
+        signal: t('Target and outreach work is feasible', 'target और outreach work feasible है'),
+        vector: [0, 1, 3, 1, 0, 0],
+        objectiveEvidencePatch: { communication: 70 },
         clusterScores: { 'people-facing': 3 },
       },
       {
         id: 'r2_b',
-        label: t('Fix a broken Excel report that has been giving wrong numbers', 'गलत आँकड़े दिखाने वाली एक्सेल रिपोर्ट ठीक करना'),
-        signal: t('Pulled toward spreadsheet accuracy', 'गणना-पत्र की सटीकता की ओर झुकाव'),
-        vector: [2, 0, 0, 2, 0, 1],
-        clusterScores: { 'desk-ops': 2, 'analytical': 1 },
+        label: t('Fixed desk hours, trackers, documentation, and repeated process work suit me better', 'fixed desk hours, trackers, documentation और repeated process work मुझे बेहतर suit करता है'),
+        signal: t('Stable process work is feasible', 'stable process work feasible है'),
+        vector: [1, 0, 0, 3, 0, 1],
+        objectiveEvidencePatch: { accuracy: 65 },
+        clusterScores: { 'desk-ops': 3 },
       },
       {
         id: 'r2_c',
-        label: t('Research and write a useful comparison doc or guide', 'शोध करके उपयोगी तुलना-पत्र या मार्गदर्शिका लिखना'),
-        signal: t('Pulled toward research and writing', 'शोध और लेखन की ओर झुकाव'),
-        vector: [0, 0, 0, 1, 2, 1],
-        clusterScores: { 'creative': 3, 'analytical': 1 }, // FIX (Issue 3): creative was under-reachable
+        label: t('Researching, writing, designing, or improving content for a visible audience sounds sustainable', 'visible audience के लिए research, writing, designing या content improve करना sustainable लगता है'),
+        signal: t('Creative output work is feasible', 'creative output work feasible है'),
+        vector: [0, 0, 1, 0, 3, 1],
+        objectiveEvidencePatch: { writing: 70 },
+        clusterScores: { 'creative': 3 },
       },
       {
         id: 'r2_d',
-        label: t('Clean up a messy process and document a better way to do it', 'अव्यवस्थित प्रक्रिया को सुधारकर बेहतर तरीका लिखित रूप में दर्ज करना'),
-        signal: t('Pulled toward process improvement', 'प्रक्रिया सुधार की ओर झुकाव'),
-        vector: [0, 0, 0, 3, 0, 1],
-        clusterScores: { 'desk-ops': 3 },
+        label: t('Analysing numbers, finding patterns, and building reports is something I can practice seriously', 'numbers analyse करना, patterns ढूँढना और reports बनाना मैं seriously practice कर सकता/सकती हूँ'),
+        signal: t('Analytical reporting path is feasible', 'analytical reporting path feasible है'),
+        vector: [3, 0, 0, 1, 0, 3],
+        objectiveEvidencePatch: { spreadsheet: 65, numeracy: 65 },
+        clusterScores: { 'analytical': 3 },
       },
     ],
   },
   {
     id: 'r3',
-    section: t('You and Numbers', 'आप और संख्याएँ'),
+    section: t('Quick Data Check', 'छोटी data check'),
     prompt: t(
-      'Your manager asks you to check 200 rows of data for errors. You:',
-      'आपका प्रबंधक आपसे आँकड़ों की 200 पंक्तियों में गलतियाँ जाँचने को कहता है। आप क्या करेंगे?'
+      'A tracker says: 18 applications sent, 7 replies, 4 interviews, 5 offers. What do you notice first?',
+      'एक tracker में लिखा है: 18 applications भेजे, 7 replies, 4 interviews, 5 offers. आप सबसे पहले क्या notice करेंगे?'
     ),
     helper: t(
-      'Be honest. This shapes which roles we recommend.',
-      'ईमानदारी से उत्तर दें। इससे हमें आपके लिए सही भूमिकाएँ सुझाने में मदद मिलेगी।'
+      'This is a small proof task for accuracy and numbers, not a preference question.',
+      'यह accuracy और numbers की छोटी proof task है, preference question नहीं।'
     ),
     options: [
       {
         id: 'r3_a',
-        label: t('Get into it — I find catching mistakes satisfying', 'तुरंत काम में लग जाता/जाती हूँ, क्योंकि गलतियाँ पकड़ना मुझे संतोष देता है'),
-        signal: t('High numerical and detail comfort', 'संख्याओं और बारीकियों में अच्छी सहजता'),
-        vector: [3, 0, 0, 2, 0, 1],
+        label: t('Offers cannot be higher than interviews; the tracker has a consistency error', 'offers interviews से ज़्यादा नहीं हो सकते; tracker में consistency error है'),
+        signal: t('Caught the data consistency issue', 'data consistency issue पकड़ा'),
+        vector: [3, 0, 0, 3, 0, 2],
         profilePatch: { numbersConfidence: 'high', dataConfidence: 'high' },
-        clusterScores: { 'analytical': 2, 'desk-ops': 2 },
+        objectiveEvidencePatch: { accuracy: 90, numeracy: 85, spreadsheet: 80 },
+        clusterScores: { 'analytical': 3, 'desk-ops': 2 },
       },
       {
         id: 'r3_b',
-        label: t('Do it carefully but it is not something I would choose', 'ध्यान से करता/करती हूँ पर खुद से नहीं चुनता/चुनती'),
-        signal: t('Moderate comfort with structured data work', 'क्रमबद्ध आँकड़ों के काम में मध्यम सहजता'),
-        vector: [1, 0, 0, 1, 0, 0],
+        label: t('The reply rate is 7 out of 18; I would calculate the percentage next', 'reply rate 18 में से 7 है; मैं next percentage calculate करूँगा/करूँगी'),
+        signal: t('Understands basic funnel numbers', 'basic funnel numbers समझता/समझती है'),
+        vector: [2, 0, 0, 1, 0, 2],
         profilePatch: { numbersConfidence: 'medium', dataConfidence: 'medium' },
-        clusterScores: { 'desk-ops': 1 },
+        objectiveEvidencePatch: { numeracy: 65, spreadsheet: 55 },
+        clusterScores: { 'analytical': 2, 'desk-ops': 1 },
       },
       {
         id: 'r3_c',
-        label: t('Want someone to explain the pattern first so I can check faster', 'पहले ढर्रा समझना चाहता/चाहती हूँ, ताकि जाँच अधिक तेज़ी से कर सकूँ'),
-        signal: t('Prefers analytical framing over manual checking', 'हाथ से जाँचने के बजाय विश्लेषणात्मक तरीका पसंद'),
-        vector: [1, 0, 0, 0, 0, 2],
+        label: t('I would ask what each column means before judging the numbers', 'numbers judge करने से पहले मैं पूछूँगा/पूछूँगी कि हर column का मतलब क्या है'),
+        signal: t('Careful but needs context before checking', 'careful है पर checking से पहले context चाहिए'),
+        vector: [1, 0, 0, 2, 0, 1],
         profilePatch: { numbersConfidence: 'medium' },
-        clusterScores: { 'analytical': 2 },
+        objectiveEvidencePatch: { accuracy: 55 },
+        clusterScores: { 'desk-ops': 2, 'analytical': 1 },
       },
       {
         id: 'r3_d',
-        label: t('Prefer to delegate this and handle something more people-facing', 'यह काम किसी और को देकर लोगों से सीधे जुड़ा काम करना पसंद करूँगा/करूँगी'),
-        signal: t('Avoids number-heavy work', 'संख्या प्रधान काम से दूरी'),
+        label: t('I would rather not work with trackers like this every day', 'मैं रोज़ ऐसे trackers के साथ काम नहीं करना चाहूँगा/चाहूँगी'),
+        signal: t('Low comfort with data-checking work', 'data-checking काम में कम comfort'),
         vector: [0, 2, 1, 0, 0, 0],
         profilePatch: { numbersConfidence: 'low', dataConfidence: 'low' },
+        objectiveEvidencePatch: { numeracy: 25, accuracy: 25 },
         clusterScores: { 'people-facing': 2 },
       },
     ],
   },
   {
     id: 'r4',
-    section: t('How You Connect', 'आप कैसे जुड़ते हैं'),
+    section: t('Written Response Check', 'लिखित response check'),
     prompt: t(
-      'You are given a list of 20 potential customers to contact. You:',
-      'आपको 20 संभावित ग्राहकों की सूची दी जाती है जिनसे संपर्क करना है। आप क्या करेंगे?'
+      'A customer writes: "I paid yesterday but my account is still blocked." Which first reply is strongest?',
+      'एक customer लिखता है: "मैंने कल payment किया था लेकिन मेरा account अभी भी blocked है." सबसे अच्छा पहला reply कौन-सा है?'
     ),
     helper: t(
-      'Pick the option that sounds most natural for you right now.',
-      'वह विकल्प चुनें जो इस समय आपको सबसे स्वाभाविक लगे।'
+      'This checks clarity, empathy, and whether you ask for the right information.',
+      'यह clarity, empathy और सही जानकारी मांगने की क्षमता check करता है।'
     ),
     options: [
       {
         id: 'r4_a',
-        label: t('Call them directly — I am comfortable starting conversations', 'उन्हें सीधे फ़ोन करता/करती हूँ, क्योंकि बातचीत शुरू करने में सहज हूँ'),
-        signal: t('Proactive outbound communication', 'पहल करके संपर्क करना'),
-        vector: [0, 1, 3, 0, 0, 0],
+        label: t('Sorry for the trouble. Please share your payment ID or registered phone number so I can check and update you.', 'असुविधा के लिए खेद है। कृपया payment ID या registered phone number भेजें ताकि मैं check करके update दे सकूँ।'),
+        signal: t('Clear empathetic support reply', 'clear empathetic support reply'),
+        vector: [0, 3, 1, 2, 1, 0],
         profilePatch: { speakingConfidence: 'high' },
+        objectiveEvidencePatch: { communication: 90, writing: 80 },
         clusterScores: { 'people-facing': 3 },
       },
       {
         id: 'r4_b',
-        label: t('Email them a clear message and follow up on replies', 'उन्हें स्पष्ट ईमेल भेजकर उत्तर आने पर दोबारा संपर्क करता/करती हूँ'),
-        signal: t('Structured follow-up approach', 'क्रमबद्ध दोबारा संपर्क'),
-        vector: [0, 1, 1, 1, 0, 0],
+        label: t('Payment team will check. Wait for some time.', 'payment team check करेगी। कुछ समय wait करें।'),
+        signal: t('Understandable but low-detail reply', 'समझ में आता है पर detail कम है'),
+        vector: [0, 1, 0, 1, 0, 0],
         profilePatch: { speakingConfidence: 'medium' },
-        clusterScores: { 'people-facing': 1, 'desk-ops': 1 },
+        objectiveEvidencePatch: { communication: 45, writing: 45 },
+        clusterScores: { 'people-facing': 1 },
       },
       {
         id: 'r4_c',
-        label: t('Research each one first so I know what to say', 'पहले हर व्यक्ति के बारे में जानकारी जुटाता/जुटाती हूँ, ताकि पता हो क्या कहना है'),
-        signal: t('Research-led communication', 'शोध आधारित संवाद'),
-        vector: [1, 0, 0, 0, 0, 2],
-        clusterScores: { 'analytical': 2 },
+        label: t('I would first check the payment log, account status, and ticket history before replying.', 'reply करने से पहले मैं payment log, account status और ticket history check करूँगा/करूँगी।'),
+        signal: t('Investigates before responding', 'respond करने से पहले जांचता/जांचती है'),
+        vector: [1, 1, 0, 3, 0, 2],
+        objectiveEvidencePatch: { accuracy: 75 },
+        clusterScores: { 'desk-ops': 2, 'analytical': 1 },
       },
       {
         id: 'r4_d',
-        label: t('Prefer an inbound role where they come to me', 'ऐसी भूमिका पसंद करता/करती हूँ जिसमें लोग स्वयं मुझसे संपर्क करें'),
-        signal: t('Prefers lower-intensity interaction', 'कम तीव्रता वाले संवाद की पसंद'),
-        vector: [0, 2, 0, 0, 0, 0],
+        label: t('I would rewrite it into a short, polished message before sending.', 'send करने से पहले मैं इसे short, polished message में rewrite करूँगा/करूँगी।'),
+        signal: t('Writing polish instinct', 'writing polish instinct'),
+        vector: [0, 1, 0, 1, 3, 1],
         profilePatch: { speakingConfidence: 'low' },
-        clusterScores: { 'people-facing': 1 },
+        objectiveEvidencePatch: { writing: 75 },
+        clusterScores: { 'creative': 2, 'desk-ops': 1 },
       },
     ],
   },
   {
     id: 'r5',
-    section: t('What Drives You', 'आपको क्या प्रेरित करता है'),
+    section: t('Prioritisation Scenario', 'Priority scenario'),
     prompt: t(
-      'Which of these would you find most satisfying to show your manager at end of week?',
-      'सप्ताह के अंत में इनमें से कौन-सा काम अपने प्रबंधक को दिखाना आपको सबसे संतोषजनक लगेगा?'
+      'It is 4 PM. You have four unfinished tasks. Which one do you handle first?',
+      'शाम के 4 बजे हैं। आपके पास चार अधूरे काम हैं। आप सबसे पहले कौन-सा करेंगे/करेंगी?'
     ),
     helper: t(
-      'Think about the next 6 months of actual work, not a distant dream.',
-      'अगले 6 महीने के असल काम के बारे में सोचें, दूर के सपने के बारे में नहीं।'
+      'This tells us what kind of pressure you handle best.',
+      'इससे पता चलता है कि आप किस तरह का pressure बेहतर handle करते/करती हैं।'
     ),
     options: [
       {
         id: 'r5_a',
-        label: t('A campaign or piece of content that got real engagement', 'ऐसा प्रचार अभियान या लेख जिसे लोगों की वास्तविक प्रतिक्रिया मिली हो'),
-        signal: t('Creative output satisfaction', 'रचनात्मक परिणाम से संतोष'),
-        vector: [0, 0, 1, 0, 3, 0],
-        clusterScores: { 'creative': 3 },
+        label: t('A customer/student waiting for a response that affects their next step', 'एक customer/student जिसके next step के लिए आपका response ज़रूरी है'),
+        signal: t('Prioritises human impact', 'human impact को priority देता/देती है'),
+        vector: [0, 3, 2, 1, 0, 0],
+        objectiveEvidencePatch: { communication: 75 },
+        clusterScores: { 'people-facing': 3 },
       },
       {
         id: 'r5_b',
-        label: t('A clean report or dashboard they can act on', 'ऐसी साफ़ रिपोर्ट या कार्यस्थल जिससे वे निर्णय ले सकें'),
-        signal: t('Analytical output satisfaction', 'विश्लेषणात्मक परिणाम से संतोष'),
-        vector: [1, 0, 0, 1, 0, 3],
+        label: t('A report with numbers that will be used in tomorrow morning’s meeting', 'एक numbers report जो कल सुबह की meeting में use होगी'),
+        signal: t('Prioritises decision-critical analysis', 'decision-critical analysis को priority देता/देती है'),
+        vector: [3, 0, 0, 1, 0, 3],
+        objectiveEvidencePatch: { spreadsheet: 75, numeracy: 75 },
         clusterScores: { 'analytical': 3 },
       },
       {
         id: 'r5_c',
-        label: t('A process you improved or documented', 'ऐसी प्रक्रिया जिसे आपने सुधारा या लिखित रूप में दर्ज किया हो'),
-        signal: t('Process improvement satisfaction', 'प्रक्रिया सुधार से संतोष'),
-        vector: [0, 0, 0, 3, 0, 1],
+        label: t('A tracker/process update that multiple teammates need before they can continue', 'tracker/process update जिसकी जरूरत कई teammates को आगे बढ़ने के लिए है'),
+        signal: t('Prioritises workflow dependency', 'workflow dependency को priority देता/देती है'),
+        vector: [1, 0, 0, 3, 0, 1],
+        objectiveEvidencePatch: { accuracy: 70 },
         clusterScores: { 'desk-ops': 3 },
       },
       {
         id: 'r5_d',
-        label: t('A set of calls or conversations you moved forward', 'कई ऐसी बातचीत जिन्हें आपने अगले चरण तक पहुँचाया हो'),
-        signal: t('People progress satisfaction', 'लोगों की प्रगति से संतोष'),
-        vector: [0, 1, 2, 0, 0, 0],
-        clusterScores: { 'people-facing': 3 },
+        label: t('A draft post, campaign message, or design that must go out today', 'draft post, campaign message या design जिसे आज publish/send करना है'),
+        signal: t('Prioritises visible creative output', 'visible creative output को priority देता/देती है'),
+        vector: [0, 0, 1, 0, 3, 1],
+        objectiveEvidencePatch: { writing: 70 },
+        clusterScores: { 'creative': 3 },
       },
     ],
   },
@@ -1147,42 +1204,46 @@ export const ROUTING_QUESTIONS: AssessmentQuestion[] = [
 
 export const TIE_BREAKER_QUESTION: AssessmentQuestion = {
   id: 'rtb',
-  section: t('One More Thing', 'एक और बात'),
+  section: t('Proof You Can Build', 'आप कौन-सा proof बना सकते हैं'),
   prompt: t(
-    'Which offer sounds strongest for your first 12 months?',
-    'अपने पहले 12 महीनों के लिए कौन-सा offer आपको सबसे अच्छा लगता है?'
+    'If you had two weeks to prove readiness for one direction, what would you actually build or practice?',
+    'अगर एक direction के लिए readiness prove करने को आपके पास दो हफ्ते हों, तो आप वास्तव में क्या बनाएंगे या practice करेंगे?'
   ),
   helper: t(
-    'Pick the one you would accept first, not the one that sounds most glamorous.',
-    'वह चुनें जिसे आप पहले accept करेंगे, न कि सबसे glamorous लगने वाला।'
+    'This breaks close results using evidence you can realistically produce, not prestige.',
+    'यह close results को prestige नहीं, बल्कि realistically बनाए जा सकने वाले evidence से अलग करता है।'
   ),
   options: [
     {
       id: 'rtb_a',
-      label: t('Customer or student support — clear goals, training provided', 'Customer या student support — clear goals, training मिलेगी'),
-      signal: t('Leans toward guided support work', 'guided support work की तरफ झुकाव'),
+      label: t('A set of strong customer/student replies and a short call introduction', 'strong customer/student replies और छोटा call introduction'),
+      signal: t('Can produce communication proof', 'communication proof बना सकता/सकती है'),
       vector: [0, 2, 1, 0, 0, 0],
+      objectiveEvidencePatch: { communication: 80, writing: 70 },
       clusterScores: { 'people-facing': 3 },
     },
     {
       id: 'rtb_b',
-      label: t('Operations or MIS — reports, trackers, process ownership', 'Operations या MIS — reports, trackers, process ownership'),
-      signal: t('Leans toward operations and reporting', 'operations और reporting की तरफ झुकाव'),
+      label: t('A clean tracker, checklist, or data-cleaning sample with no obvious errors', 'clean tracker, checklist या data-cleaning sample जिसमें obvious errors न हों'),
+      signal: t('Can produce operations accuracy proof', 'operations accuracy proof बना सकता/सकती है'),
       vector: [1, 0, 0, 3, 0, 1],
+      objectiveEvidencePatch: { accuracy: 80, spreadsheet: 70 },
       clusterScores: { 'desk-ops': 3 },
     },
     {
       id: 'rtb_c',
-      label: t('Marketing or content — campaigns and audience growth', 'Marketing या content — campaigns और audience growth'),
-      signal: t('Leans toward creative output', 'creative output की तरफ झुकाव'),
+      label: t('A short article, post, campaign message, or visual content sample', 'short article, post, campaign message या visual content sample'),
+      signal: t('Can produce creative proof', 'creative proof बना सकता/सकती है'),
       vector: [0, 0, 1, 0, 3, 0],
+      objectiveEvidencePatch: { writing: 80, design: 55 },
       clusterScores: { 'creative': 3 },
     },
     {
       id: 'rtb_d',
-      label: t('Accounts or compliance — records, review, accuracy', 'Accounts या compliance — records, review, accuracy'),
-      signal: t('Leans toward numbers and precision', 'numbers और precision की तरफ झुकाव'),
+      label: t('A spreadsheet analysis, reconciliation, or error-checking sample', 'spreadsheet analysis, reconciliation या error-checking sample'),
+      signal: t('Can produce numbers and analysis proof', 'numbers और analysis proof बना सकता/सकती है'),
       vector: [3, 0, 0, 2, 0, 1],
+      objectiveEvidencePatch: { numeracy: 80, spreadsheet: 80, accuracy: 75 },
       clusterScores: { 'analytical': 3 },
     },
   ],
@@ -1208,7 +1269,7 @@ export const BRANCH_QUESTIONS: Record<ClusterId, AssessmentQuestion[]> = {
           label: t('Listen, empathise, and help them feel calm first', 'पहले सुनता/सुनती हूँ, empathise करता/करती हूँ और उन्हें calm feel कराता/कराती हूँ'),
           signal: t('Calm empathetic support', 'शांत empathetic support'),
           vector: [0, 3, 0, 1, 0, 0],
-          roleScores: { 'customer-support': 3, 'telemedicine-coordinator': 2 },
+          roleScores: { 'customer-support': 3 },
         },
         {
           id: 'pf_b1_b',
@@ -1240,7 +1301,7 @@ export const BRANCH_QUESTIONS: Record<ClusterId, AssessmentQuestion[]> = {
           label: t('Drained but fulfilled — I like helping, I just need recovery time', 'थका/थकी हुआ/हुई पर satisfied — helping पसंद है, बस recovery time चाहिए'),
           signal: t('Empathetic helper who needs recharge time', 'recharge time चाहने वाला/वाली empathetic helper'),
           vector: [0, 3, 0, 1, 0, 0],
-          roleScores: { 'customer-support': 2, 'telemedicine-coordinator': 3 },
+          roleScores: { 'customer-support': 3 },
         },
         {
           id: 'pf_b2_b',
@@ -1293,7 +1354,7 @@ export const BRANCH_QUESTIONS: Record<ClusterId, AssessmentQuestion[]> = {
           label: t('Supporting patients or healthcare appointments remotely', 'patients या healthcare appointments को remotely support करना'),
           signal: t('Healthcare coordination setting', 'healthcare coordination setting'),
           vector: [1, 3, 1, 3, 0, 0],
-          roleScores: { 'telemedicine-coordinator': 3 },
+          roleScores: { 'customer-support': 2, 'hr-coordinator': 1 },
         },
       ],
     },
@@ -1325,7 +1386,7 @@ export const BRANCH_QUESTIONS: Record<ClusterId, AssessmentQuestion[]> = {
           label: t('Appointment-related or medical documentation', 'appointment-related या medical documentation'),
           signal: t('Formal health documentation comfort', 'formal health documentation में सहजता'),
           vector: [1, 2, 0, 3, 0, 0],
-          roleScores: { 'telemedicine-coordinator': 3 },
+          roleScores: { 'hr-coordinator': 2, 'customer-support': 1 },
         },
       ],
     },
@@ -1698,58 +1759,52 @@ export const BRANCH_QUESTIONS: Record<ClusterId, AssessmentQuestion[]> = {
 };
 
 // ─── Backward-compatible export ───────────────────────────────────────────────
+function buildFinalistQuestion(cluster: ClusterId): AssessmentQuestion {
+  const policies = MATCHING_CATALOG.roles.filter((role) => role.cluster === cluster);
+  return {
+    id: 'rf',
+    section: t('Closest Work Direction', 'सबसे करीब काम की दिशा'),
+    prompt: t(
+      'After comparing the actual work, which direction would you most seriously explore?',
+      'असली काम की तुलना के बाद आप किस दिशा को सबसे गंभीरता से खोजेंगे?'
+    ),
+    helper: t(
+      'Choose for the work itself, not status. Requirements and practical evidence are checked separately.',
+      'पद के नाम के बजाय काम को देखकर चुनें। योग्यता और practical evidence की जांच अलग होती है।'
+    ),
+    options: policies.map((policy) => {
+      const role = ROLE_DEFINITIONS[policy.id as RoleId];
+      const candidate = ROLE_CANDIDATES.find((item) => item.id === policy.id);
+      const workDescription = candidate
+        ? candidate.separatorSignals
+            .slice(0, 3)
+            .map((signal) => signal.split('-').join(' '))
+            .join(', ')
+        : role.summary.en;
+      return {
+        id: `rf_${role.id}`,
+        label: t(
+          `${role.name.en}: ${workDescription}`,
+          `${role.name.hi}: ${candidate ? workDescription : role.summary.hi}`
+        ),
+        signal: t(
+          `Direct preference for ${role.name.en}`,
+          `${role.name.hi} के लिए सीधी पसंद`
+        ),
+        vector: [...policy.preferenceTarget],
+        roleScores: { [role.id]: 24 },
+      };
+    }),
+  };
+}
+
+for (const cluster of Object.keys(BRANCH_QUESTIONS) as ClusterId[]) {
+  BRANCH_QUESTIONS[cluster].push(buildFinalistQuestion(cluster));
+}
+
 // product.ts re-exports ASSESSMENT_QUESTIONS; UI uses it for the initial question set.
 // The UI must call getNextQuestions() after routing phase to load branch questions.
 export const ASSESSMENT_QUESTIONS: AssessmentQuestion[] = ROUTING_QUESTIONS;
-
-// ─── Disqualifier rules ───────────────────────────────────────────────────────
-
-interface DisqualifierRule {
-  condition: (profile: AssessmentProfile) => boolean;
-  roleIds: RoleId[];
-  multiplier: number;
-}
-
-const DISQUALIFIER_RULES: DisqualifierRule[] = [
-  // Numbers avoidance -> near-eliminates finance and data roles
-  {
-    condition: (p) => p.numbersConfidence === 'low',
-    roleIds: ['accounting-finance-assistant', 'data-entry-mis', 'operations-analyst'],
-    multiplier: 0.15,
-  },
-  // Speaking avoidance -> penalises high-call roles
-  {
-    condition: (p) => p.speakingConfidence === 'low',
-    roleIds: ['customer-support', 'sales-support', 'academic-counsellor'],
-    multiplier: 0.25,
-  },
-  // Data/detail avoidance -> penalises desk-heavy roles
-  {
-    condition: (p) => p.dataConfidence === 'low',
-    roleIds: ['data-entry-mis', 'back-office-operations', 'legal-compliance-operations'],
-    multiplier: 0.25,
-  },
-  // Strong numbers + commerce/science stream -> boost finance roles
-  {
-    condition: (p) =>
-      p.numbersConfidence === 'high' &&
-      ['commerce', 'science'].includes(p.educationStream || ''),
-    roleIds: ['accounting-finance-assistant', 'operations-analyst'],
-    multiplier: 1.15,
-  },
-  // Law stream -> boost legal-compliance
-  {
-    condition: (p) => p.educationStream === 'law',
-    roleIds: ['legal-compliance-operations'],
-    multiplier: 1.12,
-  },
-  // Healthcare stream -> boost telemedicine
-  {
-    condition: (p) => p.educationStream === 'healthcare',
-    roleIds: ['telemedicine-coordinator'],
-    multiplier: 1.15,
-  },
-];
 
 // ─── Internal scoring helpers ─────────────────────────────────────────────────
 
@@ -1780,6 +1835,26 @@ function computeClusterScores(options: AssessmentOption[]): Record<ClusterId, nu
   return scores;
 }
 
+function mergeObjectiveEvidence(
+  current: ObjectiveEvidence | undefined,
+  patch: ObjectiveEvidence
+): ObjectiveEvidence {
+  const merged: ObjectiveEvidence = { ...(current || {}) };
+  for (const [signal, value] of Object.entries(patch) as Array<
+    [keyof ObjectiveEvidence, number | undefined]
+  >) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) {
+      continue;
+    }
+    const existing = merged[signal];
+    merged[signal] =
+      typeof existing === 'number' && Number.isFinite(existing) && existing >= 0 && existing <= 100
+        ? Math.max(existing, value)
+        : value;
+  }
+  return merged;
+}
+
 function computeConfidence(
   clusterScores: Record<ClusterId, number>,
   preferredCluster?: ClusterId
@@ -1805,30 +1880,9 @@ function computeConfidence(
   };
 }
 
-function weightedCosineSimilarity(
-  userVector: number[],
-  roleVector: number[],
-  dimensionWeights: number[]
-): number {
-  let dot = 0;
-  let userNorm = 0;
-  let roleNorm = 0;
-
-  for (let index = 0; index < DIMENSION_COUNT; index += 1) {
-    const wu = userVector[index] * dimensionWeights[index];
-    const wr = roleVector[index] * dimensionWeights[index];
-    dot += wu * wr;
-    userNorm += wu * wu;
-    roleNorm += wr * wr;
-  }
-
-  if (!userNorm || !roleNorm) return 0;
-  return dot / (Math.sqrt(userNorm) * Math.sqrt(roleNorm));
-}
-
 function signalAlignment(option: AssessmentOption, role: RoleDefinition): number {
   return option.vector.reduce(
-    (sum, value, index) => sum + value * role.vector[index] * role.dimensionWeights[index],
+    (sum, value, index) => sum + value * role.vector[index],
     0
   );
 }
@@ -1839,12 +1893,10 @@ export function getLocaleValue(text: LocalizedText, locale: Locale): string {
   return text[locale];
 }
 
-export function getMatchStrengthLabel(score: number, locale: Locale): LocalizedText {
-  void locale;
-  if (score >= 82) return t('Strong match', 'मजबूत मैच');
-  if (score >= 70) return t('Good fit', 'अच्छा फिट');
-  if (score >= 58) return t('Possible fit', 'संभावित फिट');
-  return t('Explore more', 'और देखें');
+function getRankDirectionLabel(index: number): LocalizedText {
+  if (index === 0) return t('Leading direction', 'प्रमुख दिशा');
+  if (index === 1) return t('Second direction', 'दूसरी दिशा');
+  return t('Third direction', 'तीसरी दिशा');
 }
 
 export function buildRoleRationale(
@@ -1870,6 +1922,123 @@ export function buildRoleRationale(
   };
 }
 
+export class AssessmentValidationError extends Error {
+  constructor(public readonly issues: string[]) {
+    super(issues[0] || 'Invalid assessment responses');
+    this.name = 'AssessmentValidationError';
+  }
+}
+
+export interface ValidatedAssessmentPath {
+  canonicalResponses: Record<string, string>;
+  cluster: ClusterId;
+  clusterMargin: number;
+  routingOptions: AssessmentOption[];
+  branchOptions: AssessmentOption[];
+  requiredAnswerCount: number;
+}
+
+function selectedOption(question: AssessmentQuestion, responses: Record<string, string>) {
+  return question.options.find((option) => option.id === responses[question.id]);
+}
+
+function resolveAssessmentPath(
+  responses: Record<string, string>,
+  requireComplete: boolean
+): ValidatedAssessmentPath | null {
+  const issues: string[] = [];
+  const knownQuestionIds = new Set([
+    'r1',
+    'r2',
+    'r3',
+    'r4',
+    'r5',
+    'rtb',
+    'b1',
+    'b2',
+    'b3',
+    'b4',
+    'rf',
+  ]);
+  for (const questionId of Object.keys(responses)) {
+    if (!knownQuestionIds.has(questionId)) issues.push(`Unknown question id: ${questionId}`);
+  }
+
+  const routingOptions = ROUTING_QUESTIONS.map((question) => {
+    const option = selectedOption(question, responses);
+    if (!option && responses[question.id] !== undefined) {
+      issues.push(`Invalid option for ${question.id}`);
+    } else if (!option && requireComplete) {
+      issues.push(`Missing answer for ${question.id}`);
+    }
+    return option;
+  }).filter((option): option is AssessmentOption => Boolean(option));
+
+  if (routingOptions.length !== ROUTING_QUESTIONS.length) {
+    if (issues.length > 0 && requireComplete) throw new AssessmentValidationError(issues);
+    return null;
+  }
+
+  const baseScores = computeClusterScores(routingOptions);
+  const baseConfidence = computeConfidence(baseScores);
+  let tieBreakerOption: AssessmentOption | undefined;
+  if (baseConfidence.needsTieBreaker) {
+    tieBreakerOption = selectedOption(TIE_BREAKER_QUESTION, responses);
+    if (!tieBreakerOption && responses.rtb !== undefined) issues.push('Invalid option for rtb');
+    else if (!tieBreakerOption && requireComplete) issues.push('Missing answer for rtb');
+  } else if (responses.rtb !== undefined) {
+    issues.push('Tie-breaker answer is not active for this response path');
+  }
+
+  if (baseConfidence.needsTieBreaker && !tieBreakerOption) {
+    if (issues.length > 0 && requireComplete) throw new AssessmentValidationError(issues);
+    return null;
+  }
+
+  const routingWithTie = tieBreakerOption ? [...routingOptions, tieBreakerOption] : routingOptions;
+  const tieCluster = tieBreakerOption
+    ? (Object.keys(tieBreakerOption.clusterScores || {})[0] as ClusterId | undefined)
+    : undefined;
+  const finalClusterScores = computeClusterScores(routingWithTie);
+  const clusterResolution = computeConfidence(finalClusterScores, tieCluster);
+  const branchQuestions = BRANCH_QUESTIONS[clusterResolution.topCluster];
+  const branchOptions = branchQuestions.map((question) => {
+    const option = selectedOption(question, responses);
+    if (!option && responses[question.id] !== undefined) {
+      issues.push(`Invalid option for ${question.id} on the ${clusterResolution.topCluster} path`);
+    } else if (!option && requireComplete) {
+      issues.push(`Missing answer for ${question.id}`);
+    }
+    return option;
+  }).filter((option): option is AssessmentOption => Boolean(option));
+
+  if (issues.length > 0 && requireComplete) throw new AssessmentValidationError(issues);
+  if (branchOptions.length !== branchQuestions.length) return null;
+
+  const canonicalResponses = Object.fromEntries([
+    ...ROUTING_QUESTIONS.map((question, index) => [question.id, routingOptions[index].id]),
+    ...(tieBreakerOption ? [[TIE_BREAKER_QUESTION.id, tieBreakerOption.id]] : []),
+    ...branchQuestions.map((question, index) => [question.id, branchOptions[index].id]),
+  ]);
+
+  return {
+    canonicalResponses,
+    cluster: clusterResolution.topCluster,
+    clusterMargin: clusterResolution.margin,
+    routingOptions: routingWithTie,
+    branchOptions,
+    requiredAnswerCount: ROUTING_QUESTIONS.length + branchQuestions.length + (tieBreakerOption ? 1 : 0),
+  };
+}
+
+export function validateAssessmentResponses(
+  responses: Record<string, string>
+): ValidatedAssessmentPath {
+  const path = resolveAssessmentPath(responses, true);
+  if (!path) throw new AssessmentValidationError(['Assessment path is incomplete']);
+  return path;
+}
+
 /**
  * Returns the full ordered list of questions the user should see given their
  * current responses. The UI renders questions[currentIndex] and uses
@@ -1877,22 +2046,20 @@ export function buildRoleRationale(
  *
  * Before Phase 1 is complete: returns the 5 routing questions.
  * After Phase 1, if tie-breaker needed and not answered: appends tie-breaker.
- * After cluster determined: appends the 4 branch questions for that cluster.
+ * After cluster determined: appends the 4 evidence questions + 1 finalist question for that cluster.
  */
 export function getNextQuestions(
   responses: Record<string, string>
 ): AssessmentQuestion[] {
-  const phase1Complete = ROUTING_QUESTIONS.every((q) => responses[q.id] !== undefined);
+  const phase1Complete = ROUTING_QUESTIONS.every((question) => selectedOption(question, responses));
   if (!phase1Complete) return ROUTING_QUESTIONS;
 
-  const phase1Options = ROUTING_QUESTIONS.map((q) =>
-    q.options.find((o) => o.id === responses[q.id])
-  ).filter(Boolean) as AssessmentOption[];
+  const phase1Options = ROUTING_QUESTIONS.map((question) => selectedOption(question, responses)) as AssessmentOption[];
 
   const baseScores = computeClusterScores(phase1Options);
   const { needsTieBreaker } = computeConfidence(baseScores);
 
-  const hasTieBreaker = responses[TIE_BREAKER_QUESTION.id] !== undefined;
+  const hasTieBreaker = Boolean(selectedOption(TIE_BREAKER_QUESTION, responses));
 
   if (needsTieBreaker && !hasTieBreaker) {
     return [...ROUTING_QUESTIONS, TIE_BREAKER_QUESTION];
@@ -1925,104 +2092,56 @@ export function scoreAssessment(
   profileSeed: Partial<AssessmentProfile> = {},
   locale: Locale = 'en'
 ): AssessmentResult {
+  const validated = validateAssessmentResponses(responses);
   const profile: AssessmentProfile = { locale, ...profileSeed };
-
-  // Step 1: Collect Phase 1 (routing) options and apply profile patches
-  const phase1Options = ROUTING_QUESTIONS.map((q) => {
-    const option = q.options.find((o) => o.id === responses[q.id]);
-    if (option?.profilePatch) Object.assign(profile, option.profilePatch);
-    return option;
-  }).filter(Boolean) as AssessmentOption[];
-
-  // Step 2: Determine winning cluster (with optional tie-breaker)
-  const tbOption = TIE_BREAKER_QUESTION.options.find(
-    (o) => o.id === responses[TIE_BREAKER_QUESTION.id]
-  );
-  const routingOptions = tbOption ? [...phase1Options, tbOption] : phase1Options;
-  const tbCluster = tbOption
-    ? (Object.keys(tbOption.clusterScores || {})[0] as ClusterId | undefined)
-    : undefined;
-
-  const clusterScores = computeClusterScores(routingOptions);
-  const { topCluster, margin } = computeConfidence(clusterScores, tbCluster);
-
-  // Step 3: Collect Phase 2 (branch) options for the winning cluster
-  const branchQuestions = BRANCH_QUESTIONS[topCluster];
-  const branchOptions = branchQuestions
-    .map((q) => {
-      const option = q.options.find((o) => o.id === responses[q.id]);
-      if (option?.profilePatch) Object.assign(profile, option.profilePatch);
-      return option;
-    })
-    .filter(Boolean) as AssessmentOption[];
-
-  // Step 4: Build combined user vector
-  const allSelected = [...routingOptions, ...branchOptions];
-  const userVector = computeUserVector(allSelected);
-
-  // Step 5: Score all 12 roles
-  // FIX (Issue 1): blend cosine direction (max 70) with DIRECT branch roleScores
-  // (max 30). roleScores were previously collected but never used, so branch
-  // answers had no effect on within-cluster ranking. Now they drive it.
-  const roleScoreTotals: Partial<Record<RoleId, number>> = {};
+  const allSelected = [...validated.routingOptions, ...validated.branchOptions];
   for (const option of allSelected) {
-    if (option.roleScores) {
-      for (const [rid, val] of Object.entries(option.roleScores)) {
-        roleScoreTotals[rid as RoleId] = (roleScoreTotals[rid as RoleId] || 0) + (val as number);
-      }
+    if (option.profilePatch) Object.assign(profile, option.profilePatch);
+    if (option.objectiveEvidencePatch) {
+      profile.objectiveEvidence = mergeObjectiveEvidence(
+        profile.objectiveEvidence,
+        option.objectiveEvidencePatch
+      );
     }
   }
+  const userVector = computeUserVector(allSelected);
+  const personEvidence = buildPersonEvidence(allSelected, profile, validated.requiredAnswerCount);
+  const matching = scoreEvidence(personEvidence, MATCHING_CATALOG);
 
-  const scoredRoles = ROLE_ORDER.map((roleId) => {
+  const scoredRoles = matching.rankedRoles.map((evidence) => {
+    const roleId = evidence.roleId as RoleId;
     const role = ROLE_DEFINITIONS[roleId];
-    const cosineComponent =
-      weightedCosineSimilarity(userVector, role.vector, role.dimensionWeights) * 70;
-    const roleBonus = Math.min(30, (roleScoreTotals[roleId] || 0) * 3);
-    let score = Math.max(0, Math.min(99, Math.round(cosineComponent + roleBonus)));
-
-    for (const rule of DISQUALIFIER_RULES) {
-      if (rule.roleIds.includes(roleId) && rule.condition(profile)) {
-        score = Math.max(0, Math.min(99, Math.round(score * rule.multiplier)));
-      }
-    }
-
     const rationaleSignals = allSelected
       .map((option) => ({ signal: option.signal, alignment: signalAlignment(option, role) }))
-      .sort((a, b) => b.alignment - a.alignment)
+      .sort((left, right) => right.alignment - left.alignment)
       .slice(0, 3)
       .map((item) => item.signal);
-
-    return { roleId, role, score, rationaleSignals };
+    return { ...evidence, roleId, role, rationaleSignals };
   });
 
   const allScores = Object.fromEntries(
     scoredRoles.map((item) => [item.roleId, item.score])
   ) as Record<RoleId, number>;
 
-  // Step 6: Build topRoles
-  // FIX (Issue 2): rank by SCORE first so a disqualified low-score role can never
-  // be shown above a clearly higher-scoring one. Cluster & ROLE_ORDER tie-break only.
-  const clusterRoleIds = CLUSTER_ROLES[topCluster];
-  const roleOrderIndex = (id: RoleId) => ROLE_ORDER.indexOf(id);
-  const ranked = [...scoredRoles].sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    const aIn = clusterRoleIds.includes(a.roleId) ? 0 : 1;
-    const bIn = clusterRoleIds.includes(b.roleId) ? 0 : 1;
-    if (aIn !== bIn) return aIn - bIn;
-    return roleOrderIndex(a.roleId) - roleOrderIndex(b.roleId);
+  const topRoles = scoredRoles.slice(0, 3).map((item, index) => {
+    const rationale = buildRoleRationale(item.role, item.rationaleSignals, profile, locale);
+    if (item.eligibility === 'insufficient-evidence') {
+      rationale.en += ' Confirm the role-specific education and tool requirements before applying.';
+      rationale.hi += ' आवेदन से पहले भूमिका की शिक्षा और उपकरण संबंधी आवश्यकताएं जांच लें।';
+    }
+    return {
+      roleId: item.roleId,
+      role: item.role,
+      score: item.score,
+      rationale,
+      supportingSignals: item.rationaleSignals,
+      strengthLabel: getRankDirectionLabel(index),
+      eligibility: item.eligibility,
+      eligibilityReasons: item.eligibilityReasons,
+      preferenceScore: item.preferenceScore,
+      demonstratedAbilityScore: item.components.demonstratedAbility,
+    };
   });
-
-  const positive = ranked.filter((r) => r.score > 0);
-  const candidates = positive.length >= 3 ? positive : ranked;
-
-  const topRoles = candidates.slice(0, 3).map((item) => ({
-    roleId: item.roleId,
-    role: item.role,
-    score: item.score,
-    rationale: buildRoleRationale(item.role, item.rationaleSignals, profile, locale),
-    supportingSignals: item.rationaleSignals,
-    strengthLabel: getMatchStrengthLabel(item.score, locale),
-  }));
 
   // Step 7: Dimension snapshot (6-dim, normalised 0-100)
   const total = Math.max(1, userVector.reduce((s, v) => s + v, 0));
@@ -2035,13 +2154,12 @@ export function scoreAssessment(
     'analytical-output': Math.round((userVector[5] / total) * 100),
   };
 
-  // Step 8: Summary and warning
   const summary: LocalizedText = topRoles[0]
     ? {
-        en: `${topRoles[0].role.name.en} looks strongest right now, with ${
+        en: `Based on your constraints, scenarios, and proof signals, ${topRoles[0].role.name.en} is the strongest direction to explore now, with ${
           topRoles[1]?.role.name.en || 'two other solid options'
         } close behind.`,
-        hi: `अभी ${topRoles[0].role.name.hi} सबसे मजबूत दिख रहा है, और ${
+        hi: `आपकी constraints, scenarios और proof signals के आधार पर अभी ${topRoles[0].role.name.hi} explore करने की सबसे मजबूत दिशा है, और ${
           topRoles[1]?.role.name.hi || 'दो अन्य अच्छे विकल्प'
         } भी करीब हैं।`,
       }
@@ -2050,26 +2168,28 @@ export function scoreAssessment(
         hi: 'सबसे अच्छा रास्ता सुझाने के लिए हमें कुछ और जानकारी चाहिए।',
       };
 
-  const topScore = topRoles[0]?.score || 0;
-  const closeCount = topRoles.filter((m) => topScore - m.score <= 4).length;
-
   const warning: LocalizedText | null =
-    topScore < 62
+    matching.confidence.band === 'low'
       ? t(
-          'Your profile is still broad. Treat these as realistic starting directions, not final labels.',
-          'आपकी प्रोफाइल अभी broad है। इन results को final label नहीं, realistic starting directions की तरह देखें।'
+          'Treat this as a starting direction, not a final answer. Add a short work sample or portfolio proof before relying on it.',
+          'इसे अंतिम जवाब नहीं, शुरुआती दिशा मानें। इस पर भरोसा करने से पहले छोटा work sample या portfolio proof जोड़ें।'
         )
-      : closeCount >= 3
+      : matching.confidence.separation < 0.25
         ? t(
-            'You have range across multiple role families, so review all top matches before deciding.',
-            'आपकी fit कई role families में दिख रही है, इसलिए फैसला लेने से पहले सभी top matches देखें।'
+            'Several roles are close. Compare the work conditions and complete one proof task before deciding.',
+            'कई भूमिकाएं करीब हैं। फैसला लेने से पहले काम की स्थितियां compare करें और एक proof task पूरा करें।'
           )
         : null;
 
   return {
     profile,
-    cluster: topCluster,
-    confidenceScore: margin,
+    cluster: validated.cluster,
+    confidenceScore: matching.confidence.index,
+    confidenceBand: matching.confidence.band,
+    confidenceReasons: matching.confidence.reasons,
+    clusterMargin: validated.clusterMargin,
+    scoringVersion: matching.scoringVersion,
+    catalogVersion: matching.catalogVersion,
     topRoles,
     allScores,
     summary,

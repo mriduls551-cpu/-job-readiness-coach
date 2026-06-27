@@ -1,5 +1,8 @@
+'use client';
+
 import type { ReactNode } from 'react';
 import { BrandWordmark } from '@/components/BrandWordmark';
+import { useAppStore } from '@/lib/store';
 
 interface AuthScaffoldProps {
   eyebrow: string;
@@ -8,13 +11,17 @@ interface AuthScaffoldProps {
   children: ReactNode;
 }
 
-const promisePoints = [
-  'Clear role matches instead of vague career advice',
-  'Resume co-writing tied to your chosen direction',
-  'Weekly plan, applications, and interview prep in one place',
+const promisePoints: { en: string; hi: string }[] = [
+  { en: 'Clear role matches instead of vague career advice', hi: 'अस्पष्ट करियर सलाह नहीं, बल्कि उपयुक्त भूमिकाओं के स्पष्ट सुझाव' },
+  { en: 'Resume co-writing tied to your chosen direction', hi: 'आपकी चुनी हुई दिशा के अनुसार जीवनवृत्त सह-लेखन' },
+  { en: 'Weekly plan, applications, and interview prep in one place', hi: 'साप्ताहिक योजना, आवेदन और साक्षात्कार की तैयारी एक ही जगह' },
 ];
 
-const trustPoints = ['No payment required', 'Progress saved to your account', 'Made for first-job seekers'];
+const trustPoints: { en: string; hi: string }[] = [
+  { en: 'No payment required', hi: 'कोई भुगतान आवश्यक नहीं' },
+  { en: 'Progress saved to your account', hi: 'प्रगति आपके खाते में सुरक्षित रहती है' },
+  { en: 'Made for first-job seekers', hi: 'पहली नौकरी खोजने वालों के लिए बनाया गया' },
+];
 
 export function AuthScaffold({
   eyebrow,
@@ -22,6 +29,8 @@ export function AuthScaffold({
   subtitle,
   children,
 }: AuthScaffoldProps) {
+  const locale = useAppStore((state) => state.locale);
+
   return (
     <main className="section-shell">
       <div className="container-main">
@@ -30,6 +39,7 @@ export function AuthScaffold({
             <div className="space-y-6">
               <BrandWordmark compact />
               <div className="heritage-quote">
+                {/* Intentional: brand tagline stays Hinglish in both locales, the way a wordmark would. */}
                 <p className="text-xl text-[var(--brand-ink)] sm:text-2xl">
                   Taiyari aaj ki, behtar kal ka.
                 </p>
@@ -50,21 +60,21 @@ export function AuthScaffold({
               {promisePoints.map((item, index) => (
                 <article
                   className="flex min-h-[8rem] gap-4 border-b border-[var(--border-soft)] px-2 py-5 last:border-b-0 md:border-b-0 md:border-r md:px-5 md:last:border-r-0"
-                  key={item}
+                  key={item.en}
                 >
                   <span className="pt-1 text-xs font-bold tracking-[0.16em] text-[var(--accent-saffron)]">
                     0{index + 1}
                   </span>
-                  <p className="text-lg leading-7 text-[var(--brand-ink)]">{item}</p>
+                  <p className="text-lg leading-7 text-[var(--brand-ink)]">{item[locale]}</p>
                 </article>
               ))}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
               {trustPoints.map((item) => (
-                <div className="trust-tile" key={item}>
+                <div className="trust-tile" key={item.en}>
                   <span className="trust-tile__badge" />
-                  <span>{item}</span>
+                  <span>{item[locale]}</span>
                 </div>
               ))}
             </div>

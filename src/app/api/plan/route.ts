@@ -3,10 +3,15 @@ import { z } from 'zod';
 import { success, error } from '@/lib/api-response';
 import { getDB } from '@/lib/db';
 import { getRequestLocale, resolveRequestUserId } from '@/lib/request-user';
-import type { RoleId } from '@/lib/product';
+import { isActiveRoleId, type RoleId } from '@/lib/product';
+
+const activeRoleSchema = z
+  .string()
+  .refine(isActiveRoleId, 'Role is not active')
+  .transform((value) => value as RoleId);
 
 const createPlanSchema = z.object({
-  roleId: z.custom<RoleId>(),
+  roleId: activeRoleSchema,
   profile: z.object({
     locale: z.enum(['en', 'hi']).optional(),
     city: z.string().optional(),

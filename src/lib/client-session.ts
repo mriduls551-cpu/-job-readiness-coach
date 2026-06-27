@@ -2,7 +2,7 @@
  * Client-side session management
  */
 
-import type { AssessmentResult, RoleId } from '@/lib/product';
+import { isActiveRoleId, type AssessmentResult, type RoleId } from '@/lib/product';
 import { useAppStore } from '@/lib/store';
 
 export interface StoredUser {
@@ -121,6 +121,10 @@ export function getToken(): string | null {
 }
 
 export function setLatestAssessment(assessment: AssessmentResult): void {
+  if (assessment.topRoles.some((role) => !isActiveRoleId(role.roleId))) {
+    clearLatestAssessment();
+    return;
+  }
   const session = getSession();
   session.latestAssessment = assessment;
   saveSession(session);
@@ -136,10 +140,14 @@ export function clearLatestAssessment(): void {
 }
 
 export function getLatestAssessment(): AssessmentResult | null {
-  return getSession().latestAssessment;
+  const assessment = getSession().latestAssessment;
+  return assessment && assessment.topRoles.every((role) => isActiveRoleId(role.roleId))
+    ? assessment
+    : null;
 }
 
 export function setSelectedRole(roleId: RoleId | null): void {
+  if (roleId !== null && !isActiveRoleId(roleId)) roleId = null;
   const session = getSession();
   session.selectedRole = roleId;
   saveSession(session);
@@ -192,7 +200,8 @@ export async function persistSelectedRole(
 }
 
 export function getSelectedRole(): RoleId | null {
-  return getSession().selectedRole;
+  const roleId = getSession().selectedRole;
+  return isActiveRoleId(roleId) ? roleId : null;
 }
 
 export function setStoredLocale(locale: 'en' | 'hi'): void {

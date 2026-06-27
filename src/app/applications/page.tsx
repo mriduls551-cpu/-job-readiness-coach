@@ -9,8 +9,9 @@ import { useAppStore } from '@/lib/store';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import type { Locale } from '@/lib/product';
 import { FullPageLoader } from '@/components/FullPageLoader';
-import { Plus, Send, CalendarCheck, Trophy, XCircle } from 'lucide-react';
+import { Plus, Send, CalendarCheck, Trophy, XCircle, Briefcase } from 'lucide-react';
 import { captureProductEvent } from '@/lib/analytics';
+import { toast } from 'sonner';
 
 const applicationSchema = z.object({
   companyName: z.string().min(1),
@@ -36,7 +37,7 @@ const STATUS_LABELS: Record<ApplicationItem['status'], Record<Locale, string>> =
 };
 
 const STATUS_STYLES: Record<ApplicationItem['status'], string> = {
-  applied: 'bg-slate-100 text-slate-700',
+  applied: 'bg-[var(--wash-forest)] text-[var(--ink-soft)]',
   interview: 'bg-amber-100 text-amber-800',
   offered: 'bg-emerald-100 text-emerald-800',
   rejected: 'bg-rose-100 text-rose-800',
@@ -102,6 +103,9 @@ export default function ApplicationsPage() {
           status: nextApplication.status,
         });
         reset();
+        toast.success(
+          locale === 'en' ? 'Application logged.' : 'आवेदन दर्ज हो गया।'
+        );
       }
     });
   };
@@ -125,6 +129,9 @@ export default function ApplicationsPage() {
         (old ?? []).map((item) => (item.id === applicationId ? { ...item, status } : item))
       );
       void captureProductEvent('application_status_updated', { status });
+      toast.success(
+        locale === 'en' ? 'Status updated.' : 'स्थिति अपडेट हो गई।'
+      );
     });
   };
 
@@ -157,12 +164,12 @@ export default function ApplicationsPage() {
               <p className="eyebrow-copy">
                 {locale === 'en' ? 'Applications tracker' : 'आवेदन सूची'}
               </p>
-              <h1 className="mt-3 text-4xl leading-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-3 text-4xl leading-tight text-[var(--ink-strong)] sm:text-5xl">
                 {locale === 'en'
                   ? 'Track every application and keep follow-through visible.'
                   : 'हर आवेदन और अगले संपर्क को स्पष्ट रूप से दर्ज रखें।'}
               </h1>
-              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+              <p className="mt-4 max-w-3xl text-base leading-8 text-[var(--ink-soft)]">
                 {locale === 'en'
                   ? 'This is your calm tracking layer for realistic openings, recruiter movement, and next follow-ups.'
                   : 'उपयुक्त अवसरों, भर्ती प्रक्रिया की स्थिति और अगले संपर्क का लेखा यहाँ एक सरल जगह पर रखें।'}
@@ -170,11 +177,11 @@ export default function ApplicationsPage() {
             </div>
 
             <div className="story-card max-w-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Pipeline health' : 'आवेदन की स्थिति'}
               </p>
-              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">{applications.length}</p>
-              <p className="mt-2 text-sm leading-7 text-slate-600">
+              <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">{applications.length}</p>
+              <p className="mt-2 text-sm leading-7 text-[var(--ink-soft)]">
                 {locale === 'en'
                   ? 'Use this to stay honest about momentum instead of relying on memory.'
                   : 'याददाश्त पर निर्भर रहने के बजाय अपनी वास्तविक प्रगति देखने के लिए इसका उपयोग करें।'}
@@ -184,22 +191,22 @@ export default function ApplicationsPage() {
 
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
             <div className="metric-tile p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Applied' : 'आवेदन'}
               </p>
-              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">{appliedCount}</p>
+              <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">{appliedCount}</p>
             </div>
             <div className="metric-tile p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Interview' : 'साक्षात्कार'}
               </p>
-              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">{interviewCount}</p>
+              <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">{interviewCount}</p>
             </div>
             <div className="metric-tile p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Offered' : 'प्रस्ताव'}
               </p>
-              <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">{offeredCount}</p>
+              <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">{offeredCount}</p>
             </div>
           </div>
         </section>
@@ -210,14 +217,14 @@ export default function ApplicationsPage() {
               <p className="eyebrow-copy">
                 {locale === 'en' ? 'Add an application' : 'नया आवेदन जोड़ें'}
               </p>
-              <h2 className="mt-3 text-3xl text-slate-950">
+              <h2 className="mt-3 text-3xl text-[var(--ink-strong)]">
                 {locale === 'en'
                   ? 'Add a real application, not just an intention.'
                   : 'सिर्फ योजना नहीं, वास्तव में किया गया आवेदन दर्ज करें।'}
               </h2>
             </div>
 
-            <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+            <form id="add-application-form" className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
               <div>
                 <input
                   className={`input-field ${errors.companyName ? 'border-rose-400' : ''}`}
@@ -276,7 +283,7 @@ export default function ApplicationsPage() {
                 <p className="eyebrow-copy">
                   {locale === 'en' ? 'Recent applications' : 'हाल के आवेदन'}
                 </p>
-                <h2 className="mt-3 text-3xl text-slate-950">
+                <h2 className="mt-3 text-3xl text-[var(--ink-strong)]">
                   {locale === 'en'
                     ? 'Your visible follow-through list.'
                     : 'आपके आवेदनों और अगले कदमों की स्पष्ट सूची।'}
@@ -290,10 +297,10 @@ export default function ApplicationsPage() {
                   <article className="step-panel" key={application.id}>
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <h3 className="text-xl font-semibold text-slate-950">
+                        <h3 className="text-xl font-semibold text-[var(--ink-strong)]">
                           {application.companyName}
                         </h3>
-                        <p className="mt-1 text-sm text-slate-500">{application.roleTitle}</p>
+                        <p className="mt-1 text-sm text-[var(--ink-muted)]">{application.roleTitle}</p>
                       </div>
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${STATUS_STYLES[application.status]}`}
@@ -306,7 +313,7 @@ export default function ApplicationsPage() {
                       </span>
                     </div>
 
-                    <p className="mt-3 text-sm leading-7 text-slate-600">
+                    <p className="mt-3 text-sm leading-7 text-[var(--ink-soft)]">
                       {application.notes || (locale === 'en' ? 'No notes yet.' : 'अभी कोई टिप्पणी नहीं।')}
                     </p>
 
@@ -328,17 +335,28 @@ export default function ApplicationsPage() {
                 ))}
               </div>
             ) : (
-              <div className="story-card">
-                <p className="text-lg text-[var(--brand-ink)]">
+              <div className="story-card flex flex-col items-center py-10 text-center">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--wash-forest)]">
+                  <Briefcase aria-hidden="true" className="text-[var(--accent-ink)]" size={26} />
+                </span>
+                <p className="mt-5 text-lg font-semibold text-[var(--brand-ink)]">
                   {locale === 'en'
                     ? 'No applications logged yet.'
                     : 'अभी तक कोई आवेदन दर्ज नहीं किया गया है।'}
                 </p>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
+                <p className="mt-2 max-w-sm text-sm leading-7 text-[var(--ink-muted)]">
                   {locale === 'en'
                     ? 'Start with one real opening so the rest of your job search feels concrete.'
                     : 'एक वास्तविक अवसर से शुरुआत करें, ताकि नौकरी की खोज ठोस और स्पष्ट लगे।'}
                 </p>
+                <button
+                  className="btn-primary mt-6 flex items-center gap-2"
+                  onClick={() => document.getElementById('add-application-form')?.scrollIntoView({ behavior: 'smooth' })}
+                  type="button"
+                >
+                  <Plus aria-hidden="true" size={15} />
+                  {locale === 'en' ? 'Log your first application' : 'पहला आवेदन दर्ज करें'}
+                </button>
               </div>
             )}
           </div>

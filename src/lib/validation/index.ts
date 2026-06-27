@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { isActiveRoleId } from '@/lib/product';
 
 // ============================================================================
 // AUTH SCHEMAS
@@ -38,7 +39,10 @@ export type AssessmentInput = z.infer<typeof assessmentSchema>;
 export const completeAssessmentSchema = z.object({
   id: z.string().uuid('Invalid assessment ID'),
   roleScores: z.record(z.number()),
-  selectedRole: z.string().min(1, 'Selected role is required'),
+  selectedRole: z
+    .string()
+    .min(1, 'Selected role is required')
+    .refine(isActiveRoleId, 'Selected role is not active'),
 });
 
 export type CompleteAssessmentInput = z.infer<typeof completeAssessmentSchema>;

@@ -74,12 +74,12 @@ export default function ResultsPage() {
             <p className="eyebrow-copy">
               {locale === 'en' ? 'Results unavailable' : 'परिणाम उपलब्ध नहीं हैं'}
             </p>
-            <h1 className="mt-4 text-4xl leading-tight text-slate-950">
+            <h1 className="mt-4 text-4xl leading-tight text-[var(--ink-strong)]">
               {locale === 'en'
                 ? 'Complete your fit check to unlock role matches.'
                 : 'अपनी योग्यता जाँच पूरी करके उपयुक्त भूमिकाएँ देखें।'}
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-8 text-slate-600">
+            <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--ink-soft)]">
               {locale === 'en'
                 ? 'We could not find a saved assessment in this session yet.'
                 : 'इस सत्र में अभी कोई पूरी की हुई योग्यता जाँच नहीं मिली।'}
@@ -107,10 +107,10 @@ export default function ResultsPage() {
               <p className="eyebrow-copy">
                 {locale === 'en' ? 'Your fit-check results' : 'आपकी योग्यता जाँच के परिणाम'}
               </p>
-              <h1 className="mt-4 text-4xl leading-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-4 text-4xl leading-tight text-[var(--ink-strong)] sm:text-5xl">
                 {assessment.summary[locale]}
               </h1>
-              <p className="mt-4 max-w-3xl text-base leading-8 text-slate-600">
+              <p className="mt-4 max-w-3xl text-base leading-8 text-[var(--ink-soft)]">
                 {locale === 'en'
                   ? 'Choose the role you want to build around next. Your selected role will carry into the resume, plan, and dashboard.'
                   : 'अब वह भूमिका चुनें जिसके आधार पर आप आगे बढ़ना चाहते हैं। चुनी हुई भूमिका जीवनवृत्त, योजना और कार्यस्थल में साथ बनी रहेगी।'}
@@ -118,13 +118,13 @@ export default function ResultsPage() {
             </div>
 
             <div className="story-card max-w-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Selected direction' : 'चुनी हुई दिशा'}
               </p>
-              <p className="mt-3 text-2xl font-semibold text-[#0a5a60]">
+              <p className="mt-3 text-2xl font-semibold text-[var(--accent-ink)]">
                 {selectedMatch ? getLocaleValue(selectedMatch.role.shortLabel, locale) : '--'}
               </p>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-2 text-sm text-[var(--ink-soft)]">
                 {selectedMatch ? getLocaleValue(selectedMatch.strengthLabel, locale) : '--'}
               </p>
             </div>
@@ -139,10 +139,10 @@ export default function ResultsPage() {
           <div className="mt-6 grid gap-4 sm:grid-cols-4">
             {dimensionCards.map((item) => (
               <div className="metric-tile p-4" key={item.label}>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                   {item.label}
                 </p>
-                <p className="mt-3 text-3xl font-semibold text-[#0a5a60]">{item.value}%</p>
+                <p className="mt-3 text-3xl font-semibold text-[var(--accent-ink)]">{item.value}%</p>
               </div>
             ))}
           </div>
@@ -159,36 +159,57 @@ export default function ResultsPage() {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d97b2f] text-base font-semibold text-white">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent-saffron)] text-base font-semibold text-white">
                         {index + 1}
                       </span>
                       <div>
-                        <h2 className="text-2xl text-[#103f44]">
+                        <h2 className="text-2xl text-[var(--brand-ink)]">
                           {getLocaleValue(match.role.name, locale)}
                         </h2>
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-[var(--ink-muted)]">
                           {getLocaleValue(match.role.salaryRange, locale)}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="rounded-full bg-[#e8f7ed] px-3 py-1 text-xs font-semibold text-[#18794e]">
+                      <span className="rounded-full bg-[var(--wash-forest)] px-3 py-1 text-xs font-semibold text-[var(--accent-ink)]">
                         {getLocaleValue(match.strengthLabel, locale)}
                       </span>
-                      <p className="mt-2 text-sm font-semibold text-slate-600">
-                        {locale === 'en' ? 'Match score' : 'उपयुक्तता अंक'}: {match.score}
+                      <p className="mt-2 text-sm font-semibold text-[var(--ink-soft)]">
+                        {locale === 'en'
+                          ? `Evidence confidence: ${assessment.confidenceBand}`
+                          : `प्रमाण का भरोसा: ${
+                              assessment.confidenceBand === 'high'
+                                ? 'उच्च'
+                                : assessment.confidenceBand === 'medium'
+                                  ? 'मध्यम'
+                                  : 'कम'
+                            }`}
                       </p>
                     </div>
                   </div>
 
                   <div className="step-panel mt-4">
-                    <p className="text-sm font-semibold text-[#103f44]">
+                    <p className="text-sm font-semibold text-[var(--brand-ink)]">
                       {locale === 'en' ? 'Why this fits' : 'यह भूमिका क्यों उपयुक्त है'}
                     </p>
-                    <p className="mt-2 text-sm leading-7 text-slate-700">
+                    <p className="mt-2 text-sm leading-7 text-[var(--ink-soft)]">
                       {match.rationale[locale]}
                     </p>
                   </div>
+
+                  {match.eligibility !== 'ready' && match.eligibilityReasons.length > 0 ? (
+                    <div className="mt-4 rounded-[1.2rem] border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950">
+                      <p className="text-sm font-semibold">
+                        {locale === 'en' ? 'Check before applying' : 'आवेदन से पहले जांचें'}
+                      </p>
+                      <ul className="mt-2 space-y-1 text-sm leading-6">
+                        {match.eligibilityReasons.map((reason) => (
+                          <li key={reason}>• {reason}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
 
                   <div className="mt-4 flex flex-wrap gap-2">
                     {match.supportingSignals.map((signal) => (
@@ -230,14 +251,14 @@ export default function ResultsPage() {
               <p className="eyebrow-copy">
                 {locale === 'en' ? 'Next step' : 'अगला कदम'}
               </p>
-              <h2 className="mt-4 text-3xl leading-tight text-slate-950">
+              <h2 className="mt-4 text-3xl leading-tight text-[var(--ink-strong)]">
                 {selectedMatch
                   ? getLocaleValue(selectedMatch.role.shortLabel, locale)
                   : locale === 'en'
                     ? 'Choose a role'
                     : 'एक भूमिका चुनें'}
               </h2>
-              <p className="mt-3 text-sm leading-7 text-slate-600">
+              <p className="mt-3 text-sm leading-7 text-[var(--ink-soft)]">
                 {selectedMatch
                   ? getLocaleValue(selectedMatch.role.summary, locale)
                   : locale === 'en'

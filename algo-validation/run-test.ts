@@ -23,7 +23,7 @@ function buildResponses(p:any){
   // Now branch questions present. Fill them.
   for(const q of qs){
     if(['r1','r2','r3','r4','r5','rtb'].includes(q.id)) continue;
-    const want = p.branch[q.id];
+    const want = p.branch[q.id] || q.options.find((o:any)=>o.roleScores?.[p.expectedRole])?.id;
     const optExists = want && q.options.some((o:any)=>o.id===want);
     if(optExists){ responses[q.id]=want; }
     else { responses[q.id]=q.options[0].id; usedFallback=true; } // routed to unexpected cluster
@@ -95,7 +95,7 @@ console.log(`\nAssigned-cluster distribution: ${JSON.stringify(clusterDist)}`);
 console.log(`Top-1 role distribution:       ${JSON.stringify(roleDist)}`);
 const rolesCovered = new Set(rows.flatMap(r=>r.top3));
 console.log(`Distinct roles ever surfaced in any top-3: ${rolesCovered.size}/12`);
-const never = ['customer-support','sales-support','academic-counsellor','hr-coordinator','data-entry-mis','back-office-operations','operations-analyst','accounting-finance-assistant','digital-marketing-executive','content-writer','telemedicine-coordinator','legal-compliance-operations'].filter(r=>!rolesCovered.has(r));
+const never = ['customer-support','sales-support','academic-counsellor','hr-coordinator','data-entry-mis','back-office-operations','operations-analyst','accounting-finance-assistant','digital-marketing-executive','content-writer','legal-compliance-operations'].filter(r=>!rolesCovered.has(r));
 console.log(`Roles NEVER surfaced: ${never.length?never.join(', '):'(none)'}`);
 
 import * as fs from 'fs';

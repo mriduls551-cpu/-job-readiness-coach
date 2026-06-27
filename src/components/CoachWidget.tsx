@@ -124,23 +124,23 @@ export function CoachWidget() {
   const showThinking = isStreaming && messages.length > 0 && messages[messages.length - 1].role === 'user';
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3">
+    <div className="coach-fab fixed right-4 z-50 flex flex-col items-end gap-3">
       {open ? (
         <div className="glass-panel w-[min(92vw,24rem)] overflow-hidden border border-white/55 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-[var(--border-soft)] px-4 py-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
                 AI Coach
               </p>
-              <h2 className="text-lg font-semibold text-slate-900">
+              <h2 className="text-lg font-semibold text-[var(--ink-strong)]">
                 {locale === 'en' ? 'Job Readiness Coach' : 'जॉब रेडीनेस कोच'}
               </h2>
             </div>
             <div className="flex items-center gap-2">
-              <div className="rounded-full bg-slate-100 p-1">
+              <div className="rounded-full bg-[var(--wash-forest)] p-1">
                 <button
                   className={`rounded-full px-2 py-1 text-xs ${
-                    locale === 'en' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                    locale === 'en' ? 'bg-white text-[var(--ink-strong)] shadow-sm' : 'text-[var(--ink-muted)]'
                   }`}
                   onClick={() => switchLocale('en')}
                   type="button"
@@ -149,7 +149,7 @@ export function CoachWidget() {
                 </button>
                 <button
                   className={`rounded-full px-2 py-1 text-xs ${
-                    locale === 'hi' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                    locale === 'hi' ? 'bg-white text-[var(--ink-strong)] shadow-sm' : 'text-[var(--ink-muted)]'
                   }`}
                   onClick={() => switchLocale('hi')}
                   type="button"
@@ -158,7 +158,7 @@ export function CoachWidget() {
                 </button>
               </div>
               <button
-                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                className="rounded-full p-2 text-[var(--ink-muted)] transition hover:bg-[var(--wash-forest)] hover:text-[var(--ink-strong)]"
                 onClick={() => setOpen(false)}
                 type="button"
               >
@@ -173,7 +173,7 @@ export function CoachWidget() {
                 key={message.id}
                 className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-6 ${
                   message.role === 'assistant'
-                    ? 'bg-slate-100 text-slate-800'
+                    ? 'bg-[var(--wash-forest)] text-[var(--ink-strong)]'
                     : 'ml-auto bg-[var(--accent-ink)] text-white'
                 }`}
               >
@@ -197,16 +197,16 @@ export function CoachWidget() {
               </div>
             ))}
             {showThinking && (
-              <div className="max-w-[75%] rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-500">
+              <div className="max-w-[75%] rounded-2xl bg-[var(--wash-forest)] px-4 py-3 text-sm text-[var(--ink-muted)]">
                 {locale === 'en' ? 'Thinking...' : 'सोच रहा/रही हूं...'}
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          <form className="border-t border-slate-200/80 p-4" onSubmit={handleSubmit}>
+          <form className="border-t border-[var(--border-soft)] p-4" onSubmit={handleSubmit}>
             <textarea
-              className="min-h-[5rem] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-[var(--accent-ink)]"
+              className="min-h-[5rem] w-full rounded-2xl border border-[var(--border-soft)] bg-white px-4 py-3 text-sm text-[var(--ink-strong)] outline-none transition focus:border-[var(--accent-ink)]"
               onChange={(e) => setInput(e.target.value)}
               placeholder={
                 locale === 'en'
@@ -216,7 +216,7 @@ export function CoachWidget() {
               value={input}
             />
             <div className="mt-3 flex items-center justify-between">
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[var(--ink-muted)]">
                 {locale === 'en'
                   ? 'Optional help. The core flow still works without AI.'
                   : 'यह अतिरिक्त सहायता है। मुख्य प्रक्रिया कृत्रिम बुद्धिमत्ता के बिना भी काम करती है।'}

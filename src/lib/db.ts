@@ -2,6 +2,7 @@ import { logger } from '@/lib/logger';
 import type { JobCoachDatabase, Json } from '@/lib/job-coach-supabase.types';
 import type {
   AssessmentProfile,
+  AssessmentResult,
   Locale,
   ReminderItem,
   ResumeDraft,
@@ -11,7 +12,9 @@ import {
   buildReminders,
   buildStarterResume,
   generatePlanTasks,
+  isActiveRoleId,
   scoreAssessment,
+  validateAssessmentResponses,
 } from '@/lib/product';
 import {
   createServerClient,
@@ -45,6 +48,9 @@ export interface AssessmentRecord {
   profile: AssessmentProfile;
   selectedRole?: RoleId;
   roleScores: Record<RoleId, number>;
+  resultSnapshot?: AssessmentResult;
+  scoringVersion?: string;
+  catalogVersion?: string;
   status: 'completed' | 'in_progress';
   createdAt: string;
   updatedAt: string;
@@ -272,8 +278,13 @@ function mapAssessmentRow(row: AssessmentRow): AssessmentRecord {
       ...(profileRecord as Partial<AssessmentProfile>),
       locale: (profileRecord.locale as Locale | undefined) === 'hi' ? 'hi' : 'en',
     },
-    selectedRole: (row.selected_role as RoleId | null) || undefined,
+    selectedRole: isActiveRoleId(row.selected_role) ? row.selected_role : undefined,
     roleScores: asRoleScoreRecord(row.role_scores),
+    resultSnapshot: row.result_snapshot
+      ? (row.result_snapshot as unknown as AssessmentResult)
+      : undefined,
+    scoringVersion: row.scoring_version || undefined,
+    catalogVersion: row.catalog_version || undefined,
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -419,14 +430,18 @@ class InMemoryDB implements ProductDB {
     responses: Record<string, string>,
     profile: AssessmentProfile
   ) {
-    const result = scoreAssessment(responses, profile, profile.locale);
+    const canonicalResponses = validateAssessmentResponses(responses).canonicalResponses;
+    const result = scoreAssessment(canonicalResponses, profile, profile.locale);
     const assessment: AssessmentRecord = {
       id: `assessment-${Date.now()}`,
       userId,
-      responses,
+      responses: canonicalResponses,
       profile: result.profile,
       selectedRole: result.topRoles[0]?.roleId,
       roleScores: result.allScores,
+      resultSnapshot: result,
+      scoringVersion: result.scoringVersion,
+      catalogVersion: result.catalogVersion,
       status: 'completed',
       createdAt: nowIso(),
       updatedAt: nowIso(),
@@ -768,16 +783,20 @@ class SupabaseDB implements ProductDB {
     responses: Record<string, string>,
     profile: AssessmentProfile
   ) {
-    const result = scoreAssessment(responses, profile, profile.locale);
+    const canonicalResponses = validateAssessmentResponses(responses).canonicalResponses;
+    const result = scoreAssessment(canonicalResponses, profile, profile.locale);
     const timestamp = nowIso();
     const { data, error } = await this.client
       .from('job_coach_assessments')
       .insert({
         user_id: userId,
-        responses,
+        responses: canonicalResponses,
         profile: result.profile,
         selected_role: result.topRoles[0]?.roleId || null,
         role_scores: result.allScores,
+        result_snapshot: result as unknown as Json,
+        scoring_version: result.scoringVersion,
+        catalog_version: result.catalogVersion,
         status: 'completed',
         created_at: timestamp,
         updated_at: timestamp,
@@ -1242,8 +1261,17 @@ function buildDashboardStats(snapshot: Awaited<ReturnType<ProductDB['getDashboar
   };
 }
 
-let memoryInstance: InMemoryDB | null = null;
-let supabaseInstance: SupabaseDB | null = null;
+// Anchored to globalThis (not plain module-level variables) because Next.js dev-mode
+// hot-reloading re-evaluates this module on every recompile, which would otherwise wipe
+// all in-memory data (users, assessments, resumes, plans, applications) between requests
+// that happen to straddle a recompile. globalThis survives module re-evaluation within
+// the same Node process. Same fix as the equivalent issue in mock-auth.ts.
+declare global {
+  // eslint-disable-next-line no-var
+  var __dbMemoryInstance: InMemoryDB | undefined;
+  // eslint-disable-next-line no-var
+  var __dbSupabaseInstance: SupabaseDB | undefined;
+}
 
 export function isInMemoryPersistenceAllowed() {
   const override = process.env.ALLOW_IN_MEMORY_DB;
@@ -1273,10 +1301,10 @@ export function getPersistenceMode(): 'supabase' | 'memory' | 'unavailable' {
 
 export function getDB(): ProductDB {
   if (isSupabaseConfigured()) {
-    if (!supabaseInstance) {
-      supabaseInstance = new SupabaseDB();
+    if (!globalThis.__dbSupabaseInstance) {
+      globalThis.__dbSupabaseInstance = new SupabaseDB();
     }
-    return supabaseInstance;
+    return globalThis.__dbSupabaseInstance;
   }
 
   if (!isInMemoryPersistenceAllowed()) {
@@ -1285,9 +1313,9 @@ export function getDB(): ProductDB {
     );
   }
 
-  if (!memoryInstance) {
-    memoryInstance = new InMemoryDB();
+  if (!globalThis.__dbMemoryInstance) {
+    globalThis.__dbMemoryInstance = new InMemoryDB();
   }
 
-  return memoryInstance;
+  return globalThis.__dbMemoryInstance;
 }

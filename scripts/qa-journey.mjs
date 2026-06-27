@@ -64,7 +64,7 @@ const pass = 'TestPass123!';
 
   // Submit fit-check (answer routing q's + branch). Use option 'a' for each.
   const responses = { r1:'r1_a', r2:'r2_a', r3:'r3_a', r4:'r4_a', r5:'r5_a',
-                      b1:'pf_b1_a', b2:'pf_b2_a', b3:'pf_b3_a', b4:'pf_b4_a' };
+                      b1:'pf_b1_a', b2:'pf_b2_a', b3:'pf_b3_a', b4:'pf_b4_a', rf:'rf_customer-support' };
   const fit = await req('POST','/api/assessment/fit-check',{ responses, profile:{ fullName:'Aarav Sharma', city:'Pune', degreeName:'B.Com', locale:'en' } });
   L('FITCHECK-POST', fit.status);
   save('05-fitcheck-result.json', JSON.stringify(fit.json,null,2));
