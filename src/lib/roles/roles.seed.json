@@ -1,0 +1,558 @@
+[
+  {
+    "id": "customer-support",
+    "name": { "en": "Customer Support Associate", "hi": "कस्टमर सपोर्ट एसोसिएट" },
+    "shortLabel": { "en": "Customer Support", "hi": "कस्टमर सपोर्ट" },
+    "cluster": "people-facing",
+    "riasec": { "R": 10, "I": 15, "A": 20, "S": 75, "E": 45, "C": 50 },
+    "aptitude": { "numeracy": 30, "writtenEnglish": 55, "spokenCommunication": 70 },
+    "hardFilters": {
+      "eligibleStreams": ["open", "open-switch", "commerce", "management", "arts-humanities", "science", "healthcare", "law"],
+      "minEnglishLevel": "functional",
+      "requiredCerts": []
+    },
+    "market": {
+      "metroSalaryBand": "₹2.6L–4.5L",
+      "demandLevel": "high",
+      "metroAvailability": "abundant",
+      "realJobTitles": ["Customer Support Associate", "Customer Care Executive", "Customer Service Representative", "Support Executive"]
+    },
+    "copy": {
+      "summary": {
+        "en": "A steady first role for graduates who stay calm, explain clearly, and enjoy helping people solve day-to-day issues.",
+        "hi": "यह उन ग्रेजुएट्स के लिए अच्छा शुरुआती रोल है जो शांत रहते हैं, साफ़ समझाते हैं और लोगों की रोज़मर्रा की समस्याएं हल करना पसंद करते हैं।"
+      },
+      "whyItFits": {
+        "en": "This direction rewards patience, empathy, and clear follow-through.",
+        "hi": "यह दिशा धैर्य, सहानुभूति और साफ़ फॉलो-थ्रू को महत्व देती है।"
+      },
+      "starterTasks": [
+        { "en": "Practice a 60-second self introduction for recruiter calls.", "hi": "भर्तीकर्ता की बातचीत के लिए 60 सेकंड का परिचय तैयार करें।" },
+        { "en": "Write 5 short examples of solving a problem calmly.", "hi": "शांत तरीके से समस्या हल करने के 5 छोटे उदाहरण लिखें।" },
+        { "en": "Highlight communication and consistency on your resume.", "hi": "रिज्यूमे में संवाद और निरंतरता को साफ़ दिखाएं।" }
+      ],
+      "strengths": [
+        { "en": "Empathy", "hi": "सहानुभूति" },
+        { "en": "Clear communication", "hi": "साफ़ संवाद" },
+        { "en": "Patience", "hi": "धैर्य" }
+      ]
+    },
+    "onetAnchor": {
+      "occupation": "Customer Service Representatives",
+      "code": "43-4051.00",
+      "riasecOrder": "SEC"
+    },
+    "status": "published",
+    "version": 1
+  },
+  {
+    "id": "sales-support",
+    "name": { "en": "Sales Support Executive", "hi": "सेल्स सपोर्ट एग्जीक्यूटिव" },
+    "shortLabel": { "en": "Sales Support", "hi": "सेल्स सपोर्ट" },
+    "cluster": "creative",
+    "riasec": { "R": 15, "I": 20, "A": 30, "S": 50, "E": 80, "C": 45 },
+    "aptitude": { "numeracy": 30, "writtenEnglish": 45, "spokenCommunication": 75 },
+    "hardFilters": {
+      "eligibleStreams": ["open", "open-switch", "commerce", "management", "arts-humanities", "science", "healthcare", "law"],
+      "minEnglishLevel": "functional",
+      "requiredCerts": []
+    },
+    "market": {
+      "metroSalaryBand": "₹2.4L–4.2L base + incentives",
+      "demandLevel": "high",
+      "metroAvailability": "abundant",
+      "realJobTitles": ["Sales Executive", "Business Development Executive", "Inside Sales Executive", "Sales Support Executive"]
+    },
+    "copy": {
+      "summary": {
+        "en": "A practical fit for graduates who can follow up consistently, build comfort with targets, and keep conversations moving.",
+        "hi": "यह उन ग्रेजुएट्स के लिए अच्छा रोल है जो लगातार फॉलो-अप कर सकते हैं, लक्ष्यों से सहज हैं और बातचीत को आगे बढ़ा सकते हैं।"
+      },
+      "whyItFits": {
+        "en": "This path values energy, persistence, and confident communication.",
+        "hi": "यह रास्ता ऊर्जा, लगातार प्रयास और आत्मविश्वास भरे संवाद को महत्व देता है।"
+      },
+      "starterTasks": [
+        { "en": "Prepare a confident pitch about yourself and your strengths.", "hi": "अपने बारे में और अपनी खूबियों के बारे में एक आत्मविश्वासी प्रस्ताव तैयार करें।" },
+        { "en": "Practice objection handling with simple role-play.", "hi": "सरल भूमिका अभ्यास के साथ आपत्ति संभालने की practice करें।" },
+        { "en": "Track outreach and follow-up dates in one sheet.", "hi": "एक ही गणना-पत्र में संपर्क और अगले संपर्क की तिथियाँ ट्रैक करें।" }
+      ],
+      "strengths": [
+        { "en": "Follow-up discipline", "hi": "फॉलो-अप अनुशासन" },
+        { "en": "Confidence", "hi": "आत्मविश्वास" },
+        { "en": "Relationship building", "hi": "रिश्ते बनाना" }
+      ]
+    },
+    "onetAnchor": {
+      "occupation": "Sales Representatives, Wholesale and Manufacturing, Except Technical",
+      "code": "41-4012.00",
+      "riasecOrder": "ESC"
+    },
+    "status": "published",
+    "version": 1
+  },
+  {
+    "id": "academic-counsellor",
+    "name": { "en": "Academic Counsellor", "hi": "अकादमिक काउंसलर" },
+    "shortLabel": { "en": "Academic Counselling", "hi": "अकादमिक काउंसलिंग" },
+    "cluster": "people-facing",
+    "riasec": { "R": 10, "I": 35, "A": 30, "S": 80, "E": 55, "C": 40 },
+    "aptitude": { "numeracy": 30, "writtenEnglish": 60, "spokenCommunication": 70 },
+    "hardFilters": {
+      "eligibleStreams": ["management", "arts-humanities", "open", "open-switch", "science", "commerce"],
+      "minEnglishLevel": "functional",
+      "requiredCerts": []
+    },
+    "market": {
+      "metroSalaryBand": "₹3.0L–5.0L",
+      "demandLevel": "medium",
+      "metroAvailability": "moderate",
+      "realJobTitles": ["Academic Counsellor", "Admission Counsellor", "Student Advisor", "Education Counsellor"]
+    },
+    "copy": {
+      "summary": {
+        "en": "A strong route for graduates who can guide students, explain options clearly, and stay warm without losing structure.",
+        "hi": "यह उन ग्रेजुएट्स के लिए अच्छा रास्ता है जो विद्यार्थियों को guide कर सकते हैं, विकल्प साफ़ समझा सकते हैं और warm रहते हुए भी structure बनाए रखते हैं।"
+      },
+      "whyItFits": {
+        "en": "This role rewards communication, trust-building, and patient guidance.",
+        "hi": "यह रोल संवाद, भरोसा बनाने और धैर्यपूर्ण मार्गदर्शन को महत्व देता है।"
+      },
+      "starterTasks": [
+        { "en": "Learn the admission process for 10 common courses or programs.", "hi": "10 आम पाठ्यक्रमों या कार्यक्रमों का प्रवेश process समझें।" },
+        { "en": "Practice explaining the same option in simple language.", "hi": "एक ही विकल्प को सरल भाषा में समझाने की practice करें।" },
+        { "en": "Prepare examples that show listening and guidance.", "hi": "सुनने और मार्गदर्शन दिखाने वाले उदाहरण तैयार करें।" }
+      ],
+      "strengths": [
+        { "en": "Guidance", "hi": "मार्गदर्शन" },
+        { "en": "Listening", "hi": "ध्यान से सुनना" },
+        { "en": "Structured communication", "hi": "संरचित संवाद" }
+      ]
+    },
+    "onetAnchor": {
+      "occupation": "Educational, Guidance, and Career Counselors and Advisors",
+      "code": "21-1012.00",
+      "riasecOrder": "SAE"
+    },
+    "status": "published",
+    "version": 1
+  },
+  {
+    "id": "hr-coordinator",
+    "name": { "en": "HR Coordinator", "hi": "एचआर कोऑर्डिनेटर" },
+    "shortLabel": { "en": "HR Coordination", "hi": "एचआर कोऑर्डिनेशन" },
+    "cluster": "people-facing",
+    "riasec": { "R": 10, "I": 25, "A": 20, "S": 65, "E": 50, "C": 60 },
+    "aptitude": { "numeracy": 35, "writtenEnglish": 60, "spokenCommunication": 65 },
+    "hardFilters": {
+      "eligibleStreams": ["management", "arts-humanities", "commerce", "open", "open-switch", "science"],
+      "minEnglishLevel": "functional",
+      "requiredCerts": []
+    },
+    "market": {
+      "metroSalaryBand": "₹3.0L–5.0L",
+      "demandLevel": "medium",
+      "metroAvailability": "moderate",
+      "realJobTitles": ["HR Executive", "HR Coordinator", "Recruitment Coordinator", "HR Assistant", "Talent Acquisition Executive"]
+    },
+    "copy": {
+      "summary": {
+        "en": "Good for graduates who like people, scheduling, follow-ups, and keeping hiring or team processes organized.",
+        "hi": "यह उन ग्रेजुएट्स के लिए अच्छा है जिन्हें लोगों के साथ काम करना, scheduling, follow-ups और hiring या team processes को organized रखना पसंद है।"
+      },
+      "whyItFits": {
+        "en": "This role rewards coordination, people comfort, and reliability.",
+        "hi": "यह रोल समन्वय, लोगों के साथ सहजता और विश्वसनीयता को महत्व देता है।"
+      },
+      "starterTasks": [
+        { "en": "Practice recruiter-style introductions and short screening questions.", "hi": "भर्तीकर्ता-शैली के परिचय और संक्षिप्त प्रारंभिक जाँच के प्रश्नों की practice करें।" },
+        { "en": "Build one clean tracker for candidates or interview schedules.", "hi": "उम्मीदवारों या साक्षात्कार समय-सारणी के लिए एक साफ़ सूची बनाएं।" },
+        { "en": "Show coordination or event-management examples on your resume.", "hi": "रिज्यूमे में समन्वय या आयोजन प्रबंधन के उदाहरण दिखाएं।" }
+      ],
+      "strengths": [
+        { "en": "People comfort", "hi": "लोगों के साथ सहजता" },
+        { "en": "Coordination", "hi": "समन्वय" },
+        { "en": "Follow-up", "hi": "फॉलो-अप" }
+      ]
+    },
+    "onetAnchor": {
+      "occupation": "Human Resources Assistants, Except Payroll and Timekeeping",
+      "code": "43-4161.00",
+      "riasecOrder": "SEC"
+    },
+    "status": "published",
+    "version": 1
+  },
+  {
+    "id": "data-entry-mis",
+    "name": { "en": "Data Entry / MIS Executive", "hi": "डेटा एंट्री / एमआईएस एग्जीक्यूटिव" },
+    "shortLabel": { "en": "Data Entry / MIS", "hi": "डेटा एंट्री / एमआईएस" },
+    "cluster": "desk-ops",
+    "riasec": { "R": 20, "I": 25, "A": 10, "S": 10, "E": 15, "C": 85 },
+    "aptitude": { "numeracy": 65, "writtenEnglish": 40, "spokenCommunication": 25 },
+    "hardFilters": {
+      "eligibleStreams": ["open", "open-switch", "commerce", "science", "management"],
+      "minEnglishLevel": "basic",
+      "requiredCerts": []
+    },
+    "market": {
+      "metroSalaryBand": "₹2.4L–4.2L",
+      "demandLevel": "medium",
+      "metroAvailability": "moderate",
+      "realJobTitles": ["Data Entry Executive", "MIS Executive", "Data Analyst Executive", "Back Office Executive"]
+    },
+    "copy": {
+      "summary": {
+        "en": "A realistic fit for detail-oriented graduates who prefer desk work, spreadsheets, and accurate reporting.",
+        "hi": "यह उन detail-oriented ग्रेजुएट्स के लिए अच्छा फिट है जो desk work, spreadsheets और accurate reporting पसंद करते हैं।"
+      },
+      "whyItFits": {
+        "en": "This path rewards consistency, accuracy, and comfort with repetitive structured work.",
+        "hi": "यह रास्ता निरंतरता, सटीकता और बार-बार होने वाले क्रमबद्ध काम के साथ सहजता को महत्व देता है।"
+      },
+      "starterTasks": [
+        { "en": "Practice sorting, filters, VLOOKUP, and formatting in Excel.", "hi": "Excel में sorting, filters, VLOOKUP और formatting की practice करें।" },
+        { "en": "Build one clean sample report to show an employer.", "hi": "नियोक्ता को दिखाने के लिए एक साफ़ नमूना रिपोर्ट बनाएं।" },
+        { "en": "Make accuracy and speed visible on your resume.", "hi": "रिज्यूमे में सटीकता और गति को साफ़ दिखाएं।" }
+      ],
+      "strengths": [
+        { "en": "Accuracy", "hi": "सटीकता" },
+        { "en": "Spreadsheet comfort", "hi": "स्प्रेडशीट सहजता" },
+        { "en": "Consistency", "hi": "निरंतरता" }
+      ]
+    },
+    "onetAnchor": {
+      "occupation": "Statistical Assistants (MIS tilt; pure data-entry maps to Data Entry Keyers 43-9021.00)",
+      "code": "43-9111.00",
+      "riasecOrder": "CI",
+      "reviewNeeded": true
+    },
+    "status": "published",
+    "version": 1
+  },
+  {
+    "id": "back-office-operations",
+    "name": { "en": "Back-Office Operations Executive", "hi": "बैक-ऑफिस ऑपरेशंस एग्जीक्यूटिव" },
+    "shortLabel": { "en": "Back-Office Operations", "hi": "बैक-ऑफिस ऑपरेशंस" },
+    "cluster": "desk-ops",
+    "riasec": { "R": 20, "I": 25, "A": 10, "S": 20, "E": 30, "C": 75 },
+    "aptitude": { "numeracy": 45, "writtenEnglish": 45, "spokenCommunication": 30 },
+    "hardFilters": {
+      "eligibleStreams": ["open", "open-switch", "commerce", "science", "management", "arts-humanities"],
+      "minEnglishLevel": "basic",
+      "requiredCerts": []
+    },
+    "market": {
+      "metroSalaryBand": "₹2.4L–4.0L",
+      "demandLevel": "high",
+      "metroAvailability": "moderate",
+      "realJobTitles": ["Back Office Executive", "Operations Executive", "Process Associate", "Operations Coordinator"]
+    },
+    "copy": {
+      "summary": {
+        "en": "A stable entry route for graduates who like process, documentation, coordination, and keeping work moving quietly in the background.",
+        "hi": "यह उन ग्रेजुएट्स के लिए एक स्थिर शुरुआती रास्ता है जिन्हें process, documentation, coordination और पृष्ठभूमि में काम को सुचारु चलाना पसंद है।"
+      },
+      "whyItFits": {
+        "en": "This role values reliability, process discipline, and ownership of routine work.",
+        "hi": "यह रोल विश्वसनीयता, प्रक्रिया अनुशासन और नियमित काम की जिम्मेदारी को महत्व देता है।"
+      },
+      "starterTasks": [
+        { "en": "Prepare examples of coordination, paperwork, or operational discipline.", "hi": "समन्वय, कागज़ी कार्य या operational discipline के उदाहरण तैयार करें।" },
+        { "en": "Create one simple checklist for a repeated task.", "hi": "किसी दोहराए जाने वाले काम के लिए एक simple जाँच सूची बनाएं।" },
+        { "en": "Practice giving short and clear status updates.", "hi": "छोटे और साफ़ स्थिति अपडेट देने की practice करें।" }
+      ],
+      "strengths": [
+        { "en": "Process discipline", "hi": "प्रक्रिया अनुशासन" },
+        { "en": "Documentation", "hi": "दस्तावेज़ीकरण" },
+        { "en": "Coordination", "hi": "समन्वय" }
+      ]
+    },
+    "onetAnchor": {
+      "occupation": "Office Clerks, General (no single O*NET code cleanly captures India back-office; BFSI/ops context is closest to this catch-all)",
+      "code": "43-9061.00",
+      "riasecOrder": "CE",
+      "reviewNeeded": true
+    },
+    "status": "published",
+    "version": 1
+  },
+  {
+    "id": "operations-analyst",
+    "name": { "en": "Operations Analyst", "hi": "ऑपरेशंस एनालिस्ट" },
+    "shortLabel": { "en": "Operations Analysis", "hi": "ऑपरेशंस एनालिसिस" },
+    "cluster": "analytical",
+    "riasec": { "R": 20, "I": 70, "A": 15, "S": 20, "E": 45, "C": 60 },
+    "aptitude": { "numeracy": 65, "writtenEnglish": 60, "spokenCommunication": 45 },
+    "hardFilters": {
+      "eligibleStreams": ["commerce", "management", "science", "open", "open-switch"],
+      "minEnglishLevel": "functional",
+      "requiredCerts": []
+    },
+    "market": {
+      "metroSalaryBand": "₹3.5L–6.0L",
+      "demandLevel": "medium",
+      "metroAvailability": "moderate",
+      "realJobTitles": ["Operations Analyst", "Business Analyst", "Process Analyst", "MIS Analyst", "Junior Operations Analyst"]
+    },
+    "copy": {
+      "summary": {
+        "en": "A good fit for graduates who enjoy process plus problem-solving, and can turn messy information into clean decisions.",
+        "hi": "यह उन ग्रेजुएट्स के लिए अच्छा फिट है जो process और problem-solving दोनों पसंद करते हैं और अव्यवस्थित जानकारी को साफ़ निर्णयों में बदल सकते हैं।"
+      },
+      "whyItFits": {
+        "en": "This path rewards analytical thinking, structure, and comfort with reporting.",
+        "hi": "यह रास्ता विश्लेषणात्मक सोच, संरचना और रिपोर्टिंग के साथ सहजता को महत्व देता है।"
+      },
+      "starterTasks": [
+        { "en": "Build one Excel or Sheets dashboard from raw data.", "hi": "असंशोधित आँकड़ों से एक Excel या Sheets dashboard बनाएं।" },
+        { "en": "Practice explaining a process bottleneck and your fix.", "hi": "किसी प्रक्रिया की रुकावट और उसके समाधान को समझाने की practice करें।" },
+        { "en": "Highlight reporting, Excel, or project coordination work on your resume.", "hi": "रिज्यूमे में reporting, Excel या परियोजना समन्वय का काम highlight करें।" }
+      ],
+      "strengths": [
+        { "en": "Analytical thinking", "hi": "विश्लेषणात्मक सोच" },
+        { "en": "Structure", "hi": "संरचना" },
+        { "en": "Reporting", "hi": "रिपोर्टिंग" }
+      ]
+    },
+    "onetAnchor": {
+      "occupation": "Management Analysts (entry-level India ops-analyst is closer to 13-1111 than true OR Analyst 15-2031.00)",
+      "code": "13-1111.00",
+      "riasecOrder": "EIC",
+      "reviewNeeded": true
+    },
+    "status": "published",
+    "version": 1
+  },
+  {
+    "id": "accounting-finance-assistant",
+    "name": { "en": "Accounting & Finance Assistant", "hi": "अकाउंटिंग और फाइनेंस असिस्टेंट" },
+    "shortLabel": { "en": "Accounting & Finance", "hi": "अकाउंटिंग और फाइनेंस" },
+    "cluster": "analytical",
+    "riasec": { "R": 10, "I": 45, "A": 10, "S": 10, "E": 25, "C": 85 },
+    "aptitude": { "numeracy": 75, "writtenEnglish": 50, "spokenCommunication": 20 },
+    "hardFilters": {
+      "eligibleStreams": ["commerce", "management"],
+      "minEnglishLevel": "basic",
+      "requiredCerts": []
+    },
+    "market": {
+      "metroSalaryBand": "₹2.6L–4.5L",
+      "demandLevel": "medium",
+      "metroAvailability": "moderate",
+      "realJobTitles": ["Accounts Executive", "Finance Assistant", "Junior Accountant", "Accounts Payable Executive", "Billing Executive"]
+    },
+    "copy": {
+      "summary": {
+        "en": "A strong fit for Commerce-oriented graduates who like numbers, records, reconciliation, and careful work.",
+        "hi": "यह Commerce-oriented ग्रेजुएट्स के लिए एक मजबूत फिट है जिन्हें संख्याएँ, अभिलेख, मिलान और सावधान काम पसंद है।"
+      },
+      "whyItFits": {
+        "en": "This role rewards numerical comfort, accuracy, and trustworthiness.",
+        "hi": "यह रोल संख्याओं में सहजता, सटीकता और भरोसेमंदी को महत्व देता है।"
+      },
+      "starterTasks": [
+        { "en": "Refresh bookkeeping, Tally, and Excel basics.", "hi": "लेखा-लेखन, Tally और Excel की मूल बातें मजबूत करें।" },
+        { "en": "Prepare examples that show accuracy with records or budgets.", "hi": "अभिलेखों या बजट में सटीकता दिखाने वाले उदाहरण तैयार करें।" },
+        { "en": "Highlight Commerce subjects and internships clearly.", "hi": "Commerce विषयों और प्रशिक्षुता को साफ़ highlight करें।" }
+      ],
+      "strengths": [
+        { "en": "Numerical comfort", "hi": "संख्याओं में सहजता" },
+        { "en": "Accuracy", "hi": "सटीकता" },
+        { "en": "Record keeping", "hi": "अभिलेख संभालना" }
+      ]
+    },
+    "onetAnchor": {
+      "occupation": "Bookkeeping, Accounting, and Auditing Clerks",
+      "code": "43-3031.00",
+      "riasecOrder": "CE"
+    },
+    "status": "published",
+    "version": 1
+  },
+  {
+    "id": "digital-marketing-executive",
+    "name": { "en": "Digital Marketing Executive", "hi": "डिजिटल मार्केटिंग एग्जीक्यूटिव" },
+    "shortLabel": { "en": "Digital Marketing", "hi": "डिजिटल मार्केटिंग" },
+    "cluster": "creative",
+    "riasec": { "R": 10, "I": 45, "A": 75, "S": 40, "E": 65, "C": 30 },
+    "aptitude": { "numeracy": 45, "writtenEnglish": 65, "spokenCommunication": 55 },
+    "hardFilters": {
+      "eligibleStreams": ["management", "arts-humanities", "open", "open-switch", "commerce", "science"],
+      "minEnglishLevel": "functional",
+      "requiredCerts": []
+    },
+    "market": {
+      "metroSalaryBand": "₹3.0L–5.0L",
+      "demandLevel": "high",
+      "metroAvailability": "abundant",
+      "realJobTitles": ["Digital Marketing Executive", "Social Media Executive", "SEO Executive", "Content Marketer", "Performance Marketing Executive"]
+    },
+    "copy": {
+      "summary": {
+        "en": "A useful path for graduates who like growth ideas, campaign thinking, audience understanding, and some data with creativity.",
+        "hi": "यह उन ग्रेजुएट्स के लिए अच्छा रास्ता है जिन्हें विकास के विचार, प्रचार अभियान की सोच, दर्शक समझ और रचनात्मकता के साथ थोड़ा data पसंद है।"
+      },
+      "whyItFits": {
+        "en": "This direction rewards creativity, communication, and comfort with experiments.",
+        "hi": "यह दिशा रचनात्मकता, संवाद और प्रयोगों के साथ सहजता को महत्व देती है।"
+      },
+      "starterTasks": [
+        { "en": "Build a sample campaign idea with audience, copy, and metrics.", "hi": "दर्शकों, प्रति और मापदंडों के साथ एक नमूना प्रचार अभियान विचार बनाएं।" },
+        { "en": "Learn Google Ads or GA4 basics from free modules.", "hi": "निःशुल्क पाठों से गूगल विज्ञापन और गूगल विश्लेषिकी की मूल बातें सीखें।" },
+        { "en": "Show one project or page where you improved engagement.", "hi": "ऐसा एक परियोजना या पृष्ठ दिखाएं जहां आपने जुड़ाव बेहतर किया।" }
+      ],
+      "strengths": [
+        { "en": "Creativity", "hi": "रचनात्मकता" },
+        { "en": "Audience understanding", "hi": "दर्शक समझ" },
+        { "en": "Experimentation", "hi": "प्रयोग करने की क्षमता" }
+      ]
+    },
+    "onetAnchor": {
+      "occupation": "Marketing Specialists",
+      "code": "13-1161.00",
+      "riasecOrder": "AES"
+    },
+    "status": "published",
+    "version": 1
+  },
+  {
+    "id": "content-writer",
+    "name": { "en": "Content Writer", "hi": "कंटेंट राइटर" },
+    "shortLabel": { "en": "Content Writing", "hi": "कंटेंट राइटिंग" },
+    "cluster": "creative",
+    "riasec": { "R": 5, "I": 55, "A": 85, "S": 35, "E": 25, "C": 30 },
+    "aptitude": { "numeracy": 20, "writtenEnglish": 80, "spokenCommunication": 40 },
+    "hardFilters": {
+      "eligibleStreams": ["arts-humanities", "management", "open", "open-switch", "science", "commerce"],
+      "minEnglishLevel": "proficient",
+      "requiredCerts": []
+    },
+    "market": {
+      "metroSalaryBand": "₹2.6L–4.5L",
+      "demandLevel": "medium",
+      "metroAvailability": "moderate",
+      "realJobTitles": ["Content Writer", "Copywriter", "SEO Content Writer", "Junior Content Writer", "Content Associate"]
+    },
+    "copy": {
+      "summary": {
+        "en": "A good first route for graduates who write clearly, enjoy research, and can turn information into useful content.",
+        "hi": "यह उन ग्रेजुएट्स के लिए अच्छा शुरुआती रास्ता है जो साफ़ लिखते हैं, शोध पसंद करते हैं और जानकारी को उपयोगी सामग्री में बदल सकते हैं।"
+      },
+      "whyItFits": {
+        "en": "This role rewards writing clarity, curiosity, and audience awareness.",
+        "hi": "यह रोल स्पष्ट लेखन, जिज्ञासा और दर्शक समझ को महत्व देता है।"
+      },
+      "starterTasks": [
+        { "en": "Write 3 short samples: one explain-like-I-am-new, one SEO-style, one social caption.", "hi": "3 छोटे नमूने लिखें: एक simple explain piece, एक खोज-अनुकूल शैली और एक सामाजिक माध्यम का संक्षिप्त लेख।" },
+        { "en": "Practice rewriting complex information into plain language.", "hi": "जटिल जानकारी को सरल भाषा में दोबारा लिखने की practice करें।" },
+        { "en": "Build a small writing portfolio link or PDF.", "hi": "एक छोटा लेखन संग्रह link या PDF बनाएं।" }
+      ],
+      "strengths": [
+        { "en": "Writing clarity", "hi": "स्पष्ट लेखन" },
+        { "en": "Research", "hi": "शोध" },
+        { "en": "Audience awareness", "hi": "दर्शक समझ" }
+      ]
+    },
+    "onetAnchor": {
+      "occupation": "Writers and Authors",
+      "code": "27-3043.00",
+      "riasecOrder": "AI"
+    },
+    "status": "published",
+    "version": 1
+  },
+  {
+    "id": "patient-care-coordinator",
+    "name": { "en": "Patient Care Coordinator", "hi": "पेशेंट केयर कोऑर्डिनेटर" },
+    "shortLabel": { "en": "Patient Care Coordination", "hi": "पेशेंट केयर कोऑर्डिनेशन" },
+    "cluster": "people-facing",
+    "riasec": { "R": 15, "I": 20, "A": 15, "S": 70, "E": 30, "C": 65 },
+    "aptitude": { "numeracy": 35, "writtenEnglish": 55, "spokenCommunication": 65 },
+    "hardFilters": {
+      "eligibleStreams": ["healthcare", "open", "open-switch", "science"],
+      "minEnglishLevel": "functional",
+      "requiredCerts": []
+    },
+    "market": {
+      "metroSalaryBand": "₹2.4L–4.2L",
+      "demandLevel": "medium",
+      "metroAvailability": "moderate",
+      "realJobTitles": ["Patient Care Coordinator", "Medical Coordinator", "Healthcare Coordinator", "Patient Relations Executive", "Clinical Coordinator"]
+    },
+    "copy": {
+      "summary": {
+        "en": "A helpful path for healthcare-adjacent graduates who can coordinate patients, appointments, and communication with care.",
+        "hi": "यह स्वास्थ्य सेवा से जुड़े ग्रेजुएट्स के लिए अच्छा रास्ता है जो रोगियों, मुलाकातों और संवाद को देखभाल के साथ coordinate कर सकते हैं।"
+      },
+      "whyItFits": {
+        "en": "This role values calm communication, empathy, and organized follow-through.",
+        "hi": "यह रोल शांत संवाद, सहानुभूति और organized follow-through को महत्व देता है।"
+      },
+      "starterTasks": [
+        { "en": "Learn how appointment, triage, and follow-up flows work.", "hi": "मुलाकात, प्राथमिकता तय करना और अगले संपर्क के flows कैसे चलते हैं यह सीखें।" },
+        { "en": "Prepare examples that show patient-facing patience and clarity.", "hi": "रोगियों से संवाद में धैर्य और स्पष्टता दिखाने वाले उदाहरण तैयार करें।" },
+        { "en": "Show healthcare exposure, volunteering, or coordination work clearly.", "hi": "स्वास्थ्य सेवा का अनुभव, स्वयंसेवा या समन्वय का काम साफ़ दिखाएं।" }
+      ],
+      "strengths": [
+        { "en": "Empathy", "hi": "सहानुभूति" },
+        { "en": "Coordination", "hi": "समन्वय" },
+        { "en": "Calm communication", "hi": "शांत संवाद" }
+      ]
+    },
+    "onetAnchor": {
+      "occupation": "Medical Secretaries and Administrative Assistants (no direct O*NET code for Patient Care Coordinator; care-coordination angle not fully captured)",
+      "code": "43-6013.00",
+      "riasecOrder": "SCE",
+      "reviewNeeded": true
+    },
+    "status": "published",
+    "version": 1
+  },
+  {
+    "id": "legal-compliance-operations",
+    "name": { "en": "Legal & Compliance Operations Associate", "hi": "लीगल और कंप्लायंस ऑपरेशंस एसोसिएट" },
+    "shortLabel": { "en": "Legal & Compliance Ops", "hi": "लीगल और कंप्लायंस ऑप्स" },
+    "cluster": "desk-ops",
+    "riasec": { "R": 10, "I": 55, "A": 10, "S": 15, "E": 35, "C": 80 },
+    "aptitude": { "numeracy": 55, "writtenEnglish": 70, "spokenCommunication": 35 },
+    "hardFilters": {
+      "eligibleStreams": ["law", "commerce"],
+      "minEnglishLevel": "functional",
+      "requiredCerts": []
+    },
+    "market": {
+      "metroSalaryBand": "₹3.5L–5.5L",
+      "demandLevel": "low",
+      "metroAvailability": "limited",
+      "realJobTitles": ["Legal Executive", "Compliance Executive", "Legal Operations Associate", "Paralegal", "Compliance Analyst"]
+    },
+    "copy": {
+      "summary": {
+        "en": "A practical route for Law or compliance-oriented graduates who like records, rules, review, and careful documentation.",
+        "hi": "यह Law या compliance-oriented ग्रेजुएट्स के लिए अच्छा रास्ता है जिन्हें अभिलेख, नियम, समीक्षा और सावधान दस्तावेज़ीकरण पसंद है।"
+      },
+      "whyItFits": {
+        "en": "This role rewards precision, documentation discipline, and rule-based thinking.",
+        "hi": "यह रोल सटीकता, दस्तावेज़ीकरण अनुशासन और नियम-आधारित सोच को महत्व देता है।"
+      },
+      "starterTasks": [
+        { "en": "Practice reviewing records or clauses with a checklist.", "hi": "जाँच सूची के साथ अभिलेखों या धाराओं को review करने की practice करें।" },
+        { "en": "Build examples that show documentation accuracy.", "hi": "दस्तावेज़ीकरण सटीकता दिखाने वाले उदाहरण बनाएं।" },
+        { "en": "Highlight legal/compliance coursework and internships clearly.", "hi": "कानूनी/अनुपालन की पढ़ाई और प्रशिक्षुता को साफ़ highlight करें।" }
+      ],
+      "strengths": [
+        { "en": "Precision", "hi": "सटीकता" },
+        { "en": "Documentation", "hi": "दस्तावेज़ीकरण" },
+        { "en": "Rule-based thinking", "hi": "नियम-आधारित सोच" }
+      ]
+    },
+    "onetAnchor": {
+      "occupation": "Compliance Officers",
+      "code": "13-1041.00",
+      "riasecOrder": "CEI"
+    },
+    "status": "published",
+    "version": 1
+  }
+]
