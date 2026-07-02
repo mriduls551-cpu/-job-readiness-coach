@@ -3,19 +3,33 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { captureProductEvent } from '@/lib/analytics';
 import {
   getStoredLocale,
+  persistAssessmentFeedback,
   persistSelectedRole,
 } from '@/lib/client-session';
 import { useAssessmentState } from '@/hooks/useAssessmentState';
-import { getLocaleValue, type Locale, type RoleId } from '@/lib/product';
+import {
+  getLocaleValue,
+  type AssessmentFeedback,
+  type Locale,
+  type RoleId,
+} from '@/lib/product';
 import { FullPageLoader } from '@/components/FullPageLoader';
 
 export default function ResultsPage() {
   const router = useRouter();
   const [locale, setLocale] = useState<Locale>('en');
   const [selectedRoleId, setSelectedRoleId] = useState<RoleId | null>(null);
-  const { assessment, selectedRoleId: persistedSelectedRoleId, loading } = useAssessmentState();
+  const [savingFeedback, setSavingFeedback] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const {
+    assessment,
+    selectedRoleId: persistedSelectedRoleId,
+    feedback,
+    loading,
+  } = useAssessmentState();
 
   useEffect(() => {
     setLocale(getStoredLocale());
@@ -33,6 +47,56 @@ export default function ResultsPage() {
     );
   }, [assessment, selectedRoleId]);
 
+  const feedbackOptions: Array<{
+    value: AssessmentFeedback;
+    label: string;
+    helper: string;
+  }> = [
+    {
+      value: 'yes',
+      label: locale === 'en' ? 'Yes' : 'हाँ',
+      helper: locale === 'en' ? 'This feels right.' : 'यह सही लगता है।',
+    },
+    {
+      value: 'somewhat',
+      label: locale === 'en' ? 'Somewhat' : 'कुछ हद तक',
+      helper:
+        locale === 'en'
+          ? 'Partly right, but not exact.'
+          : 'कुछ हद तक सही, लेकिन पूरी तरह नहीं।',
+    },
+    {
+      value: 'no',
+      label: locale === 'en' ? 'No' : 'नहीं',
+      helper: locale === 'en' ? 'This does not feel right.' : 'यह सही नहीं लगता।',
+    },
+  ];
+
+  async function handleFeedbackSubmit(nextFeedback: AssessmentFeedback) {
+    if (savingFeedback || feedback === nextFeedback) return;
+
+    setSavingFeedback(true);
+    setFeedbackError(null);
+    const persisted = await persistAssessmentFeedback(nextFeedback);
+
+    if (!persisted) {
+      setFeedbackError(
+        locale === 'en'
+          ? 'We could not save your feedback right now. Please try again.'
+          : 'अभी आपकी प्रतिक्रिया सहेजी नहीं जा सकी। कृपया फिर से प्रयास करें।'
+      );
+    } else {
+      void captureProductEvent('results_feedback_submitted', {
+        feedback: nextFeedback,
+        role_id: selectedMatch?.roleId || selectedRoleId,
+        cluster: assessment?.cluster,
+        confidence_band: assessment?.confidenceBand,
+      });
+    }
+
+    setSavingFeedback(false);
+  }
+
   const dimensionCards = assessment
     ? [
         {
@@ -40,10 +104,12 @@ export default function ResultsPage() {
           value: assessment.dimensionSnapshot.numerical,
         },
         {
-          label: locale === 'en' ? 'People' : 'लोगों से संवाद',
-          value:
-            assessment.dimensionSnapshot['people-reactive'] +
-            assessment.dimensionSnapshot['people-proactive'],
+          label: locale === 'en' ? 'People reactive' : 'लोगों की जरूरत पर प्रतिक्रिया',
+          value: assessment.dimensionSnapshot['people-reactive'],
+        },
+        {
+          label: locale === 'en' ? 'People proactive' : 'लोगों के साथ पहल करना',
+          value: assessment.dimensionSnapshot['people-proactive'],
         },
         {
           label: locale === 'en' ? 'Structure' : 'व्यवस्था',
@@ -52,6 +118,10 @@ export default function ResultsPage() {
         {
           label: locale === 'en' ? 'Creative' : 'रचनात्मकता',
           value: assessment.dimensionSnapshot['creative-output'],
+        },
+        {
+          label: locale === 'en' ? 'Analytical output' : 'विश्लेषण से निकलता काम',
+          value: assessment.dimensionSnapshot['analytical-output'],
         },
       ]
     : [];
@@ -136,7 +206,7 @@ export default function ResultsPage() {
             </div>
           ) : null}
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-4">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
             {dimensionCards.map((item) => (
               <div className="metric-tile p-4" key={item.label}>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--ink-muted)]">
@@ -226,6 +296,14 @@ export default function ResultsPage() {
                         setSelectedRoleId(match.roleId);
                         try {
                           await persistSelectedRole(match.roleId);
+                          if (!isSelected) {
+                            void captureProductEvent('results_role_selected', {
+                              role_id: match.roleId,
+                              rank: index + 1,
+                              cluster: assessment.cluster,
+                              confidence_band: assessment.confidenceBand,
+                            });
+                          }
                         } catch {
                           setSelectedRoleId(persistedSelectedRoleId);
                         }
@@ -282,6 +360,100 @@ export default function ResultsPage() {
                 </button>
               </div>
             </div>
+
+            <div className="route-shell bg-white/90">
+              <p className="eyebrow-copy">
+                {locale === 'en' ? 'Quick feedback' : 'त्वरित प्रतिक्रिया'}
+              </p>
+              <h2 className="mt-4 text-2xl leading-tight text-[var(--ink-strong)]">
+                {locale === 'en'
+                  ? 'Did these results feel right?'
+                  : 'क्या ये परिणाम आपको सही लगे?'}
+              </h2>
+              <p className="mt-3 text-sm leading-7 text-[var(--ink-soft)]">
+                {locale === 'en'
+                  ? 'Your answer helps us improve future role matches.'
+                  : 'आपका जवाब भविष्य के role matches को बेहतर बनाने में मदद करता है।'}
+              </p>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                {feedbackOptions.map((option) => {
+                  const isActive = feedback === option.value;
+                  return (
+                    <button
+                      aria-pressed={isActive}
+                      className={isActive ? 'btn-primary w-full justify-center' : 'btn-outline w-full'}
+                      disabled={savingFeedback}
+                      key={option.value}
+                      onClick={() => {
+                        void handleFeedbackSubmit(option.value);
+                      }}
+                      type="button"
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 min-h-[1.5rem]">
+                {feedback ? (
+                  <p className="text-sm text-[var(--ink-soft)]">
+                    {locale === 'en'
+                      ? `Saved: ${feedbackOptions.find((option) => option.value === feedback)?.helper || ''}`
+                      : `सहेजा गया: ${feedbackOptions.find((option) => option.value === feedback)?.helper || ''}`}
+                  </p>
+                ) : null}
+                {feedbackError ? (
+                  <p className="text-sm text-rose-700" role="alert">
+                    {feedbackError}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            {assessment.adjacentRoles?.length ? (
+              <div className="route-shell bg-white/90">
+                <p className="eyebrow-copy">
+                  {locale === 'en' ? 'Adjacent directions' : 'आस-पास की दिशाएं'}
+                </p>
+                <h2 className="mt-4 text-2xl leading-tight text-[var(--ink-strong)]">
+                  {locale === 'en'
+                    ? 'Related roles to explore separately'
+                    : 'अलग से देखने लायक संबंधित भूमिकाएं'}
+                </h2>
+                <p className="mt-3 text-sm leading-7 text-[var(--ink-soft)]">
+                  {locale === 'en'
+                    ? 'These are nearby candidate roles, not your main shortlist. Treat them as exploration ideas after the core directions above.'
+                    : 'ये पास की candidate भूमिकाएं हैं, आपकी मुख्य shortlist नहीं। ऊपर की core दिशाओं के बाद इन्हें exploration ideas की तरह देखें।'}
+                </p>
+
+                <div className="mt-5 space-y-3">
+                  {assessment.adjacentRoles.map((match, index) => (
+                    <div
+                      className="rounded-[1.2rem] border border-[var(--border-soft)] bg-[var(--surface-subtle)] px-4 py-3"
+                      key={match.roleId}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-[var(--brand-ink)]">
+                            {index + 1}. {getLocaleValue(match.role.name, locale)}
+                          </p>
+                          <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">
+                            {getLocaleValue(match.role.summary, locale)}
+                          </p>
+                        </div>
+                        {match.eligibility !== 'ready' ? (
+                          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
+                            {locale === 'en' ? 'Needs verification' : 'जांच जरूरी'}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </aside>
         </section>
       </div>

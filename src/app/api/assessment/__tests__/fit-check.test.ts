@@ -33,6 +33,7 @@ const completePeoplePath = {
   b2: 'pf_b2_a',
   b3: 'pf_b3_a',
   b4: 'pf_b4_a',
+  b5: 'pf_b5_a',
   rf: 'rf_customer-support',
 };
 
@@ -86,6 +87,16 @@ describe('POST /api/assessment/fit-check validation', () => {
     expect(response.status).toBe(400);
   });
 
+  it('rejects invalid client-supplied scoring overrides', async () => {
+    for (const extra of [
+      { scoringConfig: { finalistWeight: 0, streamBoostFactor: 1.05 } },
+      { scoringConfig: { finalistWeight: 4, streamBoostFactor: 0.9 } },
+    ]) {
+      const response = await POST(request({ responses: completePeoplePath, profile: {}, ...extra }));
+      expect(response.status).toBe(400);
+    }
+  });
+
   it('rejects unknown education stream values', async () => {
     const response = await POST(
       request({
@@ -102,6 +113,11 @@ describe('POST /api/assessment/fit-check validation', () => {
       expect(response.status).toBe(400);
     }
   });
+
+  it('rejects invalid feedback values', async () => {
+    const response = await PATCH(request({ feedback: 'maybe' }));
+    expect(response.status).toBe(400);
+  });
 });
 
 describe('assessment persistence', () => {
@@ -116,6 +132,47 @@ describe('assessment persistence', () => {
     expect(saved.assessment.resultSnapshot).toEqual(saved.result);
     expect(saved.assessment.scoringVersion).toBe(saved.result.scoringVersion);
     expect(saved.assessment.catalogVersion).toBe(saved.result.catalogVersion);
+    expect(saved.assessment.feedback).toBeNull();
+  });
+
+  it('accepts a client-resolved experiment variant and persists the normalized bucket', async () => {
+    const response = await POST(
+      request({
+        responses: completePeoplePath,
+        profile: { educationStream: 'arts-humanities' },
+        scoringVariant: 'treatment',
+        scoringConfig: { finalistWeight: 4, streamBoostFactor: 1.05 },
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.result.topRoles[0].roleId).toBeTruthy();
+    expect(body.data.scoringVariant).toBe('lighter_finalist_v1');
+
+    const latest = await getDB().getLatestAssessment(authenticatedUserId);
+    expect(latest?.scoringVariant).toBe('lighter_finalist_v1');
+  });
+
+  it('falls back to the server-side control assignment when no client variant is provided', async () => {
+    const previousRollout = process.env.FIT_CHECK_SCORING_ROLLOUT;
+    delete process.env.FIT_CHECK_SCORING_ROLLOUT;
+    try {
+      const response = await POST(request({ responses: completePeoplePath, profile: {} }));
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.data.scoringVariant).toBe('control');
+    } finally {
+      if (previousRollout !== undefined) process.env.FIT_CHECK_SCORING_ROLLOUT = previousRollout;
+    }
+  });
+
+  it('stores feedback on the latest assessment row', async () => {
+    const db = getDB();
+    await db.saveAssessment('assessment-feedback-test-user', completePeoplePath, { locale: 'en' });
+    const updated = await db.recordFeedback('assessment-feedback-test-user', 'somewhat');
+    expect(updated?.feedback).toBe('somewhat');
   });
 
   it('requires a retake for an incomplete legacy row instead of rescoring it', async () => {
@@ -179,5 +236,27 @@ describe('assessment persistence', () => {
     expect(body.data.result).toBeNull();
     expect(body.data.retakeRequired).toBe(true);
     inMemory.assessments.delete(id);
+  });
+
+  it('persists selected role and feedback through PATCH', async () => {
+    const db = getDB();
+    const saved = await db.saveAssessment(authenticatedUserId, completePeoplePath, { locale: 'en' });
+    const nextRoleId = saved.result.topRoles[1]?.roleId || saved.result.topRoles[0]?.roleId;
+
+    const response = await PATCH(
+      request({
+        roleId: nextRoleId,
+        feedback: 'yes',
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.selectedRoleId).toBe(nextRoleId);
+    expect(body.data.feedback).toBe('yes');
+
+    const latest = await db.getLatestAssessment(authenticatedUserId);
+    expect(latest?.selectedRole).toBe(nextRoleId);
+    expect(latest?.feedback).toBe('yes');
   });
 });

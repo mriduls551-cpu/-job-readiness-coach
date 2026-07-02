@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import {
   getLatestAssessment,
+  getStoredAssessmentFeedback,
   getSelectedRole,
   getStoredLocale,
   getStoredUser,
@@ -23,6 +24,7 @@ export function SessionBootstrap() {
       locale: getStoredLocale(),
       latestAssessment: getLatestAssessment(),
       selectedRole: getSelectedRole(),
+      assessmentFeedback: getStoredAssessmentFeedback(),
     });
     void identifyProductUser(storedUser);
 

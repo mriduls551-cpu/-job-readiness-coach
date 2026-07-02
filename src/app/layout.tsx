@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { Inter, Lora, Noto_Sans_Devanagari } from 'next/font/google';
 import { Toaster } from 'sonner';
 import { SessionBootstrap } from '@/components/auth/SessionBootstrap';
-import { CoachWidget } from '@/components/CoachWidget';
 import { AuthGate } from '@/components/AuthGate';
 import { Navigation } from '@/components/Navigation';
 import { QueryProvider } from '@/components/providers/QueryProvider';
@@ -53,7 +52,6 @@ export default function RootLayout({
               <AuthGate>
                 <main className="has-bottom-nav md:pb-0">{children}</main>
               </AuthGate>
-              <CoachWidget />
               <Toaster position="bottom-right" richColors />
             </AnalyticsProvider>
           </LocaleProvider>

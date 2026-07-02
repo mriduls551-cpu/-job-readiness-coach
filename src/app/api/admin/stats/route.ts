@@ -6,8 +6,21 @@ import { success, error } from '@/lib/api-response';
 import { logger } from '@/lib/logger';
 import { HttpStatus } from '@/types/api';
 import { verifyAdminRequest } from '@/lib/auth/authorization';
+import type { AssessmentFeedback } from '@/lib/product';
 
 export const dynamic = 'force-dynamic';
+
+type AssessmentClusterStats = {
+  cluster: string;
+  count: number;
+  share: number;
+};
+
+type AssessmentFeedbackStats = {
+  responses: number;
+  rate: number;
+  breakdown: Record<AssessmentFeedback, number>;
+};
 
 /**
  * GET /api/admin/stats
@@ -35,9 +48,27 @@ export async function GET(request: NextRequest) {
 
     // Get assessment count
     let totalAssessments = 0;
+    const clusterCounts = new Map<string, number>();
+    const feedbackBreakdown: Record<AssessmentFeedback, number> = {
+      yes: 0,
+      somewhat: 0,
+      no: 0,
+    };
+    let feedbackResponses = 0;
     for (const user of users) {
       const assessments = await db.getUserAssessments(user.id);
-      totalAssessments += assessments.filter((a) => a.status === 'completed').length;
+      const completedAssessments = assessments.filter((assessment) => assessment.status === 'completed');
+      totalAssessments += completedAssessments.length;
+
+      for (const assessment of completedAssessments) {
+        const cluster = assessment.resultSnapshot?.cluster || 'unknown';
+        clusterCounts.set(cluster, (clusterCounts.get(cluster) || 0) + 1);
+
+        if (assessment.feedback) {
+          feedbackBreakdown[assessment.feedback] += 1;
+          feedbackResponses += 1;
+        }
+      }
     }
 
     // Get application count
@@ -60,11 +91,27 @@ export async function GET(request: NextRequest) {
       lastRun: job.lastRun,
     }));
 
+    const clusterDistribution: AssessmentClusterStats[] = Array.from(clusterCounts.entries())
+      .sort((left, right) => right[1] - left[1])
+      .map(([cluster, count]) => ({
+        cluster,
+        count,
+        share: totalAssessments > 0 ? count / totalAssessments : 0,
+      }));
+
+    const feedbackStats: AssessmentFeedbackStats = {
+      responses: feedbackResponses,
+      rate: totalAssessments > 0 ? feedbackResponses / totalAssessments : 0,
+      breakdown: feedbackBreakdown,
+    };
+
     const stats = {
       totalUsers,
       totalAssessments,
       totalApplications,
       emailsSent,
+      clusterDistribution,
+      feedbackStats,
       cronJobsStatus,
     };
 

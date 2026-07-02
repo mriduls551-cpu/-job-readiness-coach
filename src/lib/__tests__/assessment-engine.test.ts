@@ -9,6 +9,7 @@ import {
   TIE_BREAKER_QUESTION,
   getLocaleValue,
   getNextQuestions,
+  pruneOrphanResponses,
   scoreAssessment,
 } from '@/lib/assessment-engine';
 
@@ -21,14 +22,14 @@ function peopleFacingPhase1(): Record<string, string> {
 function deskOpsFullResponse(): Record<string, string> {
   return {
     r1: 'r1_c', r2: 'r2_b', r3: 'r3_b', r4: 'r4_b', r5: 'r5_b', rtb: 'rtb_b',
-    b1: 'do_b1_a', b2: 'do_b2_a', b3: 'do_b3_a', b4: 'do_b4_a', rf: 'rf_data-entry-mis',
+    b1: 'do_b1_a', b2: 'do_b2_a', b3: 'do_b3_a', b4: 'do_b4_a', b5: 'do_b5_a', rf: 'rf_data-entry-mis',
   };
 }
 
 function peopleFacingFullResponse(): Record<string, string> {
   return {
     ...peopleFacingPhase1(),
-    b1: 'pf_b1_a', b2: 'pf_b2_a', b3: 'pf_b3_a', b4: 'pf_b4_a', rf: 'rf_customer-support',
+    b1: 'pf_b1_a', b2: 'pf_b2_a', b3: 'pf_b3_a', b4: 'pf_b4_a', b5: 'pf_b5_a', rf: 'rf_customer-support',
   };
 }
 
@@ -54,7 +55,7 @@ describe('getNextQuestions', () => {
     const nonRoutingIds = questions
       .filter((q) => !ASSESSMENT_QUESTIONS.some((rq) => rq.id === q.id))
       .filter((q) => q.id !== TIE_BREAKER_QUESTION.id);
-    expect(nonRoutingIds.length).toBe(5);
+    expect(nonRoutingIds.length).toBe(6);
   });
 
   it('every returned question id belongs to a known question set', () => {
@@ -110,11 +111,34 @@ describe('scoreAssessment', () => {
       });
     });
 
+    it('dimensionSnapshot sums to 100', () => {
+      const result = scoreAssessment(peopleFacingFullResponse(), {}, 'en');
+      const total = Object.values(result.dimensionSnapshot).reduce((sum, value) => sum + value, 0);
+      expect(total).toBe(100);
+    });
+
     it('topRoles are sorted descending by score', () => {
       const result = scoreAssessment(peopleFacingFullResponse(), {}, 'en');
       for (let i = 1; i < result.topRoles.length; i++) {
         expect(result.topRoles[i - 1].score).toBeGreaterThanOrEqual(result.topRoles[i].score);
       }
+    });
+
+    it('excludes finalist answers from supporting signals', () => {
+      const result = scoreAssessment(peopleFacingFullResponse(), {}, 'en');
+      result.topRoles.forEach((match) => {
+        match.supportingSignals.forEach((signal) => {
+          expect(signal.en).not.toContain('Direct preference for');
+        });
+      });
+    });
+
+    it('produces different lead supporting signals for the representative people-facing path', () => {
+      const result = scoreAssessment(peopleFacingFullResponse(), {}, 'en');
+      const firstSignals = result.topRoles
+        .map((match) => match.supportingSignals[0]?.en)
+        .filter((value): value is string => Boolean(value));
+      expect(new Set(firstSignals).size).toBe(firstSignals.length);
     });
   });
 
@@ -325,7 +349,7 @@ describe('All 4 clusters are reachable via routing + tie-breaker', () => {
 
 // ─── Tie-breaker trigger ──────────────────────────────────────────────────────
 describe('Tie-breaker question', () => {
-  it('is included in getNextQuestions when top-2 cluster margin is < 5', () => {
+  it('is included in getNextQuestions when top-2 cluster margin is below the configured threshold', () => {
     // The last-option set creates a narrow spread requiring the tie-breaker
     const tiedPhase1 = { r1: 'r1_d', r2: 'r2_d', r3: 'r3_d', r4: 'r4_d', r5: 'r5_d' };
     const questions = getNextQuestions(tiedPhase1);
@@ -339,6 +363,48 @@ describe('Tie-breaker question', () => {
     const questions = getNextQuestions(clearWin);
     const hasTB = questions.some((q) => q.id === TIE_BREAKER_QUESTION.id);
     expect(hasTB).toBe(false);
+  });
+});
+
+describe('pruneOrphanResponses', () => {
+  it('drops stale tie-breaker and branch answers when routing changes to a clear winner', () => {
+    const pruned = pruneOrphanResponses({
+      ...deskOpsFullResponse(),
+      r1: 'r1_a',
+      r2: 'r2_a',
+      r3: 'r3_c',
+      r4: 'r4_a',
+      r5: 'r5_a',
+    });
+
+    expect(pruned).toEqual({
+      r1: 'r1_a',
+      r2: 'r2_a',
+      r3: 'r3_c',
+      r4: 'r4_a',
+      r5: 'r5_a',
+    });
+  });
+
+  it('drops stale branch answers when the active path changes clusters', () => {
+    const pruned = pruneOrphanResponses({
+      ...peopleFacingFullResponse(),
+      r1: 'r1_c',
+      r2: 'r2_b',
+      r3: 'r3_b',
+      r4: 'r4_b',
+      r5: 'r5_b',
+      rtb: 'rtb_b',
+    });
+
+    expect(pruned).toEqual({
+      r1: 'r1_c',
+      r2: 'r2_b',
+      r3: 'r3_b',
+      r4: 'r4_b',
+      r5: 'r5_b',
+      rtb: 'rtb_b',
+    });
   });
 });
 

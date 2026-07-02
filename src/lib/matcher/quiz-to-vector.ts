@@ -9,6 +9,7 @@ export interface ProfileEvidence {
   numbersConfidence?: string;
   speakingConfidence?: string;
   dataConfidence?: string;
+  writingConfidence?: string;
   educationStream?: string;
   objectiveEvidence?: ObjectiveEvidence;
 }
@@ -39,6 +40,7 @@ export function buildPersonEvidence(
       numbers: profile.numbersConfidence,
       speaking: profile.speakingConfidence,
       dataAccuracy: profile.dataConfidence,
+      writing: profile.writingConfidence,
     },
     educationStream: profile.educationStream,
     objectiveEvidence: profile.objectiveEvidence,

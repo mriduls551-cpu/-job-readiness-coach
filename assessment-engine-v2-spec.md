@@ -4,6 +4,24 @@
 **Scope:** assessment-engine.ts + question flow + scoring logic  
 **LLM dependency:** None (v1). LLM added as polish layer in v2 after this ships.
 
+> Superseded by the live `constrained-hybrid-v4` implementation and the rollout docs in `assessment-onboarding-upgrade-plan.md` and `Sprints.md`. Keep this file only as historical context for the retired 12-role / pre-v4 design.
+
+---
+
+## Current Live Snapshot
+
+This section reflects the live implementation in `src/lib/assessment-engine.ts` and related matcher files as of July 2026. The detailed design below remains useful as history, but it is no longer the shipped shape.
+
+- The live catalog is **41 roles**, not 12.
+- The ranked results set is **11 core roles** plus **30 candidate roles** surfaced separately through `adjacentRoles`.
+- `telemedicine-coordinator` is **retired** and must not be treated as a live route.
+- `patient-care-coordinator` is also retired; both retired ids are tracked in `src/data/role-candidates.seed.json`.
+- The live result shape includes `topRoles`, `adjacentRoles`, `cluster`, `confidenceScore`, `confidenceBand`, `dimensionSnapshot`, `scoringVersion`, and `catalogVersion`.
+- Disqualification is handled through the current eligibility/readiness pipeline in code. The historical `DISQUALIFIER_RULES` wording below is not the live implementation contract.
+- Sprint planning and rollout truth now lives in `SPRINTS.md` and `assessment-onboarding-upgrade-plan.md`.
+
+For implementation or verification work, use the current code and sprint docs first, then consult the remaining sections of this file only for background.
+
 ---
 
 ## Problem Statement
@@ -84,7 +102,7 @@ Replace the current 8 dimensions with 6 that cleanly separate the 12 roles:
 PEOPLE-FACING cluster
   → customer-support
   → academic-counsellor
-  → telemedicine-coordinator
+  → patient-care-coordinator
   → hr-coordinator
 
 DESK-OPS cluster
@@ -156,19 +174,19 @@ All five questions are scenario-based. The user is presented with a concrete sit
 
 ---
 
-## Phase 2: Branch Questions (4 per cluster)
+## Phase 2: Branch Questions (5 evidence questions per cluster, then finalist)
 
 ### PEOPLE-FACING Branch
 
 **BP1 — Guidance vs support**
 *"Someone comes to you confused about their options. You naturally:"*
-- A: Listen, empathise, and help them feel calm first — *(people-reactive → customer-support, telemedicine)*
+- A: Listen, empathise, and help them feel calm first — *(people-reactive → customer-support, patient-care-coordinator)*
 - B: Walk them through each option clearly and help them decide — *(people-reactive → academic-counsellor)*
 - C: Ask what they've already tried and coordinate next steps — *(people-proactive → hr-coordinator)*
 
 **BP2 — Interaction energy**
 *"End of a long day with back-to-back calls. You feel:"*
-- A: Drained but fulfilled — I like helping, just need recovery time — *(customer-support, telemedicine)*
+- A: Drained but fulfilled — I like helping, just need recovery time — *(customer-support, patient-care-coordinator)*
 - B: Energised if the conversations went well — *(sales-support, academic-counsellor)*
 - C: Ready for tomorrow's coordination work — *(hr-coordinator)*
 
@@ -177,13 +195,13 @@ All five questions are scenario-based. The user is presented with a concrete sit
 - A: Handling complaints or queries for a product or service — *(customer-support)*
 - B: Guiding students or families through education decisions — *(academic-counsellor)*
 - C: Coordinating hiring, scheduling, or team logistics — *(hr-coordinator)*
-- D: Supporting patients or healthcare appointments remotely — *(telemedicine-coordinator)*
+- D: Supporting patients or healthcare appointments remotely — *(patient-care-coordinator)*
 
 **BP4 — Writing style**
 *"The writing you find easiest:"*
 - A: Short, clear replies to customer questions — *(customer-support)*
 - B: Structured guidance notes or follow-up summaries — *(academic-counsellor, hr-coordinator)*
-- C: Medical or appointment-related documentation — *(telemedicine-coordinator)*
+- C: Medical or appointment-related documentation — *(patient-care-coordinator)*
 
 ---
 
@@ -315,10 +333,10 @@ const DISQUALIFIER_RULES: DisqualifierRule[] = [
     roleIds: ['legal-compliance-operations'],
     multiplier: 1.12,
   },
-  // Healthcare stream → boost telemedicine
+  // Healthcare stream → boost patient care coordination
   {
     condition: p => p.educationStream === 'healthcare',
-    roleIds: ['telemedicine-coordinator'],
+    roleIds: ['patient-care-coordinator'],
     multiplier: 1.15,
   },
 ];

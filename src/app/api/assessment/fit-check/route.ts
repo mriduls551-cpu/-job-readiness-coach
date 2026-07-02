@@ -4,11 +4,18 @@ import { success, error } from '@/lib/api-response';
 import { getDB } from '@/lib/db';
 import { getRequestLocale, resolveRequestUserId } from '@/lib/request-user';
 import {
+  ASSESSMENT_SCORING_VARIANTS,
+  assignFitCheckScoringVariant,
+  resolveAssessmentScoringExperiment,
+} from '@/lib/assessment-experiments';
+import {
+  ASSESSMENT_FEEDBACK_VALUES,
   AssessmentValidationError,
   ROLE_ORDER,
   getLocaleValue,
   isActiveRoleId,
   scoreAssessment,
+  type AssessmentFeedback,
   type AssessmentProfile,
   type RoleId,
 } from '@/lib/product';
@@ -46,17 +53,31 @@ const schema = z.object({
     // assessment endpoint deliberately cannot accept self-awarded scores.
     locale: z.enum(['en', 'hi']).optional(),
   }).strict(),
-});
+  // The client may pass the PostHog-resolved flag variant for attribution, but
+  // the server still canonicalizes it to a known experiment config.
+  scoringVariant: z.union([z.string(), z.boolean()]).optional(),
+  scoringConfig: z.object({
+    finalistWeight: z.number().positive().max(12),
+    streamBoostFactor: z.number().min(1).max(1.25),
+  }).strict().optional(),
+}).strict();
 
-const selectedRoleSchema = z.object({
-  roleId: z.enum(ROLE_ORDER as [RoleId, ...RoleId[]]),
-});
+const assessmentPatchSchema = z
+  .object({
+    roleId: z.enum(ROLE_ORDER as [RoleId, ...RoleId[]]).optional(),
+    feedback: z.enum(ASSESSMENT_FEEDBACK_VALUES).optional(),
+  })
+  .refine((value) => Boolean(value.roleId || value.feedback), {
+    message: 'Provide a role selection or feedback update',
+  });
 
 function buildPersistedAssessmentResult(
   assessment: {
     responses: Record<string, string>;
     profile: AssessmentProfile;
     selectedRole?: RoleId;
+    feedback?: AssessmentFeedback | null;
+    scoringVariant?: string | null;
     resultSnapshot?: ReturnType<typeof scoreAssessment>;
   },
   locale: 'en' | 'hi'
@@ -74,12 +95,14 @@ function buildPersistedAssessmentResult(
         ...assessment.profile,
         locale,
       },
-      locale
+      locale,
+      resolveAssessmentScoringExperiment(assessment.scoringVariant).scoringConfig
     );
 
   return {
     result,
     selectedRoleId: assessment.selectedRole || result.topRoles[0]?.roleId || null,
+    feedback: assessment.feedback ?? null,
   };
 }
 
@@ -97,6 +120,7 @@ export async function GET(request: NextRequest) {
       questionsAvailable: true,
       result: null,
       selectedRoleId: null,
+      feedback: null,
     });
   }
 
@@ -109,6 +133,7 @@ export async function GET(request: NextRequest) {
         questionsAvailable: true,
         result: null,
         selectedRoleId: null,
+        feedback: null,
         retakeRequired: true,
       });
     }
@@ -135,6 +160,15 @@ export async function POST(request: NextRequest) {
       return error('Authentication required', 401);
     }
 
+    const requestedExperiment =
+      body.scoringVariant == null
+        ? null
+        : resolveAssessmentScoringExperiment(body.scoringVariant);
+    const fallbackVariant = assignFitCheckScoringVariant(userId);
+    const fallbackConfig = ASSESSMENT_SCORING_VARIANTS[fallbackVariant];
+    const scoringVariant = requestedExperiment?.scoringVariant ?? fallbackVariant;
+    const scoringConfig = requestedExperiment?.scoringConfig ?? fallbackConfig;
+
     const clientIp =
       request.headers.get('x-forwarded-for') ||
       request.headers.get('x-real-ip') ||
@@ -150,13 +184,16 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getDB();
-    const { result: hydrated } = await db.saveAssessment(userId, body.responses, baseProfile);
+    const { result: hydrated } = await db.saveAssessment(userId, body.responses, baseProfile, {
+      scoringVariant,
+      scoringConfig,
+    });
 
     if (hydrated.topRoles[0]) {
       await db.seedReminders(userId, locale, hydrated.topRoles[0].roleId);
 
       const topRole = hydrated.topRoles[0];
-      after(async () => {
+      const queueAssessmentEmail = async () => {
         try {
           const user = await getDB().getUser(userId);
           if (!user) return;
@@ -176,12 +213,20 @@ export async function POST(request: NextRequest) {
             error: emailError instanceof Error ? emailError.message : 'Unknown error',
           });
         }
-      });
+      };
+
+      try {
+        after(queueAssessmentEmail);
+      } catch {
+        void queueAssessmentEmail();
+      }
     }
 
     return success({
       result: hydrated,
       selectedRoleId: hydrated.topRoles[0]?.roleId || null,
+      feedback: null,
+      scoringVariant,
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -202,14 +247,27 @@ export async function PATCH(request: NextRequest) {
     }
 
     const locale = getRequestLocale(request);
-    const body = selectedRoleSchema.parse(await request.json());
-    const assessment = await getDB().saveSelectedRole(userId, body.roleId as RoleId);
+    const body = assessmentPatchSchema.parse(await request.json());
+    const db = getDB();
+    let assessment = body.roleId
+      ? await db.saveSelectedRole(userId, body.roleId as RoleId)
+      : await db.getLatestAssessment(userId);
 
     if (!assessment) {
       return error('No saved assessment found', 404);
     }
 
-    await getDB().seedReminders(userId, locale, body.roleId as RoleId);
+    if (body.feedback) {
+      assessment = await db.recordFeedback(userId, body.feedback);
+    }
+
+    if (!assessment) {
+      return error('No saved assessment found', 404);
+    }
+
+    if (body.roleId) {
+      await db.seedReminders(userId, locale, body.roleId as RoleId);
+    }
 
     const persisted = buildPersistedAssessmentResult(assessment, locale);
 
@@ -218,9 +276,9 @@ export async function PATCH(request: NextRequest) {
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return error(err.errors[0]?.message || 'Invalid role selection', 400);
+      return error(err.errors[0]?.message || 'Invalid assessment update', 400);
     }
 
-    return error('Unable to save selected role right now', 500);
+    return error('Unable to save assessment updates right now', 500);
   }
 }

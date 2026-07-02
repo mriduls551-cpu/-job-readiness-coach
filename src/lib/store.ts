@@ -10,7 +10,7 @@
  */
 
 import { create } from 'zustand';
-import type { AssessmentResult, RoleId } from '@/lib/product';
+import type { AssessmentFeedback, AssessmentResult, RoleId } from '@/lib/product';
 import type { StoredUser } from '@/lib/client-session';
 
 export interface AppState {
@@ -18,6 +18,7 @@ export interface AppState {
   locale: 'en' | 'hi';
   latestAssessment: AssessmentResult | null;
   selectedRole: RoleId | null;
+  assessmentFeedback: AssessmentFeedback | null;
 }
 
 export const useAppStore = create<AppState>(() => ({
@@ -25,4 +26,5 @@ export const useAppStore = create<AppState>(() => ({
   locale: 'en',
   latestAssessment: null,
   selectedRole: null,
+  assessmentFeedback: null,
 }));

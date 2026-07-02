@@ -30,6 +30,7 @@ const chatSchema = z.object({
       speakingConfidence: z.string().max(60).optional(),
       numbersConfidence: z.string().max(60).optional(),
       dataConfidence: z.string().max(60).optional(),
+      writingConfidence: z.string().max(60).optional(),
       workStylePreference: z.string().max(60).optional(),
       biggestProblem: z.string().max(400).optional(),
       weeklyAvailability: z.string().max(60).optional(),

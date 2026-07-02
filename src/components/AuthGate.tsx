@@ -8,7 +8,6 @@ import { FullPageLoader } from '@/components/FullPageLoader';
 import { getStoredUser, refreshStoredUserFromSession } from '@/lib/client-session';
 
 const PROTECTED_PREFIXES = [
-  '/career-fit-check',
   '/results',
   '/resume',
   '/dashboard',

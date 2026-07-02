@@ -1,4 +1,8 @@
-import { MATCHING_CATALOG } from '@/lib/matcher/catalog';
+import {
+  DEFAULT_ASSESSMENT_SCORING_CONFIG,
+  type AssessmentScoringConfig,
+} from '@/lib/assessment-experiments';
+import { MATCHING_CATALOG, candidateCluster } from '@/lib/matcher/catalog';
 import { buildPersonEvidence } from '@/lib/matcher/quiz-to-vector';
 import { scoreEvidence } from '@/lib/matcher/scorer';
 import type { ConfidenceBand, EligibilityStatus, ObjectiveEvidence } from '@/lib/matcher/types';
@@ -70,6 +74,7 @@ export interface AssessmentProfile {
   speakingConfidence?: string;
   numbersConfidence?: string;
   dataConfidence?: string;
+  writingConfidence?: string;
   objectiveEvidence?: ObjectiveEvidence;
   locale: Locale;
 }
@@ -123,6 +128,14 @@ export interface RoleMatch {
   demonstratedAbilityScore: number | null;
 }
 
+export interface AdjacentRoleMatch {
+  roleId: RoleId;
+  role: RoleDefinition;
+  score: number;
+  eligibility: EligibilityStatus;
+  eligibilityReasons: string[];
+}
+
 export interface AssessmentResult {
   profile: AssessmentProfile;
   cluster: ClusterId;
@@ -133,6 +146,7 @@ export interface AssessmentResult {
   scoringVersion: string;
   catalogVersion: string;
   topRoles: RoleMatch[];
+  adjacentRoles?: AdjacentRoleMatch[];
   allScores: Record<RoleId, number>;
   summary: LocalizedText;
   warning: LocalizedText | null;
@@ -648,6 +662,18 @@ export const ROLE_ORDER: RoleId[] = [
   ...ROLE_CANDIDATES.map((candidate) => candidate.id as RoleId),
 ];
 
+const CANDIDATE_ROLE_ID_SET = new Set<RoleId>(
+  ROLE_CANDIDATES.map((candidate) => candidate.id as RoleId)
+);
+
+export const CORE_ROLE_ORDER: RoleId[] = ROLE_ORDER.filter(
+  (roleId) => !CANDIDATE_ROLE_ID_SET.has(roleId)
+);
+export const ADJACENT_ROLE_ORDER: RoleId[] = ROLE_ORDER.filter((roleId) =>
+  CANDIDATE_ROLE_ID_SET.has(roleId)
+);
+export const CORE_ROLE_ID_SET = new Set<RoleId>(CORE_ROLE_ORDER);
+
 const ROLE_DEFINITION_SOURCE = {
   'customer-support': {
     id: 'customer-support',
@@ -1146,7 +1172,7 @@ export const ROUTING_QUESTIONS: AssessmentQuestion[] = [
         label: t('I would rewrite it into a short, polished message before sending.', 'send करने से पहले मैं इसे short, polished message में rewrite करूँगा/करूँगी।'),
         signal: t('Writing polish instinct', 'writing polish instinct'),
         vector: [0, 1, 0, 1, 3, 1],
-        profilePatch: { speakingConfidence: 'low' },
+        profilePatch: { writingConfidence: 'high' },
         objectiveEvidencePatch: { writing: 75 },
         clusterScores: { 'creative': 2, 'desk-ops': 1 },
       },
@@ -1200,7 +1226,7 @@ export const ROUTING_QUESTIONS: AssessmentQuestion[] = [
   },
 ];
 
-// ─── Tie-breaker (inserted if cluster margin < 15 points) ────────────────────
+// ─── Tie-breaker (inserted if cluster margin < configured threshold) ─────────
 
 export const TIE_BREAKER_QUESTION: AssessmentQuestion = {
   id: 'rtb',
@@ -1250,7 +1276,8 @@ export const TIE_BREAKER_QUESTION: AssessmentQuestion = {
 };
 
 // ─── Phase 2: Branch Questions ────────────────────────────────────────────────
-// 4 questions per cluster. Differentiates roles within the winning cluster.
+// 5 questions per cluster. Four core-role discriminators plus one candidate-family
+// discriminator before the finalist question.
 // roleScores: partial record of role contributions for this option
 
 export const BRANCH_QUESTIONS: Record<ClusterId, AssessmentQuestion[]> = {
@@ -1737,6 +1764,7 @@ export const BRANCH_QUESTIONS: Record<ClusterId, AssessmentQuestion[]> = {
           label: t('Research, draft, edit, and publish something', 'शोध करके प्रारूप बनाएँ, संपादन करें और कुछ प्रकाशित करें'),
           signal: t('Writing workflow satisfaction', 'writing workflow में satisfaction'),
           vector: [0, 0, 0, 2, 3, 1],
+          profilePatch: { writingConfidence: 'high' },
           roleScores: { 'content-writer': 3 },
         },
         {
@@ -1744,6 +1772,7 @@ export const BRANCH_QUESTIONS: Record<ClusterId, AssessmentQuestion[]> = {
           label: t('Plan a campaign, set it up, and analyse the results', 'प्रचार अभियान की योजना बनाएँ, उसे शुरू करें और परिणामों का विश्लेषण करें'),
           signal: t('Campaign execution satisfaction', 'campaign execution में satisfaction'),
           vector: [1, 0, 1, 1, 3, 2],
+          profilePatch: { writingConfidence: 'medium' },
           roleScores: { 'digital-marketing-executive': 3 },
         },
         {
@@ -1751,6 +1780,7 @@ export const BRANCH_QUESTIONS: Record<ClusterId, AssessmentQuestion[]> = {
           label: t('Build a pipeline, make calls, and close conversations', 'Pipeline build करें, calls करें और conversations close करें'),
           signal: t('Sales execution satisfaction', 'sales execution में satisfaction'),
           vector: [0, 1, 3, 0, 2, 0],
+          profilePatch: { writingConfidence: 'low' },
           roleScores: { 'sales-support': 3 },
         },
       ],
@@ -1791,16 +1821,322 @@ function buildFinalistQuestion(cluster: ClusterId): AssessmentQuestion {
           `Direct preference for ${role.name.en}`,
           `${role.name.hi} के लिए सीधी पसंद`
         ),
-        vector: [...policy.preferenceTarget],
-        roleScores: { [role.id]: 24 },
+        // The finalist expresses a direct role vote, scored via roleScores only.
+        // Injecting the role's own preferenceTarget here would circularly inflate
+        // the picked role's cosine, the dimension snapshot, and adjacent-role ranks.
+        vector: [0, 0, 0, 0, 0, 0],
+        roleScores: { [role.id]: 8 },
       };
     }),
   };
 }
 
+function candidateRoleScoreBoost(
+  role: (typeof ROLE_CANDIDATES)[number],
+  emphasisTags: string[]
+) {
+  const haystack = [...role.separatorSignals, ...role.requirements, ...role.aliases]
+    .join(' ')
+    .toLowerCase();
+  return emphasisTags.some((tag) => haystack.includes(tag)) ? 3 : 2;
+}
+
+function buildCandidateFamilyRoleScores(
+  cluster: ClusterId,
+  familyIds: string[],
+  emphasisTags: string[]
+): Partial<Record<RoleId, number>> {
+  return Object.fromEntries(
+    ROLE_CANDIDATES.filter(
+      (role) => candidateCluster(role) === cluster && familyIds.includes(role.familyId)
+    ).map((role) => [
+      role.id,
+      candidateRoleScoreBoost(role, emphasisTags),
+    ])
+  ) as Partial<Record<RoleId, number>>;
+}
+
+function buildCandidateFamilyQuestion(cluster: ClusterId): AssessmentQuestion {
+  const configs: Record<
+    ClusterId,
+    {
+      section: LocalizedText;
+      prompt: LocalizedText;
+      helper: LocalizedText;
+      options: Array<{
+        id: string;
+        label: LocalizedText;
+        signal: LocalizedText;
+        vector: number[];
+        familyIds: string[];
+        emphasisTags: string[];
+      }>;
+    }
+  > = {
+    'people-facing': {
+      section: t('Candidate paths', 'Candidate paths'),
+      prompt: t(
+        'Which of these real-world people-facing settings feels most workable right now?',
+        'इनमें से कौन-सा practical people-facing setting अभी आपको सबसे workable लगता है?'
+      ),
+      helper: t(
+        'This helps separate adjacent people-facing roles beyond the core three.',
+        'यह core three से आगे people-facing adjacent roles को अलग करने में मदद करता है।'
+      ),
+      options: [
+        {
+          id: 'pf_b5_a',
+          label: t(
+            'Written support queues like chat, email, or ticket-based help',
+            'Chat, email या ticket-based help जैसी written support queues'
+          ),
+          signal: t('Written service setting', 'written service setting'),
+          vector: [0, 2, 1, 2, 1, 0],
+          familyIds: ['customer-service'],
+          emphasisTags: ['written', 'response', 'chat', 'email'],
+        },
+        {
+          id: 'pf_b5_b',
+          label: t(
+            'Hiring, onboarding, payroll, or merchant follow-through coordination',
+            'Hiring, onboarding, payroll या merchant follow-through coordination'
+          ),
+          signal: t('People-ops coordination setting', 'people-ops coordination setting'),
+          vector: [1, 1, 2, 3, 0, 1],
+          familyIds: ['people-operations', 'commercial-operations'],
+          emphasisTags: ['candidate', 'hiring', 'merchant', 'payroll', 'onboarding'],
+        },
+        {
+          id: 'pf_b5_c',
+          label: t(
+            'Guest-facing service at a front desk, counter, or dining floor',
+            'Front desk, counter या dining floor पर guest-facing service'
+          ),
+          signal: t('Hospitality guest service setting', 'hospitality guest service setting'),
+          vector: [0, 2, 2, 1, 0, 0],
+          familyIds: ['hospitality'],
+          emphasisTags: ['guest', 'restaurant', 'front-desk', 'service'],
+        },
+        {
+          id: 'pf_b5_d',
+          label: t(
+            'Child-focused care or early-learning support routines',
+            'Child-focused care या early-learning support routines'
+          ),
+          signal: t('Early-years support setting', 'early-years support setting'),
+          vector: [0, 3, 1, 2, 0, 0],
+          familyIds: ['education-services'],
+          emphasisTags: ['child', 'early-years', 'learning'],
+        },
+      ],
+    },
+    'desk-ops': {
+      section: t('Candidate paths', 'Candidate paths'),
+      prompt: t(
+        'Which operations setting sounds closest to the kind of routine you could repeat well?',
+        'इनमें से कौन-सा operations setting उस routine जैसा लगता है जिसे आप बार-बार अच्छी तरह कर सकते हैं?'
+      ),
+      helper: t(
+        'This separates desk, stock, fulfilment, and hands-on operations directions.',
+        'यह desk, stock, fulfilment और hands-on operations directions को अलग करता है।'
+      ),
+      options: [
+        {
+          id: 'do_b5_a',
+          label: t(
+            'Store ops routines like replenishment, stock checks, and floor readiness',
+            'Replenishment, stock checks और floor readiness जैसी store ops routines'
+          ),
+          signal: t('Retail operations setting', 'retail operations setting'),
+          vector: [2, 0, 0, 3, 0, 1],
+          familyIds: ['retail-operations'],
+          emphasisTags: ['stock', 'replenishment', 'floor'],
+        },
+        {
+          id: 'do_b5_b',
+          label: t(
+            'Shipment flow, dispatch exceptions, or vendor and transport coordination',
+            'Shipment flow, dispatch exceptions या vendor और transport coordination'
+          ),
+          signal: t('Logistics coordination setting', 'logistics coordination setting'),
+          vector: [1, 0, 1, 3, 0, 2],
+          familyIds: ['logistics'],
+          emphasisTags: ['shipment', 'dispatch', 'vendor', 'transport'],
+        },
+        {
+          id: 'do_b5_c',
+          label: t(
+            'Inventory movement, scanning, and fulfilment execution inside a warehouse',
+            'Warehouse के अंदर inventory movement, scanning और fulfilment execution'
+          ),
+          signal: t('Warehouse fulfilment setting', 'warehouse fulfilment setting'),
+          vector: [2, 0, 0, 3, 0, 1],
+          familyIds: ['fulfilment'],
+          emphasisTags: ['warehouse', 'inventory', 'scanner'],
+        },
+        {
+          id: 'do_b5_d',
+          label: t(
+            'Room-readiness, kitchen prep, or workshop-style hands-on routines',
+            'Room-readiness, kitchen prep या workshop-style hands-on routines'
+          ),
+          signal: t('Hands-on service operations setting', 'hands-on service operations setting'),
+          vector: [2, 0, 0, 3, 0, 2],
+          familyIds: ['hospitality', 'technical-trades'],
+          emphasisTags: ['room', 'kitchen', 'diagnostic', 'workshop'],
+        },
+      ],
+    },
+    analytical: {
+      section: t('Candidate paths', 'Candidate paths'),
+      prompt: t(
+        'Which analytical path feels closest to the proof you could build next?',
+        'इनमें से कौन-सा analytical path उस proof के सबसे करीब लगता है जिसे आप अगला बना सकते हैं?'
+      ),
+      helper: t(
+        'This separates finance, technical support, and software-adjacent directions.',
+        'यह finance, technical support और software-adjacent directions को अलग करता है।'
+      ),
+      options: [
+        {
+          id: 'an_b5_a',
+          label: t(
+            'Financial records, credit cases, payroll details, or tax-style review',
+            'Financial records, credit cases, payroll details या tax-style review'
+          ),
+          signal: t('Finance operations setting', 'finance operations setting'),
+          vector: [3, 0, 0, 3, 0, 2],
+          familyIds: ['finance-operations', 'people-operations'],
+          emphasisTags: ['credit', 'financial', 'tax', 'payroll', 'employee-data'],
+        },
+        {
+          id: 'an_b5_b',
+          label: t(
+            'Guided technical troubleshooting for users or internal teams',
+            'Users या internal teams के लिए guided technical troubleshooting'
+          ),
+          signal: t('Technical support setting', 'technical support setting'),
+          vector: [1, 1, 1, 2, 0, 3],
+          familyIds: ['technical-support'],
+          emphasisTags: ['technical', 'troubleshooting', 'user-support'],
+        },
+        {
+          id: 'an_b5_c',
+          label: t(
+            'Systematic testing, bug reporting, or beginner web-project execution',
+            'Systematic testing, bug reporting या beginner web-project execution'
+          ),
+          signal: t('Software build-and-test setting', 'software build-and-test setting'),
+          vector: [1, 0, 0, 2, 1, 3],
+          familyIds: ['software'],
+          emphasisTags: ['testing', 'bug', 'coding', 'web'],
+        },
+      ],
+    },
+    creative: {
+      section: t('Candidate paths', 'Candidate paths'),
+      prompt: t(
+        'Which adjacent creative-growth direction feels most real for the next step?',
+        'इनमें से कौन-सी adjacent creative-growth direction अगले step के लिए सबसे real लगती है?'
+      ),
+      helper: t(
+        'This separates field selling, store selling, online catalog work, and visual production.',
+        'यह field selling, store selling, online catalog work और visual production को अलग करता है।'
+      ),
+      options: [
+        {
+          id: 'cr_b5_a',
+          label: t(
+            'Field or relationship-driven selling with targets and follow-through',
+            'Targets और follow-through के साथ field या relationship-driven selling'
+          ),
+          signal: t('Field and financial sales setting', 'field and financial sales setting'),
+          vector: [1, 1, 3, 1, 0, 0],
+          familyIds: ['sales-field', 'financial-sales', 'field-finance'],
+          emphasisTags: ['outdoor', 'field', 'community', 'policy', 'persuasion'],
+        },
+        {
+          id: 'cr_b5_b',
+          label: t(
+            'Store-floor selling where product explanation matters more than pure outreach',
+            'Store-floor selling जहाँ product explanation pure outreach से ज़्यादा important हो'
+          ),
+          signal: t('Retail sales setting', 'retail sales setting'),
+          vector: [1, 1, 3, 1, 0, 0],
+          familyIds: ['retail'],
+          emphasisTags: ['store', 'product', 'explanation'],
+        },
+        {
+          id: 'cr_b5_c',
+          label: t(
+            'Catalog, product listing, or online merchandising work',
+            'Catalog, product listing या online merchandising work'
+          ),
+          signal: t('Catalog and listing setting', 'catalog and listing setting'),
+          vector: [1, 0, 1, 2, 2, 2],
+          familyIds: ['ecommerce-operations'],
+          emphasisTags: ['catalog', 'listing', 'product'],
+        },
+        {
+          id: 'cr_b5_d',
+          label: t(
+            'Visual, multimedia, or editing-led content production',
+            'Visual, multimedia या editing-led content production'
+          ),
+          signal: t('Creative media production setting', 'creative media production setting'),
+          vector: [0, 0, 0, 1, 3, 1],
+          familyIds: ['creative-media'],
+          emphasisTags: ['visual', 'design', 'multimedia', 'editing'],
+        },
+      ],
+    },
+  };
+
+  const config = configs[cluster];
+  return {
+    id: 'b5',
+    section: config.section,
+    prompt: config.prompt,
+    helper: config.helper,
+    options: config.options.map((option) => ({
+      id: option.id,
+      label: option.label,
+      signal: option.signal,
+      vector: option.vector,
+      roleScores: buildCandidateFamilyRoleScores(cluster, option.familyIds, option.emphasisTags),
+    })),
+  };
+}
+
 for (const cluster of Object.keys(BRANCH_QUESTIONS) as ClusterId[]) {
+  BRANCH_QUESTIONS[cluster].push(buildCandidateFamilyQuestion(cluster));
   BRANCH_QUESTIONS[cluster].push(buildFinalistQuestion(cluster));
 }
+
+const ROLE_CLUSTER_BY_ID = Object.fromEntries(
+  MATCHING_CATALOG.roles.map((role) => [role.id, role.cluster])
+) as Record<RoleId, ClusterId>;
+
+const ROLE_DEFINITIONS_BY_CLUSTER = {
+  'people-facing': MATCHING_CATALOG.roles
+    .filter((role) => role.cluster === 'people-facing')
+    .map((role) => ROLE_DEFINITIONS[role.id as RoleId]),
+  'desk-ops': MATCHING_CATALOG.roles
+    .filter((role) => role.cluster === 'desk-ops')
+    .map((role) => ROLE_DEFINITIONS[role.id as RoleId]),
+  'analytical': MATCHING_CATALOG.roles
+    .filter((role) => role.cluster === 'analytical')
+    .map((role) => ROLE_DEFINITIONS[role.id as RoleId]),
+  'creative': MATCHING_CATALOG.roles
+    .filter((role) => role.cluster === 'creative')
+    .map((role) => ROLE_DEFINITIONS[role.id as RoleId]),
+} satisfies Record<ClusterId, RoleDefinition[]>;
+
+const OPTION_ROLE_ALIGNMENT_CACHE = new WeakMap<AssessmentOption, Map<RoleId, number>>();
+const OPTION_CLUSTER_MEAN_CACHE = new WeakMap<AssessmentOption, Map<ClusterId, number>>();
+const TIE_BREAKER_MARGIN_THRESHOLD = 8;
+const WARNING_CONFIDENCE_THRESHOLD = 62;
+const WARNING_TOP_THREE_SPREAD_THRESHOLD = 4;
 
 // product.ts re-exports ASSESSMENT_QUESTIONS; UI uses it for the initial question set.
 // The UI must call getNextQuestions() after routing phase to load branch questions.
@@ -1868,7 +2204,7 @@ function computeConfidence(
   );
   const margin = sorted[0][1] - sorted[1][1];
   let topCluster = sorted[0][0];
-  // FIX (Issue 4): honor an explicit tie-breaker answer within 3 pts of the leader.
+  // Honor an explicit tie-breaker answer within 3 pts of the leader.
   if (preferredCluster) {
     const prefScore = clusterScores[preferredCluster] ?? 0;
     if (sorted[0][1] - prefScore <= 3) topCluster = preferredCluster;
@@ -1876,15 +2212,168 @@ function computeConfidence(
   return {
     topCluster,
     margin,
-    needsTieBreaker: margin < 5, // FIX (Issue 4): was < 8
+    needsTieBreaker: margin < TIE_BREAKER_MARGIN_THRESHOLD,
   };
 }
 
+function cosineSimilarity(left: number[], right: number[]): number {
+  const dot = left.reduce((sum, value, index) => sum + value * right[index], 0);
+  const leftMagnitude = Math.sqrt(left.reduce((sum, value) => sum + value * value, 0));
+  const rightMagnitude = Math.sqrt(right.reduce((sum, value) => sum + value * value, 0));
+  if (leftMagnitude === 0 || rightMagnitude === 0) return 0;
+  return dot / (leftMagnitude * rightMagnitude);
+}
+
 function signalAlignment(option: AssessmentOption, role: RoleDefinition): number {
-  return option.vector.reduce(
-    (sum, value, index) => sum + value * role.vector[index],
-    0
+  let roleAlignmentCache = OPTION_ROLE_ALIGNMENT_CACHE.get(option);
+  if (!roleAlignmentCache) {
+    roleAlignmentCache = new Map<RoleId, number>();
+    OPTION_ROLE_ALIGNMENT_CACHE.set(option, roleAlignmentCache);
+  }
+
+  const cachedAlignment = roleAlignmentCache.get(role.id);
+  if (cachedAlignment !== undefined) {
+    return cachedAlignment;
+  }
+
+  const cluster = ROLE_CLUSTER_BY_ID[role.id];
+  const clusterRoles = ROLE_DEFINITIONS_BY_CLUSTER[cluster];
+  const roleCosine = cosineSimilarity(option.vector, role.vector);
+
+  if (!clusterRoles.length) {
+    roleAlignmentCache.set(role.id, roleCosine);
+    return roleCosine;
+  }
+
+  let clusterMeanCache = OPTION_CLUSTER_MEAN_CACHE.get(option);
+  if (!clusterMeanCache) {
+    clusterMeanCache = new Map<ClusterId, number>();
+    OPTION_CLUSTER_MEAN_CACHE.set(option, clusterMeanCache);
+  }
+
+  let clusterMean = clusterMeanCache.get(cluster);
+  if (clusterMean === undefined) {
+    clusterMean =
+      clusterRoles.reduce(
+        (sum, clusterRole) => sum + cosineSimilarity(option.vector, clusterRole.vector),
+        0
+      ) / clusterRoles.length;
+    clusterMeanCache.set(cluster, clusterMean);
+  }
+
+  const alignment = roleCosine - clusterMean;
+  roleAlignmentCache.set(role.id, alignment);
+  return alignment;
+}
+
+function dedupeSignals(signals: LocalizedText[], limit = 3): LocalizedText[] {
+  const distinct: LocalizedText[] = [];
+  const seen = new Set<string>();
+
+  for (const signal of signals) {
+    const key = `${signal.en}__${signal.hi}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    distinct.push(signal);
+    if (distinct.length === limit) break;
+  }
+
+  return distinct;
+}
+
+// Cross-card distinctness: give each top-3 role a lead reason not already claimed
+// by a higher-ranked card, so cards 2 and 3 stop echoing the same #1 signal.
+// Falls back to the role's own best-aligned order when it has nothing else to say.
+function selectDistinctRationale(
+  orderedSignals: LocalizedText[],
+  usedLeadKeys: Set<string>,
+  limit = 3
+): LocalizedText[] {
+  if (orderedSignals.length === 0) return [];
+  const freeIndex = orderedSignals.findIndex(
+    (signal) => !usedLeadKeys.has(`${signal.en}__${signal.hi}`)
   );
+  if (freeIndex <= 0) return orderedSignals.slice(0, limit);
+  const reordered = [
+    orderedSignals[freeIndex],
+    ...orderedSignals.slice(0, freeIndex),
+    ...orderedSignals.slice(freeIndex + 1),
+  ];
+  return reordered.slice(0, limit);
+}
+
+function buildDimensionSnapshot(
+  userVector: number[]
+): AssessmentResult['dimensionSnapshot'] {
+  const keys = [
+    'numerical',
+    'people-reactive',
+    'people-proactive',
+    'process-ops',
+    'creative-output',
+    'analytical-output',
+  ] as const;
+  const total = userVector.reduce((sum, value) => sum + value, 0);
+
+  if (total <= 0) {
+    return {
+      'numerical': 0,
+      'people-reactive': 0,
+      'people-proactive': 0,
+      'process-ops': 0,
+      'creative-output': 0,
+      'analytical-output': 0,
+    };
+  }
+
+  const rawPercentages = userVector.map((value) => (value / total) * 100);
+  const floored = rawPercentages.map((value) => Math.floor(value));
+  let remaining = 100 - floored.reduce((sum, value) => sum + value, 0);
+  const rankedFractions = rawPercentages
+    .map((value, index) => ({ index, fraction: value - floored[index] }))
+    .sort((left, right) => right.fraction - left.fraction || left.index - right.index);
+
+  for (const item of rankedFractions) {
+    if (remaining <= 0) break;
+    floored[item.index] += 1;
+    remaining -= 1;
+  }
+
+  return Object.fromEntries(
+    keys.map((key, index) => [key, floored[index]])
+  ) as AssessmentResult['dimensionSnapshot'];
+}
+
+function toSimilarityScore(value: number): number {
+  return Math.max(0, Math.min(99, Math.round(value * 100)));
+}
+
+function applyScoringConfigToSelectedOptions(
+  options: AssessmentOption[],
+  scoringConfig: AssessmentScoringConfig
+): AssessmentOption[] {
+  const finalistScale =
+    scoringConfig.finalistWeight / DEFAULT_ASSESSMENT_SCORING_CONFIG.finalistWeight;
+
+  if (finalistScale === 1) {
+    return options;
+  }
+
+  return options.map((option) => {
+    if (!option.id.startsWith('rf_') || !option.roleScores) {
+      return option;
+    }
+
+    return {
+      ...option,
+      roleScores: Object.fromEntries(
+        Object.entries(option.roleScores).map(([roleId, points]) => [
+          roleId,
+          Number((points * finalistScale).toFixed(3)),
+        ])
+      ) as Partial<Record<RoleId, number>>,
+    };
+  });
 }
 
 // ─── Public helpers ───────────────────────────────────────────────────────────
@@ -1958,6 +2447,7 @@ function resolveAssessmentPath(
     'b2',
     'b3',
     'b4',
+    'b5',
     'rf',
   ]);
   for (const questionId of Object.keys(responses)) {
@@ -2046,7 +2536,7 @@ export function validateAssessmentResponses(
  *
  * Before Phase 1 is complete: returns the 5 routing questions.
  * After Phase 1, if tie-breaker needed and not answered: appends tie-breaker.
- * After cluster determined: appends the 4 evidence questions + 1 finalist question for that cluster.
+ * After cluster determined: appends the 5 evidence questions + 1 finalist question for that cluster.
  */
 export function getNextQuestions(
   responses: Record<string, string>
@@ -2085,16 +2575,38 @@ export function getNextQuestions(
   return [...ROUTING_QUESTIONS, ...branch];
 }
 
+export function pruneOrphanResponses(
+  responses: Record<string, string>
+): Record<string, string> {
+  const activeQuestions = getNextQuestions(responses);
+  const activeQuestionsById = new Map(activeQuestions.map((question) => [question.id, question]));
+
+  return Object.fromEntries(
+    Object.entries(responses).filter(([questionId, optionId]) => {
+      const question = activeQuestionsById.get(questionId);
+      return question ? question.options.some((option) => option.id === optionId) : false;
+    })
+  );
+}
+
 // ─── Main scoring function ────────────────────────────────────────────────────
 
 export function scoreAssessment(
   responses: Record<string, string>,
   profileSeed: Partial<AssessmentProfile> = {},
-  locale: Locale = 'en'
+  locale: Locale = 'en',
+  scoringConfigOverride?: Partial<AssessmentScoringConfig>
 ): AssessmentResult {
   const validated = validateAssessmentResponses(responses);
+  const scoringConfig: AssessmentScoringConfig = {
+    ...DEFAULT_ASSESSMENT_SCORING_CONFIG,
+    ...(scoringConfigOverride || {}),
+  };
   const profile: AssessmentProfile = { locale, ...profileSeed };
-  const allSelected = [...validated.routingOptions, ...validated.branchOptions];
+  const allSelected = applyScoringConfigToSelectedOptions(
+    [...validated.routingOptions, ...validated.branchOptions],
+    scoringConfig
+  );
   for (const option of allSelected) {
     if (option.profilePatch) Object.assign(profile, option.profilePatch);
     if (option.objectiveEvidencePatch) {
@@ -2106,25 +2618,64 @@ export function scoreAssessment(
   }
   const userVector = computeUserVector(allSelected);
   const personEvidence = buildPersonEvidence(allSelected, profile, validated.requiredAnswerCount);
-  const matching = scoreEvidence(personEvidence, MATCHING_CATALOG);
+  const matching = scoreEvidence(personEvidence, MATCHING_CATALOG, scoringConfig);
+  const rationaleOptions = allSelected.filter((option) => !option.id.startsWith('rf_'));
+  const evidenceByRoleId = new Map(
+    matching.rankedRoles.map((evidence) => [evidence.roleId as RoleId, evidence])
+  );
 
   const scoredRoles = matching.rankedRoles.map((evidence) => {
     const roleId = evidence.roleId as RoleId;
     const role = ROLE_DEFINITIONS[roleId];
-    const rationaleSignals = allSelected
+    const alignedSignals = rationaleOptions
       .map((option) => ({ signal: option.signal, alignment: signalAlignment(option, role) }))
-      .sort((left, right) => right.alignment - left.alignment)
-      .slice(0, 3)
-      .map((item) => item.signal);
-    return { ...evidence, roleId, role, rationaleSignals };
+      .sort((left, right) => right.alignment - left.alignment);
+    const orderedSignals = dedupeSignals(
+      [
+        ...alignedSignals
+          .filter((item) => item.alignment > 0)
+          .map((item) => item.signal),
+        ...alignedSignals.map((item) => item.signal),
+      ],
+      Number.MAX_SAFE_INTEGER
+    );
+    const rationaleSignals = orderedSignals.slice(0, 3);
+    return { ...evidence, roleId, role, rationaleSignals, orderedSignals };
   });
 
   const allScores = Object.fromEntries(
     scoredRoles.map((item) => [item.roleId, item.score])
   ) as Record<RoleId, number>;
 
-  const topRoles = scoredRoles.slice(0, 3).map((item, index) => {
-    const rationale = buildRoleRationale(item.role, item.rationaleSignals, profile, locale);
+  const scoredCoreRoles = [...scoredRoles.filter((item) => CORE_ROLE_ID_SET.has(item.roleId))].sort(
+    (left, right) =>
+      right.score - left.score || ROLE_ORDER.indexOf(left.roleId) - ROLE_ORDER.indexOf(right.roleId)
+  );
+  const nonContradictoryCoreRoles = scoredCoreRoles.filter(
+    (item) => item.eligibility !== 'conditional'
+  );
+  const rankedCoreRoles = nonContradictoryCoreRoles;
+
+  // Phantom-card guard (#6): a role from a different cluster than the routed one
+  // carries zero branch evidence (branch questions only score the winning cluster),
+  // so padding it into topRoles shows a weak cross-cluster role on the same scale
+  // as the evidence-backed leaders. Keep only in-cluster roles or ones with real
+  // branch evidence — a 2-role cluster (analytical) then honestly shows 2 cards.
+  const credibleTopRoles = rankedCoreRoles.filter(
+    (item) =>
+      ROLE_CLUSTER_BY_ID[item.roleId] === validated.cluster ||
+      (item.components.branchPreference ?? 0) > 0
+  );
+  const topRoleSource = (
+    credibleTopRoles.length > 0 ? credibleTopRoles : rankedCoreRoles
+  ).slice(0, 3);
+
+  const usedLeadSignalKeys = new Set<string>();
+  const topRoles = topRoleSource.map((item, index) => {
+    const supportingSignals = selectDistinctRationale(item.orderedSignals, usedLeadSignalKeys);
+    const leadSignal = supportingSignals[0];
+    if (leadSignal) usedLeadSignalKeys.add(`${leadSignal.en}__${leadSignal.hi}`);
+    const rationale = buildRoleRationale(item.role, supportingSignals, profile, locale);
     if (item.eligibility === 'insufficient-evidence') {
       rationale.en += ' Confirm the role-specific education and tool requirements before applying.';
       rationale.hi += ' आवेदन से पहले भूमिका की शिक्षा और उपकरण संबंधी आवश्यकताएं जांच लें।';
@@ -2134,7 +2685,7 @@ export function scoreAssessment(
       role: item.role,
       score: item.score,
       rationale,
-      supportingSignals: item.rationaleSignals,
+      supportingSignals,
       strengthLabel: getRankDirectionLabel(index),
       eligibility: item.eligibility,
       eligibilityReasons: item.eligibilityReasons,
@@ -2143,16 +2694,43 @@ export function scoreAssessment(
     };
   });
 
+  // Adjacent roles share the same evidence-pipeline scale as topRoles (#11) — the
+  // old raw-cosine ×100 (cap 99) routinely printed "explore" roles above the
+  // headline match in the same payload. Rank by the computed scoreRole output, then
+  // order-preservingly clamp the whole list below the #1 match so an adjacent
+  // suggestion can never outscore the primary recommendation on screen.
+  const headlineScore = topRoles[0]?.score ?? 100;
+  const rankedAdjacent = ADJACENT_ROLE_ORDER.map((roleId) => {
+    const role = ROLE_DEFINITIONS[roleId];
+    const evidence = evidenceByRoleId.get(roleId);
+    return {
+      roleId,
+      role,
+      score: evidence
+        ? evidence.score
+        : toSimilarityScore(cosineSimilarity(userVector, role.vector)),
+      eligibility: evidence?.eligibility || 'insufficient-evidence',
+      eligibilityReasons: evidence?.eligibilityReasons || [],
+    };
+  }).sort(
+    (left, right) =>
+      right.score - left.score ||
+      ADJACENT_ROLE_ORDER.indexOf(left.roleId) - ADJACENT_ROLE_ORDER.indexOf(right.roleId)
+  );
+  const maxAdjacentScore = rankedAdjacent.length ? rankedAdjacent[0].score : 0;
+  const adjacentRoles =
+    maxAdjacentScore >= headlineScore && maxAdjacentScore > 0
+      ? rankedAdjacent.map((item) => ({
+          ...item,
+          score: Math.max(
+            0,
+            Math.min(item.score, Math.round((item.score * (headlineScore - 1)) / maxAdjacentScore))
+          ),
+        }))
+      : rankedAdjacent;
+
   // Step 7: Dimension snapshot (6-dim, normalised 0-100)
-  const total = Math.max(1, userVector.reduce((s, v) => s + v, 0));
-  const dimensionSnapshot = {
-    'numerical': Math.round((userVector[0] / total) * 100),
-    'people-reactive': Math.round((userVector[1] / total) * 100),
-    'people-proactive': Math.round((userVector[2] / total) * 100),
-    'process-ops': Math.round((userVector[3] / total) * 100),
-    'creative-output': Math.round((userVector[4] / total) * 100),
-    'analytical-output': Math.round((userVector[5] / total) * 100),
-  };
+  const dimensionSnapshot = buildDimensionSnapshot(userVector);
 
   const summary: LocalizedText = topRoles[0]
     ? {
@@ -2168,13 +2746,17 @@ export function scoreAssessment(
         hi: 'सबसे अच्छा रास्ता सुझाने के लिए हमें कुछ और जानकारी चाहिए।',
       };
 
+  const topThreeSpread =
+    topRoles.length > 1
+      ? topRoles[0].score - topRoles[Math.min(2, topRoles.length - 1)].score
+      : Number.POSITIVE_INFINITY;
   const warning: LocalizedText | null =
-    matching.confidence.band === 'low'
+    matching.confidence.index < WARNING_CONFIDENCE_THRESHOLD
       ? t(
           'Treat this as a starting direction, not a final answer. Add a short work sample or portfolio proof before relying on it.',
           'इसे अंतिम जवाब नहीं, शुरुआती दिशा मानें। इस पर भरोसा करने से पहले छोटा work sample या portfolio proof जोड़ें।'
         )
-      : matching.confidence.separation < 0.25
+      : topThreeSpread <= WARNING_TOP_THREE_SPREAD_THRESHOLD
         ? t(
             'Several roles are close. Compare the work conditions and complete one proof task before deciding.',
             'कई भूमिकाएं करीब हैं। फैसला लेने से पहले काम की स्थितियां compare करें और एक proof task पूरा करें।'
@@ -2191,6 +2773,7 @@ export function scoreAssessment(
     scoringVersion: matching.scoringVersion,
     catalogVersion: matching.catalogVersion,
     topRoles,
+    adjacentRoles,
     allScores,
     summary,
     warning,

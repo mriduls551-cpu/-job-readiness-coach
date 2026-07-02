@@ -7,20 +7,20 @@ import { scoreAssessment } from '@/lib/assessment-engine';
 // Analytical persona who picks ACCOUNTING on every branch question.
 const accountingResponses = {
   r1: 'r1_d', r2: 'r2_d', r3: 'r3_a', r4: 'r4_c', r5: 'r5_b',
-  b1: 'an_b1_b', b2: 'an_b2_b', b3: 'an_b3_b', b4: 'an_b4_b', rf: 'rf_accounting-finance-assistant',
+  b1: 'an_b1_b', b2: 'an_b2_b', b3: 'an_b3_b', b4: 'an_b4_b', b5: 'an_b5_a', rf: 'rf_accounting-finance-assistant',
 };
 
 // Wants finance but is weak at numbers (r3_d -> numbersConfidence low) — disqualifier case.
 const numbersWeakResponses = {
   r1: 'r1_d', r2: 'r2_d', r3: 'r3_d', r4: 'r4_c', r5: 'r5_b',
-  b1: 'an_b1_b', b2: 'an_b2_b', b3: 'an_b3_b', b4: 'an_b4_b', rf: 'rf_accounting-finance-assistant',
+  b1: 'an_b1_b', b2: 'an_b2_b', b3: 'an_b3_b', b4: 'an_b4_b', b5: 'an_b5_a', rf: 'rf_accounting-finance-assistant',
 };
 
 // Clear writer who also thinks analytically; picks the creative tie-breaker.
 const creativeResponses = {
   r1: 'r1_d', r2: 'r2_c', r3: 'r3_c', r4: 'r4_d', r5: 'r5_d',
   rtb: 'rtb_c',
-  b1: 'cr_b1_a', b2: 'cr_b2_a', b3: 'cr_b3_a', b4: 'cr_b4_a', rf: 'rf_content-writer',
+  b1: 'cr_b1_a', b2: 'cr_b2_a', b3: 'cr_b3_a', b4: 'cr_b4_a', b5: 'cr_b5_c', rf: 'rf_content-writer',
 };
 
 describe('Issue 1 — branch roleScores drive within-cluster ranking', () => {

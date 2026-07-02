@@ -46,6 +46,100 @@ function selectedOptions(responses: Record<string, string>) {
     .filter((option): option is AssessmentOption => Boolean(option));
 }
 
+function clusterScores(responses: Record<string, string>) {
+  return selectedOptions(responses).reduce<Record<ClusterId, number>>(
+    (scores, option) => {
+      for (const [cluster, points] of Object.entries(option.clusterScores || {})) {
+        scores[cluster as ClusterId] += points;
+      }
+      return scores;
+    },
+    {
+      'people-facing': 0,
+      'desk-ops': 0,
+      analytical: 0,
+      creative: 0,
+    }
+  );
+}
+
+function addClusterScores(
+  left: Record<ClusterId, number>,
+  right: Record<ClusterId, number>
+): Record<ClusterId, number> {
+  return {
+    'people-facing': left['people-facing'] + right['people-facing'],
+    'desk-ops': left['desk-ops'] + right['desk-ops'],
+    analytical: left.analytical + right.analytical,
+    creative: left.creative + right.creative,
+  };
+}
+
+function resolveCluster(
+  scores: Record<ClusterId, number>,
+  threshold: number,
+  preferredCluster?: ClusterId
+) {
+  const sorted = (Object.entries(scores) as Array<[ClusterId, number]>).sort(
+    (left, right) => right[1] - left[1]
+  );
+  let topCluster = sorted[0][0];
+  if (preferredCluster) {
+    const preferredScore = scores[preferredCluster] ?? 0;
+    if (sorted[0][1] - preferredScore <= 3) {
+      topCluster = preferredCluster;
+    }
+  }
+  return {
+    topCluster,
+    margin: sorted[0][1] - sorted[1][1],
+    needsTieBreaker: sorted[0][1] - sorted[1][1] < threshold,
+  };
+}
+
+function preferredClusterFromTieBreaker(optionId: string): ClusterId {
+  const option = TIE_BREAKER_QUESTION.options.find((item) => item.id === optionId);
+  if (!option?.clusterScores) {
+    throw new Error(`Unknown tie-breaker option ${optionId}`);
+  }
+  const winner = Object.entries(option.clusterScores).sort((left, right) => right[1] - left[1])[0]?.[0];
+  if (!winner) {
+    throw new Error(`Tie-breaker option ${optionId} has no cluster scores`);
+  }
+  return winner as ClusterId;
+}
+
+function tieBreakerBacktest(threshold: number) {
+  const candidates = PERSONAS.filter((persona) => persona.tieBreaker);
+  let correct = 0;
+  let triggered = 0;
+
+  for (const persona of candidates) {
+    const baseScores = clusterScores(persona.routing);
+    const base = resolveCluster(baseScores, threshold);
+    let finalCluster = base.topCluster;
+    if (base.needsTieBreaker && persona.tieBreaker) {
+      triggered += 1;
+      const tieScores = clusterScores({ [TIE_BREAKER_QUESTION.id]: persona.tieBreaker });
+      finalCluster = resolveCluster(
+        addClusterScores(baseScores, tieScores),
+        threshold,
+        preferredClusterFromTieBreaker(persona.tieBreaker)
+      ).topCluster;
+    }
+    if (finalCluster === persona.expectedCluster) {
+      correct += 1;
+    }
+  }
+
+  return {
+    cases: candidates.length,
+    correct,
+    rate: correct / candidates.length,
+    tieBreakerTriggered: triggered,
+  };
+}
+
 function rankSimpleAdditive(responses: Record<string, string>) {
   const totals = Object.fromEntries(ROLE_ORDER.map((roleId) => [roleId, 0])) as Record<RoleId, number>;
   for (const option of selectedOptions(responses)) {
@@ -137,31 +231,62 @@ function catalogWitness(roleId: string, cluster: ClusterId) {
 
 describe('algorithm benchmark artifact', () => {
   it('compares frozen production and three simpler/current models', () => {
+    const currentScoringVersion = scoreAssessment(buildResponses(PERSONAS[0]), PERSONAS[0].seed).scoringVersion;
+    const currentModelKey = currentScoringVersion.replace(/-([a-z0-9])/g, (_match, next) =>
+      String(next).toUpperCase()
+    );
+    const tieBreakerThresholdBacktest = {
+      marginLt5: tieBreakerBacktest(5),
+      marginLt8: tieBreakerBacktest(8),
+      chosenThreshold: 8,
+    };
     const hybridMetrics = metrics((responses, persona) =>
       scoreAssessment(responses, persona.seed).topRoles.map((role) => role.roleId)
     );
     const hybridTopScores = PERSONAS.map((persona) =>
       scoreAssessment(buildResponses(persona), persona.seed).topRoles[0].score
     );
+    const hybridResults = PERSONAS.map((persona) => scoreAssessment(buildResponses(persona), persona.seed));
+    const clusterAccuracy = {
+      cases: PERSONAS.length,
+      correct: hybridResults.filter((result, index) => result.cluster === PERSONAS[index].expectedCluster).length,
+    };
+    const warningRate = {
+      cases: PERSONAS.length,
+      flagged: hybridResults.filter((result) => result.warning !== null).length,
+    };
+    const coreRoleIds = new Set(ROLE_ORDER.slice(0, 11));
     const reachability = MATCHING_CATALOG.roles.map((policy) => {
       const result = scoreAssessment(catalogWitness(policy.id, policy.cluster as ClusterId));
       const visible = result.topRoles.map((role) => role.roleId);
+      const adjacent = result.adjacentRoles?.map((role) => role.roleId) || [];
       return {
         roleId: policy.id,
         lifecycleStatus: policy.lifecycleStatus,
-        topOne: visible[0] === policy.id,
-        topThree: visible.includes(policy.id as RoleId),
+        topOne: coreRoleIds.has(policy.id as RoleId) ? visible[0] === policy.id : false,
+        topThree: coreRoleIds.has(policy.id as RoleId) ? visible.includes(policy.id as RoleId) : false,
+        adjacentList: coreRoleIds.has(policy.id as RoleId) ? false : adjacent.includes(policy.id as RoleId),
       };
     });
 
     const output = {
       generatedAt: new Date().toISOString(),
-      scoringVersion: scoreAssessment(buildResponses(PERSONAS[0]), PERSONAS[0].seed).scoringVersion,
+      scoringVersion: currentScoringVersion,
       warning: 'Synthetic personas test structure only; these rates are not predictive validity.',
+      tieBreakerThresholdBacktest,
+      clusterAccuracy: {
+        ...clusterAccuracy,
+        rate: clusterAccuracy.correct / clusterAccuracy.cases,
+      },
+      warningRate: {
+        ...warningRate,
+        rate: warningRate.flagged / warningRate.cases,
+      },
       catalogReachability: {
         roles: reachability.length,
         rolesInTopOneOnWitnessPath: reachability.filter((item) => item.topOne).length,
         rolesInTopThreeOnWitnessPath: reachability.filter((item) => item.topThree).length,
+        candidateRolesInAdjacentListOnWitnessPath: reachability.filter((item) => item.adjacentList).length,
         gatedRoles: reachability.filter((item) => item.lifecycleStatus === 'gated').length,
       },
       models: {
@@ -178,7 +303,7 @@ describe('algorithm benchmark artifact', () => {
         },
         simpleNormalizedAdditive: metrics((responses) => rankSimpleAdditive(responses)),
         globallyWeightedContent: metrics((responses) => rankGlobalContent(responses)),
-        evidenceHybridV5: {
+        [currentModelKey]: {
           ...hybridMetrics,
           topScoreAt99: hybridTopScores.filter((score) => score === 99).length,
           meanTopScore: hybridTopScores.reduce((sum, score) => sum + score, 0) / hybridTopScores.length,
@@ -192,12 +317,26 @@ describe('algorithm benchmark artifact', () => {
       'utf8'
     );
 
-    expect(output.models.evidenceHybridV5.topScoreAt99).toBeLessThan(
+    const currentModel = output.models[currentModelKey] as {
+      topScoreAt99: number;
+      rolesInTop1: number;
+      rolesInTop3: number;
+    };
+
+    expect(currentModel.topScoreAt99).toBeLessThan(
       output.models.frozenProductionV2.topScoreAt99
     );
-    expect(output.models.evidenceHybridV5.rolesInTop3).toBeGreaterThanOrEqual(10);
-    expect(output.models.evidenceHybridV5.rolesInTop1).toBeGreaterThanOrEqual(10);
-    expect(output.catalogReachability.rolesInTopThreeOnWitnessPath).toBeGreaterThanOrEqual(35);
-    expect(output.catalogReachability.rolesInTopThreeOnWitnessPath).toBeLessThanOrEqual(ROLE_ORDER.length);
+    expect(currentModel.rolesInTop3).toBeGreaterThanOrEqual(10);
+    expect(currentModel.rolesInTop1).toBeGreaterThanOrEqual(10);
+    expect(output.tieBreakerThresholdBacktest.marginLt8.correct).toBeGreaterThanOrEqual(
+      output.tieBreakerThresholdBacktest.marginLt5.correct
+    );
+    expect(output.clusterAccuracy.rate).toBeGreaterThanOrEqual(0.85);
+    expect(output.warningRate.rate).toBeLessThanOrEqual(0.15);
+    expect(output.catalogReachability.rolesInTopThreeOnWitnessPath).toBeGreaterThanOrEqual(10);
+    expect(output.catalogReachability.rolesInTopThreeOnWitnessPath).toBeLessThanOrEqual(11);
+    expect(output.catalogReachability.candidateRolesInAdjacentListOnWitnessPath).toBe(
+      ROLE_ORDER.length - coreRoleIds.size
+    );
   });
 });

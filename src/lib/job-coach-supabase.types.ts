@@ -45,6 +45,8 @@ export interface JobCoachDatabase {
           responses: Json;
           profile: Json;
           selected_role: string | null;
+          feedback: 'yes' | 'somewhat' | 'no' | null;
+          scoring_variant: string | null;
           role_scores: Json;
           result_snapshot: Json | null;
           scoring_version: string | null;
@@ -59,6 +61,8 @@ export interface JobCoachDatabase {
           responses: Json;
           profile: Json;
           selected_role?: string | null;
+          feedback?: 'yes' | 'somewhat' | 'no' | null;
+          scoring_variant?: string | null;
           role_scores: Json;
           result_snapshot?: Json | null;
           scoring_version?: string | null;
@@ -73,6 +77,8 @@ export interface JobCoachDatabase {
           responses?: Json;
           profile?: Json;
           selected_role?: string | null;
+          feedback?: 'yes' | 'somewhat' | 'no' | null;
+          scoring_variant?: string | null;
           role_scores?: Json;
           result_snapshot?: Json | null;
           scoring_version?: string | null;

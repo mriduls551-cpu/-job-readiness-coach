@@ -1,11 +1,37 @@
 {
-  "generatedAt": "2026-06-27T19:15:59.408Z",
-  "scoringVersion": "evidence-hybrid-v5",
+  "generatedAt": "2026-07-02T19:13:35.457Z",
+  "scoringVersion": "evidence-hybrid-v9",
   "warning": "Synthetic personas test structure only; these rates are not predictive validity.",
+  "tieBreakerThresholdBacktest": {
+    "marginLt5": {
+      "cases": 7,
+      "correct": 7,
+      "rate": 1,
+      "tieBreakerTriggered": 7
+    },
+    "marginLt8": {
+      "cases": 7,
+      "correct": 7,
+      "rate": 1,
+      "tieBreakerTriggered": 7
+    },
+    "chosenThreshold": 8
+  },
+  "clusterAccuracy": {
+    "cases": 20,
+    "correct": 20,
+    "rate": 1
+  },
+  "warningRate": {
+    "cases": 20,
+    "flagged": 1,
+    "rate": 0.05
+  },
   "catalogReachability": {
     "roles": 41,
-    "rolesInTopOneOnWitnessPath": 36,
-    "rolesInTopThreeOnWitnessPath": 36,
+    "rolesInTopOneOnWitnessPath": 11,
+    "rolesInTopThreeOnWitnessPath": 11,
+    "candidateRolesInAdjacentListOnWitnessPath": 30,
     "gatedRoles": 10
   },
   "models": {
@@ -27,27 +53,27 @@
       "top1Rate": 1,
       "top3Rate": 1,
       "rolesInTop1": 11,
-      "rolesInTop3": 11
+      "rolesInTop3": 17
     },
     "globallyWeightedContent": {
       "cases": 20,
-      "top1": 19,
-      "top3": 20,
-      "top1Rate": 0.95,
-      "top3Rate": 1,
-      "rolesInTop1": 10,
+      "top1": 11,
+      "top3": 18,
+      "top1Rate": 0.55,
+      "top3Rate": 0.9,
+      "rolesInTop1": 11,
       "rolesInTop3": 22
     },
-    "evidenceHybridV5": {
+    "evidenceHybridV9": {
       "cases": 20,
-      "top1": 17,
-      "top3": 17,
-      "top1Rate": 0.85,
-      "top3Rate": 0.85,
-      "rolesInTop1": 14,
-      "rolesInTop3": 22,
+      "top1": 19,
+      "top3": 19,
+      "top1Rate": 0.95,
+      "top3Rate": 0.95,
+      "rolesInTop1": 11,
+      "rolesInTop3": 11,
       "topScoreAt99": 0,
-      "meanTopScore": 80.65
+      "meanTopScore": 86.45
     }
   }
 }

@@ -2,7 +2,12 @@
  * Client-side session management
  */
 
-import { isActiveRoleId, type AssessmentResult, type RoleId } from '@/lib/product';
+import {
+  isActiveRoleId,
+  type AssessmentFeedback,
+  type AssessmentResult,
+  type RoleId,
+} from '@/lib/product';
 import { useAppStore } from '@/lib/store';
 
 export interface StoredUser {
@@ -17,6 +22,7 @@ interface SessionData {
   token: string | null;
   latestAssessment: AssessmentResult | null;
   selectedRole: RoleId | null;
+  assessmentFeedback: AssessmentFeedback | null;
   locale: 'en' | 'hi';
   resumeDraft: any | null;
 }
@@ -24,6 +30,7 @@ interface SessionData {
 export interface StoredAssessmentState {
   result: AssessmentResult | null;
   selectedRoleId: RoleId | null;
+  feedback: AssessmentFeedback | null;
 }
 
 const SESSION_KEY = 'job-readiness-session';
@@ -37,6 +44,7 @@ function getSession(): SessionData {
       token: null,
       latestAssessment: null,
       selectedRole: null,
+      assessmentFeedback: null,
       locale: 'en',
       resumeDraft: null,
     };
@@ -44,7 +52,8 @@ function getSession(): SessionData {
 
   try {
     const stored = localStorage.getItem(SESSION_KEY);
-    return stored ? JSON.parse(stored) : createEmptySession();
+    if (!stored) return createEmptySession();
+    return { ...createEmptySession(), ...JSON.parse(stored) } as SessionData;
   } catch {
     return createEmptySession();
   }
@@ -56,6 +65,7 @@ function createEmptySession(): SessionData {
     token: null,
     latestAssessment: null,
     selectedRole: null,
+    assessmentFeedback: null,
     locale: 'en',
     resumeDraft: null,
   };
@@ -77,7 +87,7 @@ export function clearSession(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(SESSION_KEY);
   }
-  syncStore({ user: null, latestAssessment: null, selectedRole: null });
+  syncStore({ user: null, latestAssessment: null, selectedRole: null, assessmentFeedback: null });
 }
 
 export function clearStoredUser(): void {
@@ -85,8 +95,9 @@ export function clearStoredUser(): void {
   session.user = null;
   session.latestAssessment = null;
   session.selectedRole = null;
+  session.assessmentFeedback = null;
   saveSession(session);
-  syncStore({ user: null, latestAssessment: null, selectedRole: null });
+  syncStore({ user: null, latestAssessment: null, selectedRole: null, assessmentFeedback: null });
 }
 
 export function setStoredUser(user: StoredUser): void {
@@ -135,8 +146,9 @@ export function clearLatestAssessment(): void {
   const session = getSession();
   session.latestAssessment = null;
   session.selectedRole = null;
+  session.assessmentFeedback = null;
   saveSession(session);
-  syncStore({ latestAssessment: null, selectedRole: null });
+  syncStore({ latestAssessment: null, selectedRole: null, assessmentFeedback: null });
 }
 
 export function getLatestAssessment(): AssessmentResult | null {
@@ -154,6 +166,13 @@ export function setSelectedRole(roleId: RoleId | null): void {
   syncStore({ selectedRole: roleId });
 }
 
+export function setAssessmentFeedback(feedback: AssessmentFeedback | null): void {
+  const session = getSession();
+  session.assessmentFeedback = feedback;
+  saveSession(session);
+  syncStore({ assessmentFeedback: feedback });
+}
+
 export async function persistSelectedRole(
   roleId: RoleId | null
 ): Promise<StoredAssessmentState | null> {
@@ -163,6 +182,7 @@ export async function persistSelectedRole(
     return {
       result: getLatestAssessment(),
       selectedRoleId: null,
+      feedback: getStoredAssessmentFeedback(),
     };
   }
 
@@ -181,20 +201,24 @@ export async function persistSelectedRole(
     const data = await response.json();
     const result = (data.data?.result || null) as AssessmentResult | null;
     const selectedRoleId = (data.data?.selectedRoleId || roleId) as RoleId | null;
+    const feedback = (data.data?.feedback || null) as AssessmentFeedback | null;
 
     if (result) {
       setLatestAssessment(result);
     }
     setSelectedRole(selectedRoleId);
+    setAssessmentFeedback(feedback);
 
     return {
       result,
       selectedRoleId,
+      feedback,
     };
   } catch {
     return {
       result: getLatestAssessment(),
       selectedRoleId: getSelectedRole(),
+      feedback: getStoredAssessmentFeedback(),
     };
   }
 }
@@ -202,6 +226,47 @@ export async function persistSelectedRole(
 export function getSelectedRole(): RoleId | null {
   const roleId = getSession().selectedRole;
   return isActiveRoleId(roleId) ? roleId : null;
+}
+
+export function getStoredAssessmentFeedback(): AssessmentFeedback | null {
+  const feedback = getSession().assessmentFeedback;
+  return feedback === 'yes' || feedback === 'somewhat' || feedback === 'no' ? feedback : null;
+}
+
+export async function persistAssessmentFeedback(
+  feedback: AssessmentFeedback
+): Promise<StoredAssessmentState | null> {
+  try {
+    const response = await fetch('/api/assessment/fit-check', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ feedback }),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    const result = (data.data?.result || null) as AssessmentResult | null;
+    const selectedRoleId = (data.data?.selectedRoleId || getSelectedRole()) as RoleId | null;
+    const persistedFeedback = (data.data?.feedback || feedback) as AssessmentFeedback | null;
+
+    if (result) {
+      setLatestAssessment(result);
+    }
+    setSelectedRole(selectedRoleId);
+    setAssessmentFeedback(persistedFeedback);
+
+    return {
+      result,
+      selectedRoleId,
+      feedback: persistedFeedback,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function setStoredLocale(locale: 'en' | 'hi'): void {
@@ -318,13 +383,16 @@ export async function refreshStoredAssessmentFromServer(): Promise<StoredAssessm
     const data = await response.json();
     const assessment = (data.data?.result || null) as AssessmentResult | null;
     const selectedRoleId = (data.data?.selectedRoleId || null) as RoleId | null;
+    const feedback = (data.data?.feedback || null) as AssessmentFeedback | null;
 
     if (assessment) {
       setLatestAssessment(assessment);
       setSelectedRole(selectedRoleId || assessment.topRoles?.[0]?.roleId || null);
+      setAssessmentFeedback(feedback);
       return {
         result: assessment,
         selectedRoleId: selectedRoleId || assessment.topRoles?.[0]?.roleId || null,
+        feedback,
       };
     }
 
@@ -332,6 +400,7 @@ export async function refreshStoredAssessmentFromServer(): Promise<StoredAssessm
     return {
       result: null,
       selectedRoleId: null,
+      feedback: null,
     };
   } catch {
     return null;

@@ -1,6 +1,6 @@
 # Migration And Rollback
 
-**Migration target:** `constrained-hybrid-v4` / active catalog `2026-06-19.2`
+**Migration target:** `constrained-hybrid-v4` / active catalog `2026-06-19.2` / scorer `evidence-hybrid-v9`
 
 ## Rollout
 
@@ -15,7 +15,9 @@ The migration is additive and does not rewrite historical rows. Complete legacy 
 ## Compatibility
 
 - The API still returns `topRoles`, `cluster`, and `warning`.
+- `topRoles` is now the core-role shortlist only; optional `adjacentRoles` carries the 30 candidate directions separately.
 - New evidence fields and version identifiers are additive.
+- Cluster routing now asks the tie-breaker when the top-two routing clusters are within 8 points; the broad-profile warning triggers when `confidenceScore < 62` or the visible top-three spread is 4 points or less.
 - Historical `telemedicine-coordinator` and `patient-care-coordinator` selections are cleared and require a retake; they are never mapped to another role.
 - The recommendable catalog contains 41 roles. Twenty expansion roles are active with evidence warnings and ten are gated.
 - A v4 path requires `rf` in addition to `b1`-`b4`; v3 paths therefore require a retake instead of silent defaulting.

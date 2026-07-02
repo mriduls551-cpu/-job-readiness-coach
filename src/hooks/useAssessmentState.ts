@@ -8,6 +8,7 @@ import type { RoleId } from '@/lib/product';
 export function useAssessmentState() {
   const assessment = useAppStore((state) => state.latestAssessment);
   const storedRoleId = useAppStore((state) => state.selectedRole);
+  const feedback = useAppStore((state) => state.assessmentFeedback);
   const [loading, setLoading] = useState(true);
 
   // Derive the effective selectedRoleId: stored override > top assessment role
@@ -39,5 +40,5 @@ export function useAssessmentState() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { assessment, selectedRoleId, loading };
+  return { assessment, selectedRoleId, feedback, loading };
 }

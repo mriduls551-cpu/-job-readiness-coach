@@ -1,6 +1,6 @@
 {
   "catalogVersion": "2026-06-19.2",
-  "scoringVersion": "evidence-hybrid-v5",
+  "scoringVersion": "evidence-hybrid-v9",
   "marketPolicy": "disabled-until-sourced",
   "roles": [
     {
@@ -10,6 +10,7 @@
       "preferenceTarget": [1, 9, 3, 5, 2, 1],
       "readiness": { "speaking": "strong" },
       "preferredEducationStreams": [],
+      "educationStreamBoosts": [],
       "objectiveSignals": ["communication"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     },
@@ -20,6 +21,7 @@
       "preferenceTarget": [2, 4, 9, 2, 5, 2],
       "readiness": { "speaking": "strong" },
       "preferredEducationStreams": [],
+      "educationStreamBoosts": [],
       "objectiveSignals": ["communication"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     },
@@ -30,6 +32,7 @@
       "preferenceTarget": [1, 7, 6, 5, 2, 2],
       "readiness": { "speaking": "strong" },
       "preferredEducationStreams": [],
+      "educationStreamBoosts": [],
       "objectiveSignals": ["communication"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     },
@@ -40,6 +43,7 @@
       "preferenceTarget": [2, 5, 7, 6, 2, 2],
       "readiness": { "speaking": "basic", "dataAccuracy": "basic" },
       "preferredEducationStreams": [],
+      "educationStreamBoosts": [],
       "objectiveSignals": ["communication", "accuracy"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     },
@@ -50,6 +54,7 @@
       "preferenceTarget": [7, 1, 1, 9, 1, 3],
       "readiness": { "numbers": "basic", "dataAccuracy": "strong" },
       "preferredEducationStreams": [],
+      "educationStreamBoosts": [],
       "objectiveSignals": ["accuracy", "spreadsheet"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     },
@@ -60,6 +65,7 @@
       "preferenceTarget": [3, 2, 2, 9, 1, 4],
       "readiness": { "dataAccuracy": "basic" },
       "preferredEducationStreams": [],
+      "educationStreamBoosts": [],
       "objectiveSignals": ["accuracy"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     },
@@ -70,6 +76,7 @@
       "preferenceTarget": [6, 2, 2, 7, 1, 9],
       "readiness": { "numbers": "strong", "dataAccuracy": "strong" },
       "preferredEducationStreams": [],
+      "educationStreamBoosts": ["commerce", "science"],
       "objectiveSignals": ["spreadsheet", "accuracy"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     },
@@ -80,6 +87,7 @@
       "preferenceTarget": [9, 1, 1, 7, 1, 5],
       "readiness": { "numbers": "strong", "dataAccuracy": "strong" },
       "preferredEducationStreams": ["commerce"],
+      "educationStreamBoosts": ["commerce", "science"],
       "objectiveSignals": ["accuracy", "spreadsheet"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     },
@@ -90,6 +98,7 @@
       "preferenceTarget": [2, 3, 5, 2, 9, 5],
       "readiness": {},
       "preferredEducationStreams": [],
+      "educationStreamBoosts": [],
       "objectiveSignals": ["writing", "spreadsheet"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     },
@@ -98,8 +107,9 @@
       "version": 1,
       "cluster": "creative",
       "preferenceTarget": [1, 2, 2, 3, 9, 4],
-      "readiness": {},
+      "readiness": { "writing": "strong" },
       "preferredEducationStreams": [],
+      "educationStreamBoosts": [],
       "objectiveSignals": ["writing"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     },
@@ -110,6 +120,7 @@
       "preferenceTarget": [6, 1, 1, 9, 1, 5],
       "readiness": { "numbers": "basic", "dataAccuracy": "strong" },
       "preferredEducationStreams": ["law", "commerce"],
+      "educationStreamBoosts": ["law"],
       "objectiveSignals": ["accuracy", "writing"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     }

@@ -1,6 +1,7 @@
 import {
   ASSESSMENT_QUESTIONS,
   BRANCH_QUESTIONS,
+  CORE_ROLE_ORDER,
   ROLE_ORDER,
   ROLE_DEFINITIONS,
   TIE_BREAKER_QUESTION,
@@ -8,6 +9,7 @@ import {
   buildRoleRationale,
   getLocaleValue,
   getNextQuestions,
+  pruneOrphanResponses,
   scoreAssessment,
   validateAssessmentResponses,
   type AssessmentProfile,
@@ -25,6 +27,7 @@ import { getRolePolicy } from '@/lib/matcher/catalog';
 export {
   ASSESSMENT_QUESTIONS,
   BRANCH_QUESTIONS,
+  CORE_ROLE_ORDER,
   ROLE_ORDER,
   ROLE_DEFINITIONS,
   TIE_BREAKER_QUESTION,
@@ -32,9 +35,12 @@ export {
   buildRoleRationale,
   getLocaleValue,
   getNextQuestions,
+  pruneOrphanResponses,
   scoreAssessment,
   validateAssessmentResponses,
 };
+
+export const ASSESSMENT_FEEDBACK_VALUES = ['yes', 'somewhat', 'no'] as const;
 
 export function isActiveRoleId(value: unknown): value is RoleId {
   return typeof value === 'string' && ROLE_ORDER.includes(value as RoleId);
@@ -58,6 +64,8 @@ export type {
   RoleId,
   RoleMatch,
 };
+
+export type AssessmentFeedback = (typeof ASSESSMENT_FEEDBACK_VALUES)[number];
 
 export interface ReminderItem {
   id: string;
@@ -151,6 +159,7 @@ export function generatePlanTasks(
   applicationCount: number
 ): GeneratedPlanTask[] {
   const role = ROLE_DEFINITIONS[roleId];
+  const starterTaskCategories: GeneratedPlanTask['category'][] = ['skill', 'project', 'assessment'];
   const tasks: GeneratedPlanTask[] = role.starterTasks.map((task, index) => ({
     id: `${roleId}-task-${index + 1}`,
     title: task.en,
@@ -158,8 +167,7 @@ export function generatePlanTasks(
       index === 0
         ? `Start with the highest leverage task for ${role.shortLabel.en}.`
         : `Keep this practical and tied to the jobs you want next.`,
-    category:
-      index === 0 ? 'skill' : index === 1 ? 'assessment' : 'networking',
+    category: starterTaskCategories[index] || 'assessment',
     priority: index === 0 ? 'high' : 'medium',
     dueDate: new Date(
       Date.now() + (index + 2) * 24 * 60 * 60 * 1000

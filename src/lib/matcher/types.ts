@@ -10,7 +10,7 @@ export const DIMENSION_KEYS = [
 export type DimensionKey = (typeof DIMENSION_KEYS)[number];
 export type DimensionVector = [number, number, number, number, number, number];
 
-export type ReadinessSignal = 'numbers' | 'speaking' | 'dataAccuracy';
+export type ReadinessSignal = 'numbers' | 'speaking' | 'dataAccuracy' | 'writing';
 export type ObjectiveSignal =
   | 'communication'
   | 'accuracy'
@@ -44,6 +44,7 @@ export interface RolePolicy {
   preferenceTarget: DimensionVector;
   readiness: Partial<Record<ReadinessSignal, RequirementLevel>>;
   preferredEducationStreams: string[];
+  educationStreamBoosts: string[];
   objectiveSignals: ObjectiveSignal[];
   verificationRequirements: string[];
   marketPrior: {
@@ -71,6 +72,7 @@ export interface PersonEvidence {
     numbers?: string;
     speaking?: string;
     dataAccuracy?: string;
+    writing?: string;
   };
   educationStream?: string;
   objectiveEvidence?: ObjectiveEvidence;

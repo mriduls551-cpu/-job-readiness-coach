@@ -1,6 +1,11 @@
 import { logger } from '@/lib/logger';
+import type {
+  AssessmentScoringConfig,
+  AssessmentScoringVariant,
+} from '@/lib/assessment-experiments';
 import type { JobCoachDatabase, Json } from '@/lib/job-coach-supabase.types';
 import type {
+  AssessmentFeedback,
   AssessmentProfile,
   AssessmentResult,
   Locale,
@@ -9,6 +14,7 @@ import type {
   RoleId,
 } from '@/lib/product';
 import {
+  ASSESSMENT_FEEDBACK_VALUES,
   buildReminders,
   buildStarterResume,
   generatePlanTasks,
@@ -32,6 +38,13 @@ type NudgeRow = JobCoachTables['job_coach_nudges']['Row'];
 type AgentMessageRow = JobCoachTables['job_coach_agent_messages']['Row'];
 type AgentSessionRow = JobCoachTables['job_coach_agent_sessions']['Row'];
 
+function isAssessmentFeedback(value: unknown): value is AssessmentFeedback {
+  return (
+    typeof value === 'string' &&
+    ASSESSMENT_FEEDBACK_VALUES.includes(value as AssessmentFeedback)
+  );
+}
+
 export interface User {
   id: string;
   email: string;
@@ -47,6 +60,8 @@ export interface AssessmentRecord {
   responses: Record<string, string>;
   profile: AssessmentProfile;
   selectedRole?: RoleId;
+  feedback: AssessmentFeedback | null;
+  scoringVariant?: string | null;
   roleScores: Record<RoleId, number>;
   resultSnapshot?: AssessmentResult;
   scoringVersion?: string;
@@ -130,11 +145,16 @@ export interface ProductDB {
   saveAssessment(
     userId: string,
     responses: Record<string, string>,
-    profile: AssessmentProfile
+    profile: AssessmentProfile,
+    options?: {
+      scoringVariant?: AssessmentScoringVariant | null;
+      scoringConfig?: Partial<AssessmentScoringConfig> | null;
+    }
   ): Promise<{ assessment: AssessmentRecord; result: ReturnType<typeof scoreAssessment> }>;
   getLatestAssessment(userId: string): Promise<AssessmentRecord | null>;
   getUserAssessments(userId: string): Promise<AssessmentRecord[]>;
   saveSelectedRole(userId: string, roleId: RoleId): Promise<AssessmentRecord | null>;
+  recordFeedback(userId: string, feedback: AssessmentFeedback): Promise<AssessmentRecord | null>;
   getOrCreateResume(
     userId: string,
     roleId: RoleId,
@@ -279,6 +299,8 @@ function mapAssessmentRow(row: AssessmentRow): AssessmentRecord {
       locale: (profileRecord.locale as Locale | undefined) === 'hi' ? 'hi' : 'en',
     },
     selectedRole: isActiveRoleId(row.selected_role) ? row.selected_role : undefined,
+    feedback: isAssessmentFeedback(row.feedback) ? row.feedback : null,
+    scoringVariant: row.scoring_variant || undefined,
     roleScores: asRoleScoreRecord(row.role_scores),
     resultSnapshot: row.result_snapshot
       ? (row.result_snapshot as unknown as AssessmentResult)
@@ -428,16 +450,27 @@ class InMemoryDB implements ProductDB {
   async saveAssessment(
     userId: string,
     responses: Record<string, string>,
-    profile: AssessmentProfile
+    profile: AssessmentProfile,
+    options?: {
+      scoringVariant?: AssessmentScoringVariant | null;
+      scoringConfig?: Partial<AssessmentScoringConfig> | null;
+    }
   ) {
     const canonicalResponses = validateAssessmentResponses(responses).canonicalResponses;
-    const result = scoreAssessment(canonicalResponses, profile, profile.locale);
+    const result = scoreAssessment(
+      canonicalResponses,
+      profile,
+      profile.locale,
+      options?.scoringConfig || undefined
+    );
     const assessment: AssessmentRecord = {
       id: `assessment-${Date.now()}`,
       userId,
       responses: canonicalResponses,
       profile: result.profile,
       selectedRole: result.topRoles[0]?.roleId,
+      feedback: null,
+      scoringVariant: options?.scoringVariant ?? null,
       roleScores: result.allScores,
       resultSnapshot: result,
       scoringVersion: result.scoringVersion,
@@ -466,6 +499,15 @@ class InMemoryDB implements ProductDB {
     const latest = await this.getLatestAssessment(userId);
     if (!latest) return null;
     latest.selectedRole = roleId;
+    latest.updatedAt = nowIso();
+    this.assessments.set(latest.id, latest);
+    return latest;
+  }
+
+  async recordFeedback(userId: string, feedback: AssessmentFeedback) {
+    const latest = await this.getLatestAssessment(userId);
+    if (!latest) return null;
+    latest.feedback = feedback;
     latest.updatedAt = nowIso();
     this.assessments.set(latest.id, latest);
     return latest;
@@ -781,10 +823,19 @@ class SupabaseDB implements ProductDB {
   async saveAssessment(
     userId: string,
     responses: Record<string, string>,
-    profile: AssessmentProfile
+    profile: AssessmentProfile,
+    options?: {
+      scoringVariant?: AssessmentScoringVariant | null;
+      scoringConfig?: Partial<AssessmentScoringConfig> | null;
+    }
   ) {
     const canonicalResponses = validateAssessmentResponses(responses).canonicalResponses;
-    const result = scoreAssessment(canonicalResponses, profile, profile.locale);
+    const result = scoreAssessment(
+      canonicalResponses,
+      profile,
+      profile.locale,
+      options?.scoringConfig || undefined
+    );
     const timestamp = nowIso();
     const { data, error } = await this.client
       .from('job_coach_assessments')
@@ -793,6 +844,8 @@ class SupabaseDB implements ProductDB {
         responses: canonicalResponses,
         profile: result.profile,
         selected_role: result.topRoles[0]?.roleId || null,
+        feedback: null,
+        scoring_variant: options?.scoringVariant ?? null,
         role_scores: result.allScores,
         result_snapshot: result as unknown as Json,
         scoring_version: result.scoringVersion,
@@ -849,6 +902,24 @@ class SupabaseDB implements ProductDB {
       .single();
 
     this.throwIfError('saveSelectedRole', error);
+    return mapAssessmentRow(data);
+  }
+
+  async recordFeedback(userId: string, feedback: AssessmentFeedback) {
+    const latest = await this.getLatestAssessment(userId);
+    if (!latest) return null;
+
+    const { data, error } = await this.client
+      .from('job_coach_assessments')
+      .update({
+        feedback,
+        updated_at: nowIso(),
+      })
+      .eq('id', latest.id)
+      .select('*')
+      .single();
+
+    this.throwIfError('recordFeedback', error);
     return mapAssessmentRow(data);
   }
 
@@ -1301,7 +1372,10 @@ export function getPersistenceMode(): 'supabase' | 'memory' | 'unavailable' {
 
 export function getDB(): ProductDB {
   if (isSupabaseConfigured()) {
-    if (!globalThis.__dbSupabaseInstance) {
+    if (
+      !globalThis.__dbSupabaseInstance ||
+      typeof (globalThis.__dbSupabaseInstance as ProductDB).recordFeedback !== 'function'
+    ) {
       globalThis.__dbSupabaseInstance = new SupabaseDB();
     }
     return globalThis.__dbSupabaseInstance;
@@ -1313,7 +1387,10 @@ export function getDB(): ProductDB {
     );
   }
 
-  if (!globalThis.__dbMemoryInstance) {
+  if (
+    !globalThis.__dbMemoryInstance ||
+    typeof (globalThis.__dbMemoryInstance as ProductDB).recordFeedback !== 'function'
+  ) {
     globalThis.__dbMemoryInstance = new InMemoryDB();
   }
 

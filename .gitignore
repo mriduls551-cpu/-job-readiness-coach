@@ -62,6 +62,8 @@ results-*.json
 
 # Playwright temp files
 /.tmp-playwright
+/playwright-report
+/test-results
 
 # Duplicate jest config (disk copy; jest.config.ts is canonical)
 /jest.config.js

@@ -1,126 +1,107 @@
 /**
- * E2E: Career Fit Check flow
+ * E2E: Career Fit Check critical path
  *
- * Covers the critical user path:
- *   Landing → Fit Check → answer all questions → Results page
- *
- * Also verifies:
- *   - Bilingual toggle works mid-flow
- *   - Progress indicator advances
- *   - Results page shows at least one role card
+ * Guest flow: Landing -> Fit Check -> answer all questions -> registration gate.
+ * Authentication is intentionally deferred until submission so the saved draft can
+ * replay after registration and then produce results.
  */
 
-import { expect, test } from 'playwright/test';
+import { expect, test, type Page } from 'playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
 
-test.describe('Career Fit Check — core flow', () => {
-  test('can navigate to fit check from landing page', async ({ page }) => {
+async function chooseFirstOption(page: Page) {
+  const options = page.getByRole('radio');
+  await expect(options.first()).toBeVisible({ timeout: 10_000 });
+  await options.first().click();
+}
+
+test.describe('Career Fit Check - critical guest flow', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  test('landing page exposes a direct fit-check route', async ({ page }) => {
     await page.goto(BASE_URL);
-    const ctaLink = page.getByRole('link', { name: /start|fit check|career fit|try it/i }).first();
-    await expect(ctaLink).toBeVisible();
-    await ctaLink.click();
+    const fitCheckLink = page.locator('a[href="/career-fit-check"]').first();
+    await expect(fitCheckLink).toBeVisible();
+    await fitCheckLink.click();
     await expect(page).toHaveURL(/career-fit-check/);
   });
 
-  test('fit check page renders first question', async ({ page }) => {
+  test('guest sees the first question without an auth wall', async ({ page }) => {
     await page.goto(`${BASE_URL}/career-fit-check`);
-    // At least one radio/option button should be visible
-    const options = page.getByRole('radio').or(page.locator('[data-option]'));
-    await expect(options.first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Question 1 of 5')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('radio').first()).toBeVisible();
+    await expect(page.getByText('Account required')).toHaveCount(0);
   });
 
-  test('selecting an option enables the Next button', async ({ page }) => {
+  test('selecting an option enables the exact next-question control', async ({ page }) => {
     await page.goto(`${BASE_URL}/career-fit-check`);
-    // Click the first available option
-    const firstOption = page.locator('[data-option], button[data-value], .selection-option').first();
-    await firstOption.click();
-    const nextBtn = page.getByRole('button', { name: /next|continue|आगे/i });
-    await expect(nextBtn).toBeEnabled();
+    await chooseFirstOption(page);
+
+    const nextButton = page.getByRole('button', { name: 'Next question', exact: true });
+    await expect(nextButton).toBeEnabled();
   });
 
-  test('can complete all questions and reach results', async ({ page }) => {
+  test('draft resumes after a refresh', async ({ page }) => {
+    await page.goto(`${BASE_URL}/career-fit-check`);
+    await chooseFirstOption(page);
+    await page.getByRole('button', { name: 'Next question', exact: true }).press('Enter');
+    await expect(page.getByText('Question 2 of 5')).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByText('Question 2 of 5')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Resume where you left off')).toBeVisible();
+  });
+
+  test('guest completes all questions and is gated only at submission', async ({ page }) => {
     await page.goto(`${BASE_URL}/career-fit-check`);
 
-    // Keep picking the first option and advancing until we land on /results
-    for (let step = 0; step < 12; step++) {
-      const currentUrl = page.url();
-      if (currentUrl.includes('/results')) break;
+    for (let step = 0; step < 14; step += 1) {
+      await chooseFirstOption(page);
 
-      // Pick first selectable option
-      const option = page
-        .locator('.selection-option, [data-option], [role="radio"]')
-        .first();
-
-      // If no options found, we may already be on results
-      const optionCount = await option.count();
-      if (optionCount === 0) break;
-
-      await option.click();
-      await page.waitForTimeout(100);
-
-      const nextBtn = page.getByRole('button', { name: /next|continue|आगे/i });
-      const hasNext = await nextBtn.count();
-      if (hasNext > 0 && await nextBtn.isEnabled()) {
-        await nextBtn.click();
-        await page.waitForURL(/career-fit-check|results/, { timeout: 5000 });
+      const submitButton = page.getByRole('button', {
+        name: 'See my top matches',
+        exact: true,
+      });
+      if ((await submitButton.count()) === 1) {
+        await expect(submitButton).toBeEnabled();
+        await submitButton.press('Enter');
+        break;
       }
+
+      const nextButton = page.getByRole('button', { name: 'Next question', exact: true });
+      const questionProgress = page.getByText(/^Question \d+ of \d+$/);
+      const currentProgress = await questionProgress.textContent();
+      await expect(nextButton).toBeEnabled();
+      await nextButton.press('Enter');
+      await expect(questionProgress).not.toHaveText(currentProgress || '', { timeout: 10_000 });
     }
 
-    await expect(page).toHaveURL(/results/, { timeout: 8000 });
+    await expect(page).toHaveURL(
+      /\/register\?next=%2Fcareer-fit-check%3Fresume%3D1/,
+      { timeout: 10_000 }
+    );
   });
 
-  test('results page shows at least one role match card', async ({ page }) => {
-    // Shortcut: set sessionStorage/localStorage to simulate a completed assessment
-    await page.goto(`${BASE_URL}/career-fit-check`);
-
-    // Complete flow as above, then verify results
-    for (let step = 0; step < 12; step++) {
-      if (page.url().includes('/results')) break;
-      const option = page.locator('.selection-option, [data-option], [role="radio"]').first();
-      if (await option.count() === 0) break;
-      await option.click();
-      await page.waitForTimeout(100);
-      const nextBtn = page.getByRole('button', { name: /next|continue|आगे/i });
-      if (await nextBtn.count() > 0 && await nextBtn.isEnabled()) {
-        await nextBtn.click();
-        await page.waitForURL(/career-fit-check|results/, { timeout: 5000 });
-      }
-    }
-
-    if (!page.url().includes('/results')) {
-      await page.goto(`${BASE_URL}/results`);
-    }
-
-    // Results page should have role cards / match cards
-    const roleCard = page.locator('.match-card, [data-role-card], [data-testid*="role"]').first();
-    await expect(roleCard).toBeVisible({ timeout: 6000 });
+  test('results remain protected for guests', async ({ page }) => {
+    await page.goto(`${BASE_URL}/results`);
+    await expect(page.getByText('Account required')).toBeVisible({ timeout: 10_000 });
   });
 
-  test('locale toggle in fit check switches question language', async ({ page }) => {
+  test('Hindi toggle switches visible question copy', async ({ page }) => {
     await page.goto(`${BASE_URL}/career-fit-check`);
+    const hindiButton = page.getByRole('button', { name: 'हिंदी', exact: true });
+    await expect(hindiButton).toBeVisible({ timeout: 10_000 });
+    await hindiButton.click();
 
-    // Switch to Hindi
-    const hiBtn = page.getByRole('button', { name: /HI|Hindi|Switch to Hindi/i }).first();
-    await hiBtn.click();
-
-    // The page should now contain Devanagari text
-    const pageText = await page.textContent('body');
-    expect(pageText).toMatch(/[ऀ-ॿ]/); // Unicode Devanagari range
+    await expect(page.locator('body')).toContainText(/[\u0900-\u097F]/);
   });
 });
 
-test.describe('Career Fit Check — accessibility', () => {
-  test('fit check page has a visible heading', async ({ page }) => {
+test.describe('Career Fit Check - accessibility', () => {
+  test('uses a visible heading and radiogroup', async ({ page }) => {
     await page.goto(`${BASE_URL}/career-fit-check`);
-    const heading = page.getByRole('heading').first();
-    await expect(heading).toBeVisible();
-  });
-
-  test('navigation landmark is present on fit check page', async ({ page }) => {
-    await page.goto(`${BASE_URL}/career-fit-check`);
-    // Nav should be hidden on the fit check page (it's in HIDE_PATHS... actually it's not)
-    // Just check there's a nav or the body renders without JS errors
-    await expect(page.locator('body')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('radiogroup')).toBeVisible();
   });
 });

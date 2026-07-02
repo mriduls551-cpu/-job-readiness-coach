@@ -47,6 +47,45 @@ export async function captureProductPageView(url: string) {
   await captureProductEvent('$pageview', { $current_url: url });
 }
 
+export async function getProductFeatureFlagVariant(
+  flagKey: string,
+  timeoutMs = 1500
+): Promise<string | boolean | null> {
+  const posthog = await getPostHog();
+  if (!posthog) return null;
+
+  const current = posthog.getFeatureFlag(flagKey);
+  if (current !== undefined) {
+    return current ?? null;
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let unsubscribe: (() => void) | undefined;
+
+    const settle = (value: string | boolean | null | undefined) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      unsubscribe?.();
+      resolve(value ?? null);
+    };
+
+    const timer = window.setTimeout(() => {
+      settle(posthog.getFeatureFlag(flagKey));
+    }, timeoutMs);
+
+    try {
+      unsubscribe = posthog.onFeatureFlags(() => {
+        settle(posthog.getFeatureFlag(flagKey));
+      });
+      posthog.reloadFeatureFlags();
+    } catch {
+      settle(null);
+    }
+  });
+}
+
 export async function identifyProductUser(user: StoredUser | null) {
   const posthog = await getPostHog();
   if (!posthog) return;

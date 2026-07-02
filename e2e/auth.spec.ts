@@ -12,12 +12,14 @@ import { expect, test } from 'playwright/test';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
 
 test.describe('Register page', () => {
+  test.describe.configure({ mode: 'serial' });
+
   test('renders the registration form', async ({ page }) => {
     await page.goto(`${BASE_URL}/register`);
-    await expect(page.getByRole('heading', { name: /register|sign up|create account/i })).toBeVisible();
-    await expect(page.getByLabel(/name/i)).toBeVisible();
-    await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Create account', exact: true })).toBeVisible();
+    await expect(page.getByLabel('Full Name', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Email Address', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
   });
 
   test('top navigation is hidden on /register', async ({ page }) => {
@@ -45,9 +47,9 @@ test.describe('Register page', () => {
 
   test('shows error for short password', async ({ page }) => {
     await page.goto(`${BASE_URL}/register`);
-    await page.getByLabel(/name/i).fill('Priya Singh');
-    await page.getByLabel(/email/i).fill('priya@test.com');
-    await page.getByLabel(/password/i).fill('short');
+    await page.getByLabel('Full Name', { exact: true }).fill('Priya Singh');
+    await page.getByLabel('Email Address', { exact: true }).fill('priya@test.com');
+    await page.getByLabel('Password', { exact: true }).fill('short');
     await page.getByRole('button', { name: /submit|create|register|sign up/i }).click();
     // Expect an error about password length
     const body = await page.textContent('body');
@@ -56,10 +58,12 @@ test.describe('Register page', () => {
 });
 
 test.describe('Login page', () => {
+  test.describe.configure({ mode: 'serial' });
+
   test('renders the login form', async ({ page }) => {
     await page.goto(`${BASE_URL}/login`);
-    await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
+    await expect(page.getByLabel('Email Address', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: /sign in|log in|login/i })).toBeVisible();
   });
 
@@ -74,8 +78,8 @@ test.describe('Login page', () => {
 
   test('shows error on invalid credentials', async ({ page }) => {
     await page.goto(`${BASE_URL}/login`);
-    await page.getByLabel(/email/i).fill('fake@doesnotexist.com');
-    await page.getByLabel(/password/i).fill('wrongpassword');
+    await page.getByLabel('Email Address', { exact: true }).fill('fake@doesnotexist.com');
+    await page.getByLabel('Password', { exact: true }).fill('wrongpassword');
     await page.getByRole('button', { name: /sign in|log in|login/i }).click();
     // Wait for response
     await page.waitForTimeout(2000);

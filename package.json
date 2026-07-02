@@ -18,14 +18,15 @@
     "test:coverage": "jest --config jest.config.ts --coverage",
     "benchmark:algorithm": "jest --config jest.config.ts --runInBand src/lib/__tests__/assessment-benchmark.test.ts",
     "catalog:report": "node scripts/report-role-catalog.mjs",
-    "test:e2e": "node_modules/.bin/playwright test",
-    "test:e2e:ui": "node_modules/.bin/playwright test --ui"
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.71",
     "@ai-sdk/react": "^3.0.208",
     "@hookform/resolvers": "^5.4.0",
     "@radix-ui/react-dialog": "^1.1.17",
+    "@radix-ui/react-radio-group": "^1.4.1",
     "@radix-ui/react-select": "^2.3.1",
     "@radix-ui/react-tooltip": "^1.2.10",
     "@react-email/render": "^2.0.9",
@@ -65,6 +66,7 @@
     "autoprefixer": "^10.4.16",
     "eslint": "^8.55.0",
     "eslint-config-next": "^15.5.18",
+    "fast-check": "^4.3.0",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "msw": "^2.14.6",
