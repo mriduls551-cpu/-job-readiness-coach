@@ -65,3 +65,12 @@ results-*.json
 
 # Duplicate jest config (disk copy; jest.config.ts is canonical)
 /jest.config.js
+
+# TypeScript incremental build artifacts
+*.tsbuildinfo
+
+# SWC cache
+/.swc
+
+# Local Claude settings
+.claude/settings.local.json

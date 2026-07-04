@@ -2,6 +2,9 @@
 
 ## Product PRD and Current Build Status
 
+> **Note (2026-07-05):** superseded by [PRODUCT_PRD_V2.md](PRODUCT_PRD_V2.md) wherever the two
+> conflict (auth gating, role universe, monetization, build sequence). Kept for history and detail.
+
 Last updated: June 2, 2026
 Status: Product recovery in progress
 Primary codebase: Next.js migration
