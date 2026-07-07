@@ -74,3 +74,6 @@ results-*.json
 
 # Local Claude settings
 .claude/settings.local.json
+
+# Generated QA artifacts (screenshots, dev-server logs)
+/output
