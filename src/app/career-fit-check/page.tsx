@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import * as RadioGroup from '@radix-ui/react-radio-group';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  getStoredLocale,
   getStoredUser,
+  getStoredLocale,
   setLatestAssessment,
   setSelectedRole,
   setStoredLocale,
@@ -12,98 +13,154 @@ import {
 import {
   getLocaleValue,
   getNextQuestions,
+  pruneOrphanResponses,
   type AssessmentProfile,
   type Locale,
 } from '@/lib/product';
+import { captureProductEvent } from '@/lib/analytics';
+import { useFitCheckDraftStore } from '@/lib/stores/fitcheck-draft';
 
-export default function CareerFitCheckPage() {
+function CareerFitCheckContent() {
   const router = useRouter();
-  const [locale, setLocale] = useState<Locale>('en');
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [responses, setResponses] = useState<Record<string, string>>({});
-  const [profile, setProfile] = useState<Partial<AssessmentProfile>>({
-    fullName: '',
-    city: '',
-    degreeName: '',
-  });
+  const searchParams = useSearchParams();
+  const {
+    hydrated,
+    locale,
+    currentIndex,
+    responses,
+    profile,
+    updatedAt,
+    setDraft,
+    hydrateDraft,
+    clearDraft,
+  } = useFitCheckDraftStore((state) => state);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const hasBootstrapped = useRef(false);
+  const hasTrackedStart = useRef(false);
+  const hasAttemptedResumeSubmit = useRef(false);
 
+  // No auth wall here: the fit check is answerable anonymously; an account is
+  // asked for at the results/save step (submit) only.
   useEffect(() => {
-    setLocale(getStoredLocale());
-    const storedUser = getStoredUser();
-    // Guard: redirect unauthenticated users to register before they waste 7 minutes
-    if (!storedUser) {
-      router.replace('/register?next=%2Fcareer-fit-check');
+    if (!hydrated || hasBootstrapped.current) {
       return;
     }
-    setProfile((current) => ({ ...current, fullName: storedUser.name }));
-  }, [router]);
+
+    hasBootstrapped.current = true;
+
+    const storedUser = getStoredUser();
+    const storedLocale = getStoredLocale();
+    const normalizedResponses = pruneOrphanResponses(responses);
+    const responsesChanged =
+      Object.keys(normalizedResponses).length !== Object.keys(responses).length ||
+      Object.entries(normalizedResponses).some(
+        ([questionId, optionId]) => responses[questionId] !== optionId
+      );
+    const normalizedQuestions = getNextQuestions(normalizedResponses);
+    const normalizedIndex = Math.min(currentIndex, Math.max(normalizedQuestions.length - 1, 0));
+    const effectiveLocale = updatedAt ? locale : storedLocale;
+    const nextProfile: Partial<AssessmentProfile> =
+      !profile.fullName && storedUser?.name ? { ...profile, fullName: storedUser.name } : profile;
+
+    if (
+      responsesChanged ||
+      normalizedIndex !== currentIndex ||
+      effectiveLocale !== locale ||
+      nextProfile.fullName !== profile.fullName
+    ) {
+      hydrateDraft({
+        responses: normalizedResponses,
+        currentIndex: normalizedIndex,
+        locale: effectiveLocale,
+        profile: nextProfile,
+      });
+    }
+
+    setStoredLocale(effectiveLocale);
+
+    if (!hasTrackedStart.current) {
+      hasTrackedStart.current = true;
+      void captureProductEvent('assessment_start', {
+        locale: effectiveLocale,
+        authenticated: Boolean(storedUser),
+        resumed: Boolean(updatedAt || Object.keys(normalizedResponses).length > 0),
+      });
+    }
+  }, [currentIndex, hydrateDraft, hydrated, locale, profile, responses, updatedAt]);
 
   // Adaptive question list — updates as responses come in (tie-breaker + branch)
   const questions = getNextQuestions(responses);
   const QUESTION_COUNT = questions.length;
+  const safeCurrentIndex = Math.min(currentIndex, Math.max(QUESTION_COUNT - 1, 0));
 
-  const question = questions[currentIndex] ?? questions[0];
+  const question = questions[safeCurrentIndex] ?? questions[0];
   const storedOptionId = responses[question.id] || '';
   const selectedOptionId = question.options.some((option) => option.id === storedOptionId)
     ? storedOptionId
     : '';
-  const progress = Math.round(((currentIndex + 1) / QUESTION_COUNT) * 100);
-  const isLastQuestion = currentIndex === QUESTION_COUNT - 1;
+  const progress = Math.round(((safeCurrentIndex + 1) / QUESTION_COUNT) * 100);
+  const isLastQuestion = safeCurrentIndex === QUESTION_COUNT - 1;
+  const replayAfterAuthPath = '/career-fit-check?resume=1';
+  const canonicalResponses = pruneOrphanResponses(responses);
+  const activeQuestions = getNextQuestions(canonicalResponses);
+  const isDraftComplete = activeQuestions.every((item) => Boolean(canonicalResponses[item.id]));
+  const shouldReplayAfterAuth = searchParams.get('resume') === '1';
+
+  useEffect(() => {
+    if (hydrated && currentIndex !== safeCurrentIndex) {
+      hydrateDraft({ currentIndex: safeCurrentIndex });
+    }
+  }, [currentIndex, hydrated, hydrateDraft, safeCurrentIndex]);
 
   const updateLocale = (nextLocale: Locale) => {
-    setLocale(nextLocale);
+    setDraft({ locale: nextLocale });
     setStoredLocale(nextLocale);
   };
 
+  const updateProfile = (patch: Partial<AssessmentProfile>) => {
+    setDraft({ profile: { ...profile, ...patch } });
+  };
+
   const chooseOption = (optionId: string) => {
-    setResponses((current) => {
-      const next = { ...current, [question.id]: optionId };
-      if (question.id.startsWith('r') && question.id !== 'rtb' && question.id !== 'rf') {
-        delete next.rtb;
-        delete next.b1;
-        delete next.b2;
-        delete next.b3;
-        delete next.b4;
-        delete next.rf;
-      } else if (question.id === 'rtb') {
-        delete next.b1;
-        delete next.b2;
-        delete next.b3;
-        delete next.b4;
-        delete next.rf;
-      }
-      return next;
+    const currentQuestionId = question.id;
+    const nextResponses = pruneOrphanResponses({ ...responses, [currentQuestionId]: optionId });
+    const nextQuestions = getNextQuestions(nextResponses);
+    const nextIndex = nextQuestions.findIndex((item) => item.id === currentQuestionId);
+    setDraft({
+      responses: nextResponses,
+      currentIndex: nextIndex === -1 ? 0 : Math.min(nextIndex, nextQuestions.length - 1),
+    });
+    void captureProductEvent('question_answered', {
+      locale,
+      question_id: currentQuestionId,
+      question_index: safeCurrentIndex + 1,
+      option_id: optionId,
     });
     setErrorMessage('');
   };
 
   const goBack = () => {
-    if (currentIndex === 0) {
+    if (safeCurrentIndex === 0) {
       router.push('/');
       return;
     }
 
-    setCurrentIndex((current) => current - 1);
+    setDraft({ currentIndex: safeCurrentIndex - 1 });
   };
 
-  const goNext = () => {
-    if (!selectedOptionId) {
-      setErrorMessage(
-        locale === 'en'
-          ? 'Choose the option that feels closest to you before continuing.'
-          : 'आगे बढ़ने से पहले वही विकल्प चुनें जो आपके सबसे करीब लगता है।'
-      );
+  const submitAssessment = useCallback(async () => {
+    const storedUser = getStoredUser();
+    if (!storedUser) {
+      // Value before wall: answers stay in the persisted draft across the
+      // register round-trip, then ?resume=1 replays the submit.
+      router.push(`/register?next=${encodeURIComponent(replayAfterAuthPath)}`);
       return;
     }
 
-    if (!isLastQuestion) {
-      setCurrentIndex((current) => current + 1);
-      return;
-    }
-
-    startTransition(async () => {
+    setIsSubmitting(true);
+    try {
       setErrorMessage('');
       const response = await fetch('/api/assessment/fit-check', {
         method: 'POST',
@@ -112,7 +169,7 @@ export default function CareerFitCheckPage() {
           'x-user-locale': locale,
         },
         body: JSON.stringify({
-          responses,
+          responses: canonicalResponses,
           profile: {
             fullName: profile.fullName?.trim(),
             city: profile.city?.trim(),
@@ -125,8 +182,8 @@ export default function CareerFitCheckPage() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          // Session expired mid-assessment — send to login preserving destination
-          router.push('/login?next=%2Fcareer-fit-check');
+          // Session expired mid-assessment — draft survives the login round-trip
+          router.push(`/login?next=${encodeURIComponent(replayAfterAuthPath)}`);
           return;
         }
         setErrorMessage(
@@ -155,9 +212,85 @@ export default function CareerFitCheckPage() {
 
       setLatestAssessment(result);
       setSelectedRole(result.topRoles[0].roleId);
+      void captureProductEvent('assessment_complete', {
+        locale,
+        selected_role_id: result.topRoles[0].roleId,
+        confidence_band: result.confidenceBand,
+        question_count: QUESTION_COUNT,
+      });
+      clearDraft();
       router.push('/results');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [
+    QUESTION_COUNT,
+    canonicalResponses,
+    clearDraft,
+    locale,
+    profile.city,
+    profile.degreeName,
+    profile.educationStream,
+    profile.fullName,
+    replayAfterAuthPath,
+    router,
+  ]);
+
+  const goNext = () => {
+    if (isPending || isSubmitting) {
+      return;
+    }
+
+    if (!selectedOptionId) {
+      setErrorMessage(
+        locale === 'en'
+          ? 'Choose the option that feels closest to you before continuing.'
+          : 'आगे बढ़ने से पहले वही विकल्प चुनें जो आपके सबसे करीब लगता है।'
+      );
+      return;
+    }
+
+    if (!isLastQuestion) {
+      setDraft({ currentIndex: safeCurrentIndex + 1 });
+      return;
+    }
+
+    startTransition(() => {
+      void submitAssessment();
     });
   };
+
+  // Returning from register/login with a complete draft: submit it once.
+  useEffect(() => {
+    if (
+      !hydrated ||
+      !shouldReplayAfterAuth ||
+      !isDraftComplete ||
+      !getStoredUser() ||
+      hasAttemptedResumeSubmit.current
+    ) {
+      return;
+    }
+
+    hasAttemptedResumeSubmit.current = true;
+    startTransition(() => {
+      void submitAssessment();
+    });
+  }, [hydrated, isDraftComplete, shouldReplayAfterAuth, submitAssessment]);
+
+  if (!hydrated) {
+    return (
+      <main className="section-shell">
+        <div className="container-main">
+          <section className="route-shell">
+            <p className="text-sm text-[var(--ink-soft)]">
+              Loading your saved progress...
+            </p>
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="section-shell">
@@ -218,8 +351,8 @@ export default function CareerFitCheckPage() {
               </li>
               <li>
                 {locale === 'en'
-                  ? 'Your top matches will be saved to your account for the next steps.'
-                  : 'आपकी प्रमुख भूमिकाएँ खाते में सुरक्षित रहेंगी, ताकि आगे की तैयारी वहीं से जारी हो सके।'}
+                  ? 'Answer without an account — your progress saves on this device, and you create an account only to see and keep your results.'
+                  : 'बिना खाते के उत्तर दें — आपकी प्रगति इसी डिवाइस पर सुरक्षित रहती है, और खाता केवल परिणाम देखने और सहेजने के लिए बनाना होगा।'}
               </li>
             </ul>
           </div>
@@ -231,9 +364,7 @@ export default function CareerFitCheckPage() {
               </span>
               <input
                 className="input-field"
-                onChange={(event) =>
-                  setProfile((current) => ({ ...current, fullName: event.target.value }))
-                }
+                onChange={(event) => updateProfile({ fullName: event.target.value })}
                 aria-label={locale === 'en' ? 'Full name' : 'पूरा नाम'}
                 placeholder={locale === 'en' ? 'Your full name' : 'आपका पूरा नाम'}
                 value={profile.fullName || ''}
@@ -245,9 +376,7 @@ export default function CareerFitCheckPage() {
               </span>
               <select
                 className="input-field"
-                onChange={(event) =>
-                  setProfile((current) => ({ ...current, educationStream: event.target.value }))
-                }
+                onChange={(event) => updateProfile({ educationStream: event.target.value })}
                 value={profile.educationStream || ''}
               >
                 <option value="">{locale === 'en' ? 'Prefer not to say' : 'नहीं बताना चाहता/चाहती'}</option>
@@ -266,9 +395,7 @@ export default function CareerFitCheckPage() {
               </span>
               <input
                 className="input-field"
-                onChange={(event) =>
-                  setProfile((current) => ({ ...current, city: event.target.value }))
-                }
+                onChange={(event) => updateProfile({ city: event.target.value })}
                 aria-label={locale === 'en' ? 'City' : 'शहर'}
                 placeholder={locale === 'en' ? 'Your city' : 'आपका शहर'}
                 value={profile.city || ''}
@@ -280,9 +407,7 @@ export default function CareerFitCheckPage() {
               </span>
               <input
                 className="input-field"
-                onChange={(event) =>
-                  setProfile((current) => ({ ...current, degreeName: event.target.value }))
-                }
+                onChange={(event) => updateProfile({ degreeName: event.target.value })}
                 aria-label={locale === 'en' ? 'Degree' : 'शैक्षणिक योग्यता'}
                 placeholder={locale === 'en' ? 'Your degree' : 'अपनी योग्यता लिखें'}
                 value={profile.degreeName || ''}
@@ -305,8 +430,8 @@ export default function CareerFitCheckPage() {
             <div className="text-right">
               <p className="text-sm font-semibold text-[var(--accent-ink)]">
                 {locale === 'en'
-                  ? `Question ${currentIndex + 1} of ${QUESTION_COUNT}`
-                  : `प्रश्न ${currentIndex + 1} / ${QUESTION_COUNT}`}
+                  ? `Question ${safeCurrentIndex + 1} of ${QUESTION_COUNT}`
+                  : `प्रश्न ${safeCurrentIndex + 1} / ${QUESTION_COUNT}`}
               </p>
               <p className="mt-1 text-sm text-[var(--ink-muted)]">
                 {locale === 'en' ? 'About 3 to 5 minutes' : 'लगभग 3 से 5 मिनट'}
@@ -321,36 +446,43 @@ export default function CareerFitCheckPage() {
             />
           </div>
 
-          <div className="mt-8 space-y-3">
+          <RadioGroup.Root
+            aria-label={getLocaleValue(question.prompt, locale)}
+            className="mt-8 space-y-3"
+            onValueChange={chooseOption}
+            value={selectedOptionId}
+          >
             {question.options.map((option) => {
               const isActive = selectedOptionId === option.id;
 
               return (
-                <button
-                  className={`selection-option w-full text-left ${isActive ? 'selection-option--active' : ''}`}
+                <RadioGroup.Item
+                  className={`selection-option flex w-full items-start justify-between gap-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ink)] focus-visible:ring-offset-2 ${
+                    isActive ? 'selection-option--active' : ''
+                  }`}
+                  id={option.id}
                   key={option.id}
-                  onClick={() => chooseOption(option.id)}
-                  type="button"
+                  value={option.id}
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-base font-semibold text-[var(--ink-strong)]">
-                        {getLocaleValue(option.label, locale)}
-                      </p>
-                      <p className="mt-1 text-sm text-[var(--ink-muted)]">
-                        {getLocaleValue(option.signal, locale)}
-                      </p>
-                    </div>
-                    <span
-                      className={`mt-1 h-5 w-5 rounded-full border ${
-                        isActive ? 'border-[var(--accent-ink)] bg-[var(--accent-ink)]' : 'border-[var(--border-soft)]'
-                      }`}
-                    />
+                  <div>
+                    <p className="text-base font-semibold text-[var(--ink-strong)]">
+                      {getLocaleValue(option.label, locale)}
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                      {getLocaleValue(option.signal, locale)}
+                    </p>
                   </div>
-                </button>
+                  <div
+                    className={`mt-1 flex h-5 w-5 items-center justify-center rounded-full border ${
+                      isActive ? 'border-[var(--accent-ink)] bg-[var(--accent-ink)]' : 'border-[var(--border-soft)] bg-white'
+                    }`}
+                  >
+                    <RadioGroup.Indicator className="h-2.5 w-2.5 rounded-full bg-white" />
+                  </div>
+                </RadioGroup.Item>
               );
             })}
-          </div>
+          </RadioGroup.Root>
 
           {errorMessage ? (
             <div className="mt-5 rounded-[1.2rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -360,7 +492,7 @@ export default function CareerFitCheckPage() {
 
           <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
             <button className="btn-outline" onClick={goBack} type="button">
-              {currentIndex === 0
+              {safeCurrentIndex === 0
                 ? locale === 'en'
                   ? 'Back to landing'
                   : 'लैंडिंग पर वापस'
@@ -371,11 +503,11 @@ export default function CareerFitCheckPage() {
 
             <button
               className="btn-primary"
-              disabled={isPending}
+              disabled={isPending || isSubmitting}
               onClick={goNext}
               type="button"
             >
-              {isPending
+              {isPending || isSubmitting
                 ? locale === 'en'
                   ? 'Scoring your fit...'
                   : 'आपके उत्तरों का मूल्यांकन किया जा रहा है...'
@@ -391,5 +523,21 @@ export default function CareerFitCheckPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+export default function CareerFitCheckPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="section-shell">
+          <div className="container-main text-sm text-[var(--ink-muted)]">
+            Loading your saved progress...
+          </div>
+        </main>
+      }
+    >
+      <CareerFitCheckContent />
+    </Suspense>
   );
 }

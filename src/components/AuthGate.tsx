@@ -7,8 +7,9 @@ import { BrandWordmark } from '@/components/BrandWordmark';
 import { FullPageLoader } from '@/components/FullPageLoader';
 import { getStoredUser, refreshStoredUserFromSession } from '@/lib/client-session';
 
+// The fit check itself is answerable as a guest (value before wall); the
+// account is required from the results/save step onward.
 const PROTECTED_PREFIXES = [
-  '/career-fit-check',
   '/results',
   '/resume',
   '/dashboard',

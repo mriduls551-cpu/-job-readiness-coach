@@ -8,6 +8,7 @@ import {
   buildRoleRationale,
   getLocaleValue,
   getNextQuestions,
+  pruneOrphanResponses,
   scoreAssessment,
   validateAssessmentResponses,
   type AssessmentProfile,
@@ -32,6 +33,7 @@ export {
   buildRoleRationale,
   getLocaleValue,
   getNextQuestions,
+  pruneOrphanResponses,
   scoreAssessment,
   validateAssessmentResponses,
 };
@@ -158,8 +160,7 @@ export function generatePlanTasks(
       index === 0
         ? `Start with the highest leverage task for ${role.shortLabel.en}.`
         : `Keep this practical and tied to the jobs you want next.`,
-    category:
-      index === 0 ? 'skill' : index === 1 ? 'assessment' : 'networking',
+    category: (['skill', 'project', 'assessment'] as const)[index] ?? 'assessment',
     priority: index === 0 ? 'high' : 'medium',
     dueDate: new Date(
       Date.now() + (index + 2) * 24 * 60 * 60 * 1000

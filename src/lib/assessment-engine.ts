@@ -2085,6 +2085,20 @@ export function getNextQuestions(
   return [...ROUTING_QUESTIONS, ...branch];
 }
 
+export function pruneOrphanResponses(
+  responses: Record<string, string>
+): Record<string, string> {
+  const activeQuestions = getNextQuestions(responses);
+  const activeQuestionsById = new Map(activeQuestions.map((question) => [question.id, question]));
+
+  return Object.fromEntries(
+    Object.entries(responses).filter(([questionId, optionId]) => {
+      const question = activeQuestionsById.get(questionId);
+      return question ? question.options.some((option) => option.id === optionId) : false;
+    })
+  );
+}
+
 // ─── Main scoring function ────────────────────────────────────────────────────
 
 export function scoreAssessment(
@@ -2143,15 +2157,28 @@ export function scoreAssessment(
     };
   });
 
-  // Step 7: Dimension snapshot (6-dim, normalised 0-100)
+  // Step 7: Dimension snapshot (6-dim, normalised 0-100).
+  // Largest-remainder rounding so the six shares always sum to exactly 100 —
+  // independent Math.round lets the total drift to 97-103.
   const total = Math.max(1, userVector.reduce((s, v) => s + v, 0));
+  const exactShares = userVector.map((value) => (value / total) * 100);
+  const flooredShares = exactShares.map((share) => Math.floor(share));
+  let remainder = 100 - flooredShares.reduce((sum, value) => sum + value, 0);
+  const byFraction = exactShares
+    .map((share, index) => ({ index, fraction: share - Math.floor(share) }))
+    .sort((a, b) => b.fraction - a.fraction);
+  for (const { index } of byFraction) {
+    if (remainder <= 0) break;
+    flooredShares[index] += 1;
+    remainder -= 1;
+  }
   const dimensionSnapshot = {
-    'numerical': Math.round((userVector[0] / total) * 100),
-    'people-reactive': Math.round((userVector[1] / total) * 100),
-    'people-proactive': Math.round((userVector[2] / total) * 100),
-    'process-ops': Math.round((userVector[3] / total) * 100),
-    'creative-output': Math.round((userVector[4] / total) * 100),
-    'analytical-output': Math.round((userVector[5] / total) * 100),
+    'numerical': flooredShares[0],
+    'people-reactive': flooredShares[1],
+    'people-proactive': flooredShares[2],
+    'process-ops': flooredShares[3],
+    'creative-output': flooredShares[4],
+    'analytical-output': flooredShares[5],
   };
 
   const summary: LocalizedText = topRoles[0]
