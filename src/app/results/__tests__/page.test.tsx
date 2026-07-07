@@ -7,7 +7,7 @@ const mockPush = jest.fn();
 const mockCaptureProductEvent = jest.fn();
 const mockPersistSelectedRole = jest.fn();
 const mockPersistAssessmentFeedback = jest.fn();
-let mockFeedback: import('@/lib/product').AssessmentFeedback | null = null;
+let mockFeedback: 'helpful' | 'unhelpful' | null = null;
 
 const mockAssessment = {
   summary: {
@@ -63,6 +63,7 @@ jest.mock('@/lib/analytics', () => ({
 
 jest.mock('@/lib/client-session', () => ({
   getStoredLocale: () => 'en',
+  getStoredUser: () => ({ id: 'user-1', name: 'Priya', email: 'priya@example.com', role: 'user' }),
   persistSelectedRole: (...args: unknown[]) => mockPersistSelectedRole(...args),
   persistAssessmentFeedback: (...args: unknown[]) => mockPersistAssessmentFeedback(...args),
 }));
@@ -80,61 +81,58 @@ const { default: ResultsPage } =
   require('@/app/results/page') as typeof import('@/app/results/page');
 
 describe('Results page feedback capture', () => {
+  const fetchMock = jest.fn<typeof fetch>();
+
   beforeEach(() => {
     mockPush.mockReset();
     mockCaptureProductEvent.mockReset();
     mockPersistSelectedRole.mockReset();
     mockPersistAssessmentFeedback.mockReset();
     mockFeedback = null;
-    mockPersistAssessmentFeedback.mockImplementation(async (feedback: unknown) => {
-      mockFeedback = feedback as import('@/lib/product').AssessmentFeedback;
-      return {
-        result: mockAssessment,
-        selectedRoleId: 'data-entry-mis',
-        feedback: mockFeedback,
-      };
-    });
+    fetchMock.mockReset();
+    global.fetch = fetchMock as unknown as typeof fetch;
   });
 
   it('captures a feedback response and reflects the saved choice', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+
     render(<ResultsPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Somewhat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Not quite' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send feedback' }));
 
     await waitFor(() => {
-      expect(mockPersistAssessmentFeedback).toHaveBeenCalledWith('somewhat');
-    });
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Somewhat' })).toHaveAttribute(
-        'aria-pressed',
-        'true'
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/assessment/feedback',
+        expect.objectContaining({ method: 'POST' })
       );
     });
+    const [, requestOptions] = fetchMock.mock.calls[0];
+    expect(JSON.parse(requestOptions?.body as string)).toEqual(
+      expect.objectContaining({ rating: 'unhelpful' })
+    );
 
-    expect(screen.getByText('Saved: Partly right, but not exact.')).toBeInTheDocument();
+    expect(await screen.findByText('Thanks. Your feedback is saved.')).toBeInTheDocument();
     expect(mockCaptureProductEvent).toHaveBeenCalledWith(
-      'results_feedback_submitted',
+      'feedback_submitted',
       expect.objectContaining({
-        feedback: 'somewhat',
-        role_id: 'data-entry-mis',
-        cluster: 'operators',
-        confidence_band: 'medium',
+        rating: 'unhelpful',
+        has_comment: false,
+        locale: 'en',
       })
     );
   });
 
   it('shows an error when feedback cannot be saved', async () => {
-    mockPersistAssessmentFeedback.mockImplementationOnce(async () => null);
+    fetchMock.mockResolvedValue({ ok: false, json: async () => ({}) } as Response);
 
     render(<ResultsPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'No' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Helpful' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send feedback' }));
 
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(
-        'We could not save your feedback right now. Please try again.'
-      );
-    });
+    expect(
+      await screen.findByText('We could not save that feedback right now.')
+    ).toBeInTheDocument();
   });
 });

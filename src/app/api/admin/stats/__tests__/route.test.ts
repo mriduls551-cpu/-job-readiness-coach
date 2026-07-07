@@ -10,6 +10,10 @@ const mockGetUserAssessments = jest.fn<(userId: string) => Promise<Array<{
   resultSnapshot?: { cluster?: string };
 }>>>();
 const mockGetUserApplications = jest.fn<(userId: string) => Promise<Array<{ id: string }>>>();
+const mockGetFunnelSummary = jest.fn<() => Promise<Record<string, unknown>>>();
+const mockGetShareStats = jest.fn<
+  () => Promise<{ totalShares: number; totalVisits: number; visitRate: number }>
+>();
 const mockGetLogs = jest.fn<() => Array<{ status: string }>>();
 const mockGetJobs = jest.fn<
   () => Array<{ id: string; name: string; enabled: boolean; lastRun?: string }>
@@ -26,6 +30,8 @@ jest.mock('@/lib/db', () => ({
     getAllUsers: mockGetAllUsers,
     getUserAssessments: mockGetUserAssessments,
     getUserApplications: mockGetUserApplications,
+    getFunnelSummary: mockGetFunnelSummary,
+    getShareStats: mockGetShareStats,
   }),
 }));
 
@@ -61,6 +67,8 @@ describe('GET /api/admin/stats', () => {
     mockGetAllUsers.mockReset();
     mockGetUserAssessments.mockReset();
     mockGetUserApplications.mockReset();
+    mockGetFunnelSummary.mockReset();
+    mockGetShareStats.mockReset();
     mockGetLogs.mockReset();
     mockGetJobs.mockReset();
     mockVerifyAdminRequest.mockReset();
@@ -105,6 +113,17 @@ describe('GET /api/admin/stats', () => {
     mockGetUserApplications
       .mockResolvedValueOnce([{ id: 'app-1' }, { id: 'app-2' }])
       .mockResolvedValueOnce([{ id: 'app-3' }]);
+    mockGetFunnelSummary.mockResolvedValue({
+      assessmentStarts: 5,
+      assessmentCompletions: 3,
+      resumeCtaClicks: 2,
+      practiceCtaClicks: 1,
+    });
+    mockGetShareStats.mockResolvedValue({
+      totalShares: 4,
+      totalVisits: 10,
+      visitRate: 2.5,
+    });
     mockGetLogs.mockReturnValue([
       { status: 'sent' },
       { status: 'failed' },
@@ -115,7 +134,7 @@ describe('GET /api/admin/stats', () => {
     ]);
   });
 
-  it('returns aggregated assessment cluster and feedback metrics', async () => {
+  it('returns aggregated usage, funnel, and share metrics', async () => {
     const response = await GET(new NextRequest('http://localhost/api/admin/stats'));
     const body = await response.json();
 
@@ -124,19 +143,17 @@ describe('GET /api/admin/stats', () => {
     expect(body.data.totalAssessments).toBe(3);
     expect(body.data.totalApplications).toBe(3);
     expect(body.data.emailsSent).toBe(2);
-    expect(body.data.feedbackStats).toEqual({
-      responses: 2,
-      rate: 2 / 3,
-      breakdown: {
-        yes: 1,
-        somewhat: 1,
-        no: 0,
-      },
+    expect(body.data.funnel).toEqual({
+      assessmentStarts: 5,
+      assessmentCompletions: 3,
+      resumeCtaClicks: 2,
+      practiceCtaClicks: 1,
     });
-    expect(body.data.clusterDistribution).toEqual([
-      { cluster: 'desk-ops', count: 2, share: 2 / 3 },
-      { cluster: 'analytical', count: 1, share: 1 / 3 },
-    ]);
+    expect(body.data.share).toEqual({
+      totalShares: 4,
+      totalVisits: 10,
+      visitRate: 2.5,
+    });
   });
 
   it('returns the authorization response when the request is not allowed', async () => {

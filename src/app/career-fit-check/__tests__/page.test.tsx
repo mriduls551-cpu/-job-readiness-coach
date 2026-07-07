@@ -51,7 +51,8 @@ const {
   useFitCheckDraftStore,
   createEmptyFitCheckDraft,
 } = require('@/lib/stores/fitcheck-draft') as typeof import('@/lib/stores/fitcheck-draft');
-const { getNextQuestions } = require('@/lib/product') as typeof import('@/lib/product');
+const { getNextQuestions, pruneOrphanResponses } =
+  require('@/lib/product') as typeof import('@/lib/product');
 
 const completeDeskOpsResponses = {
   r1: 'r1_c',
@@ -163,8 +164,14 @@ describe('Career fit check page', () => {
     const [, requestOptions] = fetchMock.mock.calls[0];
     expect(JSON.parse(requestOptions?.body as string)).toEqual(
       expect.objectContaining({
-        scoringVariant: 'control',
-        scoringConfig: { finalistWeight: 8, streamBoostFactor: 1.1 },
+        // The page submits the canonical draft: answers orphaned by branch or
+        // tie-breaker routing are pruned before scoring.
+        responses: pruneOrphanResponses(completeDeskOpsResponses),
+        profile: expect.objectContaining({
+          fullName: 'Priya',
+          city: 'Indore',
+          degreeName: 'BCom',
+        }),
       })
     );
     await waitFor(() => {
