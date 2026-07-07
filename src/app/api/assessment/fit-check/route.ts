@@ -1,6 +1,11 @@
 import { after, NextRequest } from 'next/server';
 import { z } from 'zod';
 import { success, error } from '@/lib/api-response';
+import {
+  ASSESSMENT_SCORING_VARIANTS,
+  assignFitCheckScoringVariant,
+  resolveAssessmentScoringExperiment,
+} from '@/lib/assessment-experiments';
 import { getDB } from '@/lib/db';
 import { getRequestLocale, resolveRequestUserId } from '@/lib/request-user';
 import {
@@ -57,6 +62,7 @@ function buildPersistedAssessmentResult(
     responses: Record<string, string>;
     profile: AssessmentProfile;
     selectedRole?: RoleId;
+    scoringVariant?: string | null;
     resultSnapshot?: ReturnType<typeof scoreAssessment>;
   },
   locale: 'en' | 'hi'
@@ -74,7 +80,10 @@ function buildPersistedAssessmentResult(
         ...assessment.profile,
         locale,
       },
-      locale
+      locale,
+      // Re-score with the variant the row was originally scored under, so a
+      // stored assessment never silently changes ranking on read.
+      resolveAssessmentScoringExperiment(assessment.scoringVariant).scoringConfig
     );
 
   return {
@@ -149,8 +158,17 @@ export async function POST(request: NextRequest) {
       return response;
     }
 
+    // Server-authoritative experiment assignment: deterministic per user,
+    // gated by the FIT_CHECK_SCORING_ROLLOUT env (default 0% = all control).
+    // The client cannot influence which scoring config is used.
+    const scoringVariant = assignFitCheckScoringVariant(userId);
+    const scoringConfig = ASSESSMENT_SCORING_VARIANTS[scoringVariant];
+
     const db = getDB();
-    const { result: hydrated } = await db.saveAssessment(userId, body.responses, baseProfile);
+    const { result: hydrated } = await db.saveAssessment(userId, body.responses, baseProfile, {
+      scoringVariant,
+      scoringConfig,
+    });
 
     if (hydrated.topRoles[0]) {
       await db.seedReminders(userId, locale, hydrated.topRoles[0].roleId);
@@ -190,6 +208,8 @@ export async function POST(request: NextRequest) {
     return success({
       result: hydrated,
       selectedRoleId: hydrated.topRoles[0]?.roleId || null,
+      // Echoed so the client can emit a PostHog exposure event for attribution.
+      scoringVariant,
     });
   } catch (err) {
     if (err instanceof z.ZodError) {

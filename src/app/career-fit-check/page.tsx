@@ -18,6 +18,7 @@ import {
   type Locale,
 } from '@/lib/product';
 import { captureProductEvent } from '@/lib/analytics';
+import { FIT_CHECK_SCORING_FLAG_KEY } from '@/lib/assessment-experiments';
 import { useFitCheckDraftStore } from '@/lib/stores/fitcheck-draft';
 
 function CareerFitCheckContent() {
@@ -197,6 +198,7 @@ function CareerFitCheckContent() {
       const payload = (await response.json()) as {
         data?: {
           result: any;
+          scoringVariant?: string | null;
         };
       };
 
@@ -208,6 +210,15 @@ function CareerFitCheckContent() {
             : 'उपयुक्त भूमिकाएँ दिखाने से पहले हमें कुछ और जानकारी चाहिए।'
         );
         return;
+      }
+
+      if (payload.data?.scoringVariant) {
+        // PostHog exposure event so experiment analysis can attribute results
+        // to the server-assigned scoring variant.
+        void captureProductEvent('$feature_flag_called', {
+          $feature_flag: FIT_CHECK_SCORING_FLAG_KEY,
+          $feature_flag_response: payload.data.scoringVariant,
+        });
       }
 
       setLatestAssessment(result);

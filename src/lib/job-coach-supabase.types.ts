@@ -49,6 +49,7 @@ export interface JobCoachDatabase {
           result_snapshot: Json | null;
           scoring_version: string | null;
           catalog_version: string | null;
+          scoring_variant: string | null;
           status: 'completed' | 'in_progress';
           created_at: string;
           updated_at: string;
@@ -63,6 +64,7 @@ export interface JobCoachDatabase {
           result_snapshot?: Json | null;
           scoring_version?: string | null;
           catalog_version?: string | null;
+          scoring_variant?: string | null;
           status?: 'completed' | 'in_progress';
           created_at?: string;
           updated_at?: string;
@@ -77,6 +79,7 @@ export interface JobCoachDatabase {
           result_snapshot?: Json | null;
           scoring_version?: string | null;
           catalog_version?: string | null;
+          scoring_variant?: string | null;
           status?: 'completed' | 'in_progress';
           created_at?: string;
           updated_at?: string;

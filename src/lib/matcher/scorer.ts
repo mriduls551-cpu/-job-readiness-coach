@@ -1,3 +1,4 @@
+import type { AssessmentScoringConfig } from '@/lib/assessment-experiments';
 import type {
   ConfidenceEvidence,
   DimensionVector,
@@ -11,6 +12,7 @@ import type {
   RequirementLevel,
   RolePolicy,
 } from './types';
+import { DEFAULT_ASSESSMENT_SCORING_CONFIG } from '@/lib/assessment-experiments';
 
 const GLOBAL_DIMENSION_WEIGHTS: DimensionVector = [1, 1, 1, 1, 1, 1];
 // Four discriminator questions contribute up to 12 points; the finalist
@@ -137,7 +139,23 @@ function objectiveScore(
   };
 }
 
-function scoreRole(person: PersonEvidence, role: RolePolicy, marketEnabled: boolean): RankedRoleEvidence {
+function educationStreamAdjustment(
+  person: PersonEvidence,
+  role: RolePolicy,
+  scoringConfig: AssessmentScoringConfig
+): number {
+  if (!person.educationStream) return 1;
+  return role.educationStreamBoosts.includes(person.educationStream)
+    ? scoringConfig.streamBoostFactor
+    : 1;
+}
+
+function scoreRole(
+  person: PersonEvidence,
+  role: RolePolicy,
+  marketEnabled: boolean,
+  scoringConfig: AssessmentScoringConfig
+): RankedRoleEvidence {
   const preferenceScore = weightedCosine(person.preferenceVector, role.preferenceTarget) * 100;
   const branchPreference = Math.min(
     100,
@@ -163,6 +181,7 @@ function scoreRole(person: PersonEvidence, role: RolePolicy, marketEnabled: bool
   if (marketDemand !== null) {
     evidenceScore = 0.95 * evidenceScore + 0.05 * marketDemand;
   }
+  evidenceScore *= educationStreamAdjustment(person, role, scoringConfig);
 
   const eligibility = evaluateEligibility(person, role);
   const score = Math.max(
@@ -215,11 +234,15 @@ function buildConfidence(person: PersonEvidence, ranked: RankedRoleEvidence[]): 
   return { index, band, reasons, completeness, separation, consistency, objectiveCoverage };
 }
 
-export function scoreEvidence(person: PersonEvidence, catalog: MatchingCatalog): MatchingResult {
+export function scoreEvidence(
+  person: PersonEvidence,
+  catalog: MatchingCatalog,
+  scoringConfig: AssessmentScoringConfig = DEFAULT_ASSESSMENT_SCORING_CONFIG
+): MatchingResult {
   const order = new Map(catalog.roles.map((role, index) => [role.id, index]));
   const marketEnabled = catalog.marketPolicy === 'enabled';
   const scored = catalog.roles
-    .map((role) => scoreRole(person, role, marketEnabled))
+    .map((role) => scoreRole(person, role, marketEnabled, scoringConfig))
     .sort((left, right) => right.score - left.score || (order.get(left.roleId)! - order.get(right.roleId)!));
 
   const nonContradictory = scored.filter((role) => role.eligibility !== 'conditional');

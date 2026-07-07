@@ -21,6 +21,7 @@ const rolePolicySchema = z.object({
   preferenceTarget: vectorSchema,
   readiness: z.record(z.enum(['basic', 'strong'])),
   preferredEducationStreams: z.array(z.string()),
+  educationStreamBoosts: z.array(z.string()).default([]),
   objectiveSignals: z.array(z.enum([
     'communication',
     'accuracy',
@@ -121,6 +122,7 @@ function candidatePolicy(role: (typeof ROLE_CANDIDATES)[number]): RolePolicy {
       ...(role.objectiveSignals.includes('accuracy') ? { dataAccuracy: 'basic' as const } : {}),
     },
     preferredEducationStreams: [],
+    educationStreamBoosts: [],
     objectiveSignals: role.objectiveSignals,
     verificationRequirements: role.requirements,
     marketPrior: {

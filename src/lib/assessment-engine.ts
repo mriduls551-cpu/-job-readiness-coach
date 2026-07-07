@@ -1,3 +1,7 @@
+import {
+  DEFAULT_ASSESSMENT_SCORING_CONFIG,
+  type AssessmentScoringConfig,
+} from '@/lib/assessment-experiments';
 import { MATCHING_CATALOG } from '@/lib/matcher/catalog';
 import { buildPersonEvidence } from '@/lib/matcher/quiz-to-vector';
 import { scoreEvidence } from '@/lib/matcher/scorer';
@@ -2101,14 +2105,53 @@ export function pruneOrphanResponses(
 
 // ─── Main scoring function ────────────────────────────────────────────────────
 
+// Scales only the finalist (rf_*) role points relative to the control weight.
+// With the control config this is an exact no-op, so experiment plumbing can
+// never change a control user's result.
+function applyScoringConfigToSelectedOptions(
+  options: AssessmentOption[],
+  scoringConfig: AssessmentScoringConfig
+): AssessmentOption[] {
+  const finalistScale =
+    scoringConfig.finalistWeight / DEFAULT_ASSESSMENT_SCORING_CONFIG.finalistWeight;
+
+  if (finalistScale === 1) {
+    return options;
+  }
+
+  return options.map((option) => {
+    if (!option.id.startsWith('rf_') || !option.roleScores) {
+      return option;
+    }
+
+    return {
+      ...option,
+      roleScores: Object.fromEntries(
+        Object.entries(option.roleScores).map(([roleId, points]) => [
+          roleId,
+          Number((points * finalistScale).toFixed(3)),
+        ])
+      ) as Partial<Record<RoleId, number>>,
+    };
+  });
+}
+
 export function scoreAssessment(
   responses: Record<string, string>,
   profileSeed: Partial<AssessmentProfile> = {},
-  locale: Locale = 'en'
+  locale: Locale = 'en',
+  scoringConfigOverride?: Partial<AssessmentScoringConfig>
 ): AssessmentResult {
   const validated = validateAssessmentResponses(responses);
+  const scoringConfig: AssessmentScoringConfig = {
+    ...DEFAULT_ASSESSMENT_SCORING_CONFIG,
+    ...(scoringConfigOverride || {}),
+  };
   const profile: AssessmentProfile = { locale, ...profileSeed };
-  const allSelected = [...validated.routingOptions, ...validated.branchOptions];
+  const allSelected = applyScoringConfigToSelectedOptions(
+    [...validated.routingOptions, ...validated.branchOptions],
+    scoringConfig
+  );
   for (const option of allSelected) {
     if (option.profilePatch) Object.assign(profile, option.profilePatch);
     if (option.objectiveEvidencePatch) {
@@ -2120,7 +2163,7 @@ export function scoreAssessment(
   }
   const userVector = computeUserVector(allSelected);
   const personEvidence = buildPersonEvidence(allSelected, profile, validated.requiredAnswerCount);
-  const matching = scoreEvidence(personEvidence, MATCHING_CATALOG);
+  const matching = scoreEvidence(personEvidence, MATCHING_CATALOG, scoringConfig);
 
   const scoredRoles = matching.rankedRoles.map((evidence) => {
     const roleId = evidence.roleId as RoleId;

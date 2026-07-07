@@ -70,6 +70,7 @@
       "preferenceTarget": [6, 2, 2, 7, 1, 9],
       "readiness": { "numbers": "strong", "dataAccuracy": "strong" },
       "preferredEducationStreams": [],
+      "educationStreamBoosts": ["commerce","science"],
       "objectiveSignals": ["spreadsheet", "accuracy"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     },
@@ -80,6 +81,7 @@
       "preferenceTarget": [9, 1, 1, 7, 1, 5],
       "readiness": { "numbers": "strong", "dataAccuracy": "strong" },
       "preferredEducationStreams": ["commerce"],
+      "educationStreamBoosts": ["commerce","science"],
       "objectiveSignals": ["accuracy", "spreadsheet"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     },
@@ -110,6 +112,7 @@
       "preferenceTarget": [6, 1, 1, 9, 1, 5],
       "readiness": { "numbers": "basic", "dataAccuracy": "strong" },
       "preferredEducationStreams": ["law", "commerce"],
+      "educationStreamBoosts": ["law"],
       "objectiveSignals": ["accuracy", "writing"],
       "marketPrior": { "value": null, "geography": "Indian metros", "asOf": null, "sourceUrl": null, "license": null }
     }

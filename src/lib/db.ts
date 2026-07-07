@@ -1,6 +1,10 @@
 import { logger } from '@/lib/logger';
 import type { JobCoachDatabase, Json } from '@/lib/job-coach-supabase.types';
 import type {
+  AssessmentScoringConfig,
+  AssessmentScoringVariant,
+} from '@/lib/assessment-experiments';
+import type {
   AssessmentProfile,
   AssessmentResult,
   Locale,
@@ -56,6 +60,7 @@ export interface AssessmentRecord {
   resultSnapshot?: AssessmentResult;
   scoringVersion?: string;
   catalogVersion?: string;
+  scoringVariant?: string | null;
   status: 'completed' | 'in_progress';
   createdAt: string;
   updatedAt: string;
@@ -214,7 +219,11 @@ export interface ProductDB {
   saveAssessment(
     userId: string,
     responses: Record<string, string>,
-    profile: AssessmentProfile
+    profile: AssessmentProfile,
+    options?: {
+      scoringVariant?: AssessmentScoringVariant | null;
+      scoringConfig?: Partial<AssessmentScoringConfig> | null;
+    }
   ): Promise<{ assessment: AssessmentRecord; result: ReturnType<typeof scoreAssessment> }>;
   getLatestAssessment(userId: string): Promise<AssessmentRecord | null>;
   getUserAssessments(userId: string): Promise<AssessmentRecord[]>;
@@ -422,6 +431,7 @@ function mapAssessmentRow(row: AssessmentRow): AssessmentRecord {
       : undefined,
     scoringVersion: row.scoring_version || undefined,
     catalogVersion: row.catalog_version || undefined,
+    scoringVariant: row.scoring_variant || undefined,
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -639,10 +649,19 @@ class InMemoryDB implements ProductDB {
   async saveAssessment(
     userId: string,
     responses: Record<string, string>,
-    profile: AssessmentProfile
+    profile: AssessmentProfile,
+    options?: {
+      scoringVariant?: AssessmentScoringVariant | null;
+      scoringConfig?: Partial<AssessmentScoringConfig> | null;
+    }
   ) {
     const canonicalResponses = validateAssessmentResponses(responses).canonicalResponses;
-    const result = scoreAssessment(canonicalResponses, profile, profile.locale);
+    const result = scoreAssessment(
+      canonicalResponses,
+      profile,
+      profile.locale,
+      options?.scoringConfig || undefined
+    );
     const assessment: AssessmentRecord = {
       id: `assessment-${Date.now()}`,
       userId,
@@ -653,6 +672,7 @@ class InMemoryDB implements ProductDB {
       resultSnapshot: result,
       scoringVersion: result.scoringVersion,
       catalogVersion: result.catalogVersion,
+      scoringVariant: options?.scoringVariant ?? null,
       status: 'completed',
       createdAt: nowIso(),
       updatedAt: nowIso(),
@@ -1156,10 +1176,19 @@ class SupabaseDB implements ProductDB {
   async saveAssessment(
     userId: string,
     responses: Record<string, string>,
-    profile: AssessmentProfile
+    profile: AssessmentProfile,
+    options?: {
+      scoringVariant?: AssessmentScoringVariant | null;
+      scoringConfig?: Partial<AssessmentScoringConfig> | null;
+    }
   ) {
     const canonicalResponses = validateAssessmentResponses(responses).canonicalResponses;
-    const result = scoreAssessment(canonicalResponses, profile, profile.locale);
+    const result = scoreAssessment(
+      canonicalResponses,
+      profile,
+      profile.locale,
+      options?.scoringConfig || undefined
+    );
     const timestamp = nowIso();
     const { data, error } = await this.client
       .from('job_coach_assessments')
@@ -1172,6 +1201,7 @@ class SupabaseDB implements ProductDB {
         result_snapshot: result as unknown as Json,
         scoring_version: result.scoringVersion,
         catalog_version: result.catalogVersion,
+        scoring_variant: options?.scoringVariant ?? null,
         status: 'completed',
         created_at: timestamp,
         updated_at: timestamp,

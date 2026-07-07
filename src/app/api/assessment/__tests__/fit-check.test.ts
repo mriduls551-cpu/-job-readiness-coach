@@ -237,3 +237,65 @@ describe('assessment persistence', () => {
     expect(inMemory.assessmentFeedback.size).toBe(1);
   });
 });
+
+describe('scoring experiment assignment', () => {
+  it('scores on control and echoes the variant while the rollout is unset', async () => {
+    delete process.env.FIT_CHECK_SCORING_ROLLOUT;
+    const response = await POST(request({ responses: completePeoplePath, profile: {} }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.scoringVariant).toBe('control');
+
+    const latest = await getDB().getLatestAssessment(authenticatedUserId);
+    expect(latest?.scoringVariant).toBe('control');
+  });
+
+  it('ignores client-supplied experiment fields entirely', async () => {
+    delete process.env.FIT_CHECK_SCORING_ROLLOUT;
+    const response = await POST(
+      request({
+        responses: completePeoplePath,
+        profile: {},
+        scoringVariant: 'lighter_finalist_v1',
+        scoringConfig: { finalistWeight: 0, streamBoostFactor: 99 },
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.scoringVariant).toBe('control');
+  });
+
+  it('assigns and persists the lighter variant at 100% rollout, and re-scores stored rows with it', async () => {
+    process.env.FIT_CHECK_SCORING_ROLLOUT = '100';
+    try {
+      const response = await POST(request({ responses: completePeoplePath, profile: {} }));
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.data.scoringVariant).toBe('lighter_finalist_v1');
+
+      const db = getDB();
+      const latest = await db.getLatestAssessment(authenticatedUserId);
+      expect(latest?.scoringVariant).toBe('lighter_finalist_v1');
+
+      // Strip the snapshot to force GET down the re-scoring path: the stored
+      // variant must reproduce the exact ranking the row was scored with.
+      const inMemory = db as unknown as { assessments: Map<string, { resultSnapshot?: unknown }> };
+      const row = inMemory.assessments.get(latest!.id)!;
+      delete row.resultSnapshot;
+
+      const getResponse = await GET(
+        new NextRequest('http://localhost/api/assessment/fit-check', {
+          headers: { cookie: authCookie },
+        })
+      );
+      const gotten = await getResponse.json();
+      expect(getResponse.status).toBe(200);
+      expect(gotten.data.result.allScores).toEqual(body.data.result.allScores);
+    } finally {
+      delete process.env.FIT_CHECK_SCORING_ROLLOUT;
+    }
+  });
+});
