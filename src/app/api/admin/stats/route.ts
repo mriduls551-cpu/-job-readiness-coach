@@ -50,6 +50,8 @@ export async function GET(request: NextRequest) {
     // Get email logs
     const emailLogs = emailService.getLogs();
     const emailsSent = emailLogs.filter((log) => log.status === 'sent').length;
+    const funnel = await db.getFunnelSummary();
+    const share = await db.getShareStats();
 
     // Get cron jobs status
     const cronJobs = cronService.getJobs();
@@ -65,6 +67,8 @@ export async function GET(request: NextRequest) {
       totalAssessments,
       totalApplications,
       emailsSent,
+      funnel,
+      share,
       cronJobsStatus,
     };
 

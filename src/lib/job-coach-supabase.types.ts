@@ -82,6 +82,152 @@ export interface JobCoachDatabase {
           updated_at?: string;
         };
       };
+      job_coach_assessment_feedback: {
+        Row: {
+          id: string;
+          user_id: string;
+          assessment_id: string;
+          rating: 'helpful' | 'unhelpful';
+          comment: string;
+          locale: 'en' | 'hi';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          assessment_id: string;
+          rating: 'helpful' | 'unhelpful';
+          comment?: string;
+          locale?: 'en' | 'hi';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          assessment_id?: string;
+          rating?: 'helpful' | 'unhelpful';
+          comment?: string;
+          locale?: 'en' | 'hi';
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      job_coach_d1_waitlist: {
+        Row: {
+          id: string;
+          user_id: string;
+          assessment_id: string;
+          selected_role_id: string;
+          contact_consent: boolean;
+          note: string;
+          locale: 'en' | 'hi';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          assessment_id: string;
+          selected_role_id: string;
+          contact_consent: boolean;
+          note?: string;
+          locale?: 'en' | 'hi';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          assessment_id?: string;
+          selected_role_id?: string;
+          contact_consent?: boolean;
+          note?: string;
+          locale?: 'en' | 'hi';
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      job_coach_funnel_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          event_name: string;
+          properties: Json;
+          locale: 'en' | 'hi';
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          event_name: string;
+          properties?: Json;
+          locale?: 'en' | 'hi';
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          event_name?: string;
+          properties?: Json;
+          locale?: 'en' | 'hi';
+          created_at?: string;
+        };
+      };
+      job_coach_public_shares: {
+        Row: {
+          id: string;
+          user_id: string;
+          assessment_id: string;
+          public_id: string;
+          first_name: string;
+          locale: 'en' | 'hi';
+          role_id: string;
+          role_name: Json;
+          role_summary: Json;
+          dimension_snapshot: Json;
+          confidence_band: 'low' | 'medium' | 'high';
+          visit_count: number;
+          created_at: string;
+          updated_at: string;
+          last_visited_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          assessment_id: string;
+          public_id: string;
+          first_name: string;
+          locale?: 'en' | 'hi';
+          role_id: string;
+          role_name: Json;
+          role_summary: Json;
+          dimension_snapshot: Json;
+          confidence_band: 'low' | 'medium' | 'high';
+          visit_count?: number;
+          created_at?: string;
+          updated_at?: string;
+          last_visited_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          assessment_id?: string;
+          public_id?: string;
+          first_name?: string;
+          locale?: 'en' | 'hi';
+          role_id?: string;
+          role_name?: Json;
+          role_summary?: Json;
+          dimension_snapshot?: Json;
+          confidence_band?: 'low' | 'medium' | 'high';
+          visit_count?: number;
+          created_at?: string;
+          updated_at?: string;
+          last_visited_at?: string | null;
+        };
+      };
       job_coach_resumes: {
         Row: {
           id: string;

@@ -156,27 +156,35 @@ export async function POST(request: NextRequest) {
       await db.seedReminders(userId, locale, hydrated.topRoles[0].roleId);
 
       const topRole = hydrated.topRoles[0];
-      after(async () => {
-        try {
-          const user = await getDB().getUser(userId);
-          if (!user) return;
+      try {
+        after(async () => {
+          try {
+            const user = await getDB().getUser(userId);
+            if (!user) return;
 
-          const emailService = getEmailService();
-          const email = await emailService.generateAssessmentEmail(
-            user.name,
-            user.email,
-            getLocaleValue(topRole.role.name, locale),
-            getLocaleValue(topRole.strengthLabel, locale)
-          );
-          await emailService.send(email);
-        } catch (emailError) {
-          logger.error('Assessment result email failed', {
-            userId,
-            roleId: topRole.roleId,
-            error: emailError instanceof Error ? emailError.message : 'Unknown error',
-          });
-        }
-      });
+            const emailService = getEmailService();
+            const email = await emailService.generateAssessmentEmail(
+              user.name,
+              user.email,
+              getLocaleValue(topRole.role.name, locale),
+              getLocaleValue(topRole.strengthLabel, locale)
+            );
+            await emailService.send(email);
+          } catch (emailError) {
+            logger.error('Assessment result email failed', {
+              userId,
+              roleId: topRole.roleId,
+              error: emailError instanceof Error ? emailError.message : 'Unknown error',
+            });
+          }
+        });
+      } catch (afterError) {
+        logger.warn('Deferred assessment email could not be scheduled', {
+          userId,
+          roleId: topRole.roleId,
+          error: afterError instanceof Error ? afterError.message : 'Unknown error',
+        });
+      }
     }
 
     return success({

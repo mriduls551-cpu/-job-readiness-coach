@@ -41,6 +41,19 @@ export async function captureProductEvent(
 ) {
   const posthog = await getPostHog();
   posthog?.capture(eventName, properties);
+
+  if (typeof window !== 'undefined') {
+    void fetch('/api/analytics/events', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      keepalive: true,
+      body: JSON.stringify({
+        eventName,
+        properties,
+      }),
+    }).catch(() => undefined);
+  }
 }
 
 export async function captureProductPageView(url: string) {

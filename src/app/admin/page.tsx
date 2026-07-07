@@ -9,6 +9,33 @@ interface DashboardStats {
   totalAssessments: number;
   totalApplications: number;
   emailsSent: number;
+  funnel: {
+    totalEvents: number;
+    eventsByName: Record<string, number>;
+    assessmentStarts: number;
+    assessmentCompletes: number;
+    resultsViewed: number;
+    questionsAnsweredByIndex: Record<string, number>;
+    completionRate: number;
+    ctaSplit: {
+      resume: number;
+      practice: number;
+    };
+    feedback: {
+      helpful: number;
+      unhelpful: number;
+      total: number;
+    };
+    waitlist: {
+      total: number;
+      consented: number;
+    };
+  };
+  share: {
+    totalShares: number;
+    totalVisits: number;
+    visitRate: number;
+  };
   cronJobsStatus: Array<{
     id: string;
     name: string;
@@ -74,6 +101,85 @@ export default function AdminDashboard() {
               <div className="bg-white rounded-lg shadow p-6">
                 <p className="text-gray-600 text-sm">Emails Sent</p>
                 <p className="text-3xl font-bold text-orange-600">{stats.emailsSent}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-gray-600 text-sm">Assessment Completion</p>
+                <p className="text-3xl font-bold text-emerald-600">
+                  {Math.round(stats.funnel.completionRate * 100)}%
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-gray-600 text-sm">Results Viewed</p>
+                <p className="text-3xl font-bold text-slate-800">{stats.funnel.resultsViewed}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-gray-600 text-sm">Resume Clicks</p>
+                <p className="text-3xl font-bold text-sky-700">{stats.funnel.ctaSplit.resume}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-gray-600 text-sm">Practice Clicks</p>
+                <p className="text-3xl font-bold text-fuchsia-700">{stats.funnel.ctaSplit.practice}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-gray-600 text-sm">Waitlist Rows</p>
+                <p className="text-3xl font-bold text-amber-700">{stats.funnel.waitlist.total}</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-6 mb-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Question Answer Flow</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-4">Question #</th>
+                      <th className="text-left py-2 px-4">Answered</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(stats.funnel.questionsAnsweredByIndex).map(([index, count]) => (
+                      <tr className="border-b hover:bg-gray-50" key={index}>
+                        <td className="py-2 px-4">{index}</td>
+                        <td className="py-2 px-4 font-semibold">{count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-gray-600 text-sm">Helpful Feedback</p>
+                <p className="text-3xl font-bold text-green-700">{stats.funnel.feedback.helpful}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-gray-600 text-sm">Unhelpful Feedback</p>
+                <p className="text-3xl font-bold text-red-700">{stats.funnel.feedback.unhelpful}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-gray-600 text-sm">Tracked Events</p>
+                <p className="text-3xl font-bold text-indigo-700">{stats.funnel.totalEvents}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-gray-600 text-sm">Shares Created</p>
+                <p className="text-3xl font-bold text-amber-700">{stats.share.totalShares}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-gray-600 text-sm">Share Visits</p>
+                <p className="text-3xl font-bold text-emerald-700">{stats.share.totalVisits}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <p className="text-gray-600 text-sm">Share Visit Rate</p>
+                <p className="text-3xl font-bold text-slate-800">
+                  {Math.round(stats.share.visitRate * 100)}%
+                </p>
               </div>
             </div>
 

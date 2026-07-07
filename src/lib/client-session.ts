@@ -217,8 +217,9 @@ export function getStoredLocale(): 'en' | 'hi' {
   }
 
   try {
-    const stored = localStorage.getItem(LOCALE_KEY);
-    return (stored === 'hi' ? 'hi' : 'en') as 'en' | 'hi';
+    // Tolerate JSON-quoted values (e.g. '"hi"') written by older code or tooling.
+    const stored = localStorage.getItem(LOCALE_KEY)?.replace(/"/g, '').trim();
+    return stored === 'hi' ? 'hi' : 'en';
   } catch {
     return 'en';
   }

@@ -1,24 +1,34 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   getStoredLocale,
   persistSelectedRole,
 } from '@/lib/client-session';
 import { useAssessmentState } from '@/hooks/useAssessmentState';
+import { captureProductEvent } from '@/lib/analytics';
+import { AssessmentFeedbackCard } from '@/components/results/AssessmentFeedbackCard';
+import { ShareResultCard } from '@/components/results/ShareResultCard';
+import { ResultsDecisionFork } from '@/components/results/ResultsDecisionFork';
 import { getLocaleValue, type Locale, type RoleId } from '@/lib/product';
+import { useAppStore } from '@/lib/store';
 import { FullPageLoader } from '@/components/FullPageLoader';
 
 export default function ResultsPage() {
-  const router = useRouter();
-  const [locale, setLocale] = useState<Locale>('en');
+  // Store is the single source of truth for locale; it updates live when the
+  // user switches language anywhere in the app (LanguageSelect → setStoredLocale → store).
+  const locale: Locale = useAppStore((state) => state.locale);
+  const [localeReady, setLocaleReady] = useState(false);
   const [selectedRoleId, setSelectedRoleId] = useState<RoleId | null>(null);
   const { assessment, selectedRoleId: persistedSelectedRoleId, loading } = useAssessmentState();
+  const hasTrackedResultsView = useRef(false);
 
   useEffect(() => {
-    setLocale(getStoredLocale());
+    // Hydrate from localStorage on mount so a persisted locale survives reload
+    // regardless of whether SessionBootstrap's effect has run yet.
+    useAppStore.setState({ locale: getStoredLocale() });
+    setLocaleReady(true);
   }, []);
 
   useEffect(() => {
@@ -53,8 +63,22 @@ export default function ResultsPage() {
           label: locale === 'en' ? 'Creative' : 'रचनात्मकता',
           value: assessment.dimensionSnapshot['creative-output'],
         },
-      ]
+    ]
     : [];
+
+  useEffect(() => {
+    if (!assessment || !selectedMatch || !localeReady || hasTrackedResultsView.current) {
+      return;
+    }
+
+    hasTrackedResultsView.current = true;
+    void captureProductEvent('results_viewed', {
+      locale,
+      selected_role_id: selectedMatch.roleId,
+      confidence_band: assessment.confidenceBand,
+      scoring_version: assessment.scoringVersion,
+    });
+  }, [assessment, locale, localeReady, selectedMatch]);
 
   if (loading) {
     return (
@@ -247,41 +271,18 @@ export default function ResultsPage() {
           </div>
 
           <aside className="space-y-5">
-            <div className="route-shell bg-white/90">
-              <p className="eyebrow-copy">
-                {locale === 'en' ? 'Next step' : 'अगला कदम'}
-              </p>
-              <h2 className="mt-4 text-3xl leading-tight text-[var(--ink-strong)]">
-                {selectedMatch
-                  ? getLocaleValue(selectedMatch.role.shortLabel, locale)
-                  : locale === 'en'
-                    ? 'Choose a role'
-                    : 'एक भूमिका चुनें'}
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-[var(--ink-soft)]">
-                {selectedMatch
-                  ? getLocaleValue(selectedMatch.role.summary, locale)
-                  : locale === 'en'
-                    ? 'Pick one role so your resume and weekly plan can stay consistent.'
-                    : 'एक भूमिका चुनें, ताकि आपका जीवनवृत्त और साप्ताहिक योजना एक ही दिशा में रहें।'}
-              </p>
+            {selectedMatch ? (
+              <>
+                <ResultsDecisionFork locale={locale} selectedMatch={selectedMatch} />
+                <ShareResultCard
+                  assessment={assessment}
+                  locale={locale}
+                  selectedMatch={selectedMatch}
+                />
+              </>
+            ) : null}
 
-              <div className="mt-5 space-y-3">
-                <Link className="btn-primary w-full justify-center" href="/resume">
-                  {locale === 'en' ? 'Continue to resume' : 'जीवनवृत्त पर आगे बढ़ें'}
-                </Link>
-                <Link className="btn-secondary w-full justify-center" href="/dashboard">
-                  {locale === 'en' ? 'Open dashboard' : 'कार्यस्थल खोलें'}
-                </Link>
-                <button
-                  className="btn-outline w-full"
-                  onClick={() => router.push('/career-fit-check')}
-                  type="button"
-                >
-                  {locale === 'en' ? 'Retake fit check' : 'योग्यता जाँच फिर से करें'}
-                </button>
-              </div>
-            </div>
+            <AssessmentFeedbackCard locale={locale} />
           </aside>
         </section>
       </div>

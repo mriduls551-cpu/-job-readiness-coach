@@ -3,6 +3,7 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
 import { NextRequest } from 'next/server';
 import { GET, PATCH, POST } from '../fit-check/route';
+import { POST as POST_FEEDBACK } from '../feedback/route';
 import { POST as register } from '@/app/api/auth/register/route';
 import { POST as login } from '@/app/api/auth/login/route';
 import { getDB } from '@/lib/db';
@@ -179,5 +180,60 @@ describe('assessment persistence', () => {
     expect(body.data.result).toBeNull();
     expect(body.data.retakeRequired).toBe(true);
     inMemory.assessments.delete(id);
+  });
+
+  it('records feedback only for the authenticated user and latest assessment', async () => {
+    const db = getDB();
+    const scoreResponse = await POST(
+      request({
+        responses: completePeoplePath,
+        profile: { educationStream: 'commerce' },
+      })
+    );
+    expect(scoreResponse.status).toBe(200);
+
+    const firstFeedbackResponse = await POST_FEEDBACK(
+      new NextRequest('http://localhost/api/assessment/feedback', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: authCookie,
+          'x-forwarded-for': '10.41.0.3',
+        },
+        body: JSON.stringify({
+          rating: 'helpful',
+          comment: 'The top role looked accurate.',
+        }),
+      })
+    );
+    expect(firstFeedbackResponse.status).toBe(200);
+
+    const feedback = await db.getAssessmentFeedback(authenticatedUserId);
+    expect(feedback).not.toBeNull();
+    expect(feedback?.userId).toBe(authenticatedUserId);
+    expect(feedback?.rating).toBe('helpful');
+    expect(feedback?.comment).toBe('The top role looked accurate.');
+
+    const secondFeedbackResponse = await POST_FEEDBACK(
+      new NextRequest('http://localhost/api/assessment/feedback', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: authCookie,
+          'x-forwarded-for': '10.41.0.4',
+        },
+        body: JSON.stringify({
+          rating: 'unhelpful',
+          comment: 'I want more detail on the evidence signals.',
+        }),
+      })
+    );
+    expect(secondFeedbackResponse.status).toBe(200);
+
+    const updatedFeedback = await db.getAssessmentFeedback(authenticatedUserId);
+    expect(updatedFeedback?.rating).toBe('unhelpful');
+    expect(updatedFeedback?.comment).toBe('I want more detail on the evidence signals.');
+    const inMemory = db as unknown as { assessmentFeedback: Map<string, unknown> };
+    expect(inMemory.assessmentFeedback.size).toBe(1);
   });
 });

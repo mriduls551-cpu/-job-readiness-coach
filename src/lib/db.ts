@@ -7,6 +7,7 @@ import type {
   ReminderItem,
   ResumeDraft,
   RoleId,
+  LocalizedText,
 } from '@/lib/product';
 import {
   buildReminders,
@@ -25,6 +26,10 @@ import {
 type JobCoachTables = JobCoachDatabase['public']['Tables'];
 type UserRow = JobCoachTables['job_coach_users']['Row'];
 type AssessmentRow = JobCoachTables['job_coach_assessments']['Row'];
+type AssessmentFeedbackRow = JobCoachTables['job_coach_assessment_feedback']['Row'];
+type D1WaitlistRow = JobCoachTables['job_coach_d1_waitlist']['Row'];
+type FunnelEventRow = JobCoachTables['job_coach_funnel_events']['Row'];
+type PublicShareRow = JobCoachTables['job_coach_public_shares']['Row'];
 type ResumeRow = JobCoachTables['job_coach_resumes']['Row'];
 type ApplicationRow = JobCoachTables['job_coach_applications']['Row'];
 type PlanRow = JobCoachTables['job_coach_action_plans']['Row'];
@@ -54,6 +59,85 @@ export interface AssessmentRecord {
   status: 'completed' | 'in_progress';
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AssessmentFeedbackRecord {
+  id: string;
+  userId: string;
+  assessmentId: string;
+  rating: 'helpful' | 'unhelpful';
+  comment: string;
+  locale: Locale;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface D1WaitlistRecord {
+  id: string;
+  userId: string;
+  assessmentId: string;
+  selectedRoleId: RoleId;
+  contactConsent: boolean;
+  note: string;
+  locale: Locale;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FunnelEventRecord {
+  id: string;
+  userId: string;
+  eventName: string;
+  properties: Record<string, Json>;
+  locale: Locale;
+  createdAt: string;
+}
+
+export interface PublicShareRecord {
+  id: string;
+  userId: string;
+  assessmentId: string;
+  publicId: string;
+  firstName: string;
+  locale: Locale;
+  roleId: RoleId;
+  roleName: LocalizedText;
+  roleSummary: LocalizedText;
+  dimensionSnapshot: AssessmentResult['dimensionSnapshot'];
+  confidenceBand: AssessmentResult['confidenceBand'];
+  visitCount: number;
+  createdAt: string;
+  updatedAt: string;
+  lastVisitedAt: string | null;
+}
+
+export interface ShareStats {
+  totalShares: number;
+  totalVisits: number;
+  visitRate: number;
+}
+
+export interface FunnelSummary {
+  totalEvents: number;
+  eventsByName: Record<string, number>;
+  assessmentStarts: number;
+  assessmentCompletes: number;
+  resultsViewed: number;
+  questionsAnsweredByIndex: Record<string, number>;
+  completionRate: number;
+  ctaSplit: {
+    resume: number;
+    practice: number;
+  };
+  feedback: {
+    helpful: number;
+    unhelpful: number;
+    total: number;
+  };
+  waitlist: {
+    total: number;
+    consented: number;
+  };
 }
 
 export interface ResumeRecord extends ResumeDraft {
@@ -135,6 +219,45 @@ export interface ProductDB {
   getLatestAssessment(userId: string): Promise<AssessmentRecord | null>;
   getUserAssessments(userId: string): Promise<AssessmentRecord[]>;
   saveSelectedRole(userId: string, roleId: RoleId): Promise<AssessmentRecord | null>;
+  saveAssessmentFeedback(
+    userId: string,
+    rating: 'helpful' | 'unhelpful',
+    comment: string,
+    locale: Locale
+  ): Promise<AssessmentFeedbackRecord | null>;
+  getAssessmentFeedback(userId: string): Promise<AssessmentFeedbackRecord | null>;
+  saveD1Waitlist(
+    userId: string,
+    selectedRoleId: RoleId,
+    contactConsent: boolean,
+    note: string,
+    locale: Locale
+  ): Promise<D1WaitlistRecord | null>;
+  getD1Waitlist(userId: string): Promise<D1WaitlistRecord | null>;
+  saveFunnelEvent(
+    userId: string,
+    eventName: string,
+    properties: Record<string, Json>,
+    locale: Locale
+  ): Promise<FunnelEventRecord | null>;
+  getFunnelSummary(): Promise<FunnelSummary>;
+  savePublicShare(
+    userId: string,
+    input: {
+      assessmentId: string;
+      publicId: string;
+      firstName: string;
+      locale: Locale;
+      roleId: RoleId;
+      roleName: LocalizedText;
+      roleSummary: LocalizedText;
+      dimensionSnapshot: AssessmentResult['dimensionSnapshot'];
+      confidenceBand: AssessmentResult['confidenceBand'];
+    }
+  ): Promise<PublicShareRecord | null>;
+  getPublicShare(publicId: string): Promise<PublicShareRecord | null>;
+  recordPublicShareVisit(publicId: string): Promise<PublicShareRecord | null>;
+  getShareStats(): Promise<ShareStats>;
   getOrCreateResume(
     userId: string,
     roleId: RoleId,
@@ -257,6 +380,20 @@ function asLocalizedText(value: Json | null | undefined): ReminderItem['title'] 
   };
 }
 
+function asDimensionSnapshot(
+  value: Json | null | undefined
+): AssessmentResult['dimensionSnapshot'] {
+  const record = asRecord(value);
+  return {
+    numerical: Number(record.numerical ?? 0),
+    'people-reactive': Number(record['people-reactive'] ?? 0),
+    'people-proactive': Number(record['people-proactive'] ?? 0),
+    'process-ops': Number(record['process-ops'] ?? 0),
+    'creative-output': Number(record['creative-output'] ?? 0),
+    'analytical-output': Number(record['analytical-output'] ?? 0),
+  };
+}
+
 function mapUserRow(row: UserRow): User {
   return {
     id: row.id,
@@ -288,6 +425,64 @@ function mapAssessmentRow(row: AssessmentRow): AssessmentRecord {
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function mapAssessmentFeedbackRow(row: AssessmentFeedbackRow): AssessmentFeedbackRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    assessmentId: row.assessment_id,
+    rating: row.rating,
+    comment: row.comment,
+    locale: row.locale,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapD1WaitlistRow(row: D1WaitlistRow): D1WaitlistRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    assessmentId: row.assessment_id,
+    selectedRoleId: row.selected_role_id as RoleId,
+    contactConsent: row.contact_consent,
+    note: row.note,
+    locale: row.locale,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapFunnelEventRow(row: FunnelEventRow): FunnelEventRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    eventName: row.event_name,
+    properties: asRecord(row.properties) as Record<string, Json>,
+    locale: row.locale,
+    createdAt: row.created_at,
+  };
+}
+
+function mapPublicShareRow(row: PublicShareRow): PublicShareRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    assessmentId: row.assessment_id,
+    publicId: row.public_id,
+    firstName: row.first_name,
+    locale: row.locale,
+    roleId: row.role_id as RoleId,
+    roleName: asLocalizedText(row.role_name),
+    roleSummary: asLocalizedText(row.role_summary),
+    dimensionSnapshot: asDimensionSnapshot(row.dimension_snapshot),
+    confidenceBand: row.confidence_band,
+    visitCount: row.visit_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastVisitedAt: row.last_visited_at,
   };
 }
 
@@ -373,6 +568,10 @@ function mapAgentSessionRow(row: AgentSessionRow): AgentSession {
 class InMemoryDB implements ProductDB {
   private users = new Map<string, User>();
   private assessments = new Map<string, AssessmentRecord>();
+  private assessmentFeedback = new Map<string, AssessmentFeedbackRecord>();
+  private d1Waitlist = new Map<string, D1WaitlistRecord>();
+  private funnelEvents = new Map<string, FunnelEventRecord>();
+  private publicShares = new Map<string, PublicShareRecord>();
   private resumes = new Map<string, ResumeRecord>();
   private applications = new Map<string, ApplicationRecord>();
   private plans = new Map<string, ActionPlan>();
@@ -411,6 +610,18 @@ class InMemoryDB implements ProductDB {
     this.users.delete(userId);
     this.assessments.forEach((item, key) => {
       if (item.userId === userId) this.assessments.delete(key);
+    });
+    this.assessmentFeedback.forEach((item, key) => {
+      if (item.userId === userId) this.assessmentFeedback.delete(key);
+    });
+    this.d1Waitlist.forEach((item, key) => {
+      if (item.userId === userId) this.d1Waitlist.delete(key);
+    });
+    this.funnelEvents.forEach((item, key) => {
+      if (item.userId === userId) this.funnelEvents.delete(key);
+    });
+    this.publicShares.forEach((item, key) => {
+      if (item.userId === userId) this.publicShares.delete(key);
     });
     this.resumes.forEach((item, key) => {
       if (item.userId === userId) this.resumes.delete(key);
@@ -469,6 +680,170 @@ class InMemoryDB implements ProductDB {
     latest.updatedAt = nowIso();
     this.assessments.set(latest.id, latest);
     return latest;
+  }
+
+  async saveAssessmentFeedback(
+    userId: string,
+    rating: 'helpful' | 'unhelpful',
+    comment: string,
+    locale: Locale
+  ) {
+    const latest = await this.getLatestAssessment(userId);
+    if (!latest) return null;
+
+    const key = `${userId}:${latest.id}`;
+    const existing = this.assessmentFeedback.get(key);
+    const timestamp = nowIso();
+    const feedback: AssessmentFeedbackRecord = {
+      id: existing?.id || `feedback-${Date.now()}`,
+      userId,
+      assessmentId: latest.id,
+      rating,
+      comment,
+      locale,
+      createdAt: existing?.createdAt || timestamp,
+      updatedAt: timestamp,
+    };
+
+    this.assessmentFeedback.set(key, feedback);
+    return feedback;
+  }
+
+  async getAssessmentFeedback(userId: string) {
+    return (
+      Array.from(this.assessmentFeedback.values())
+        .filter((item) => item.userId === userId)
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] || null
+    );
+  }
+
+  async saveD1Waitlist(
+    userId: string,
+    selectedRoleId: RoleId,
+    contactConsent: boolean,
+    note: string,
+    locale: Locale
+  ) {
+    const latest = await this.getLatestAssessment(userId);
+    if (!latest) return null;
+
+    const key = `${userId}:${latest.id}`;
+    const existing = this.d1Waitlist.get(key);
+    const timestamp = nowIso();
+    const waitlist: D1WaitlistRecord = {
+      id: existing?.id || `waitlist-${Date.now()}`,
+      userId,
+      assessmentId: latest.id,
+      selectedRoleId,
+      contactConsent,
+      note,
+      locale,
+      createdAt: existing?.createdAt || timestamp,
+      updatedAt: timestamp,
+    };
+
+    this.d1Waitlist.set(key, waitlist);
+    return waitlist;
+  }
+
+  async getD1Waitlist(userId: string) {
+    return (
+      Array.from(this.d1Waitlist.values())
+        .filter((item) => item.userId === userId)
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] || null
+    );
+  }
+
+  async saveFunnelEvent(
+    userId: string,
+    eventName: string,
+    properties: Record<string, Json>,
+    locale: Locale
+  ) {
+    const event: FunnelEventRecord = {
+      id: `event-${Date.now()}-${this.funnelEvents.size + 1}`,
+      userId,
+      eventName,
+      properties,
+      locale,
+      createdAt: nowIso(),
+    };
+    this.funnelEvents.set(event.id, event);
+    return event;
+  }
+
+  async getFunnelSummary() {
+    return buildFunnelSummary(
+      Array.from(this.funnelEvents.values()),
+      Array.from(this.assessmentFeedback.values()),
+      Array.from(this.d1Waitlist.values())
+    );
+  }
+
+  async savePublicShare(
+    userId: string,
+    input: {
+      assessmentId: string;
+      publicId: string;
+      firstName: string;
+      locale: Locale;
+      roleId: RoleId;
+      roleName: LocalizedText;
+      roleSummary: LocalizedText;
+      dimensionSnapshot: AssessmentResult['dimensionSnapshot'];
+      confidenceBand: AssessmentResult['confidenceBand'];
+    }
+  ) {
+    const key = `${userId}:${input.assessmentId}`;
+    const existing = this.publicShares.get(key);
+    const timestamp = nowIso();
+    const share: PublicShareRecord = {
+      id: existing?.id || `share-${Date.now()}`,
+      userId,
+      assessmentId: input.assessmentId,
+      publicId: existing?.publicId || input.publicId,
+      firstName: input.firstName,
+      locale: input.locale,
+      roleId: input.roleId,
+      roleName: input.roleName,
+      roleSummary: input.roleSummary,
+      dimensionSnapshot: input.dimensionSnapshot,
+      confidenceBand: input.confidenceBand,
+      visitCount: existing?.visitCount || 0,
+      createdAt: existing?.createdAt || timestamp,
+      updatedAt: timestamp,
+      lastVisitedAt: existing?.lastVisitedAt || null,
+    };
+
+    this.publicShares.set(key, share);
+    return share;
+  }
+
+  async getPublicShare(publicId: string) {
+    return (
+      Array.from(this.publicShares.values()).find((item) => item.publicId === publicId) || null
+    );
+  }
+
+  async recordPublicShareVisit(publicId: string) {
+    const existing = await this.getPublicShare(publicId);
+    if (!existing) return null;
+
+    existing.visitCount += 1;
+    existing.lastVisitedAt = nowIso();
+    existing.updatedAt = nowIso();
+    this.publicShares.set(`${existing.userId}:${existing.assessmentId}`, existing);
+    return existing;
+  }
+
+  async getShareStats() {
+    const shares = Array.from(this.publicShares.values());
+    const totalVisits = shares.reduce((sum, item) => sum + item.visitCount, 0);
+    return {
+      totalShares: shares.length,
+      totalVisits,
+      visitRate: shares.length > 0 ? totalVisits / shares.length : 0,
+    };
   }
 
   async getOrCreateResume(
@@ -850,6 +1225,229 @@ class SupabaseDB implements ProductDB {
 
     this.throwIfError('saveSelectedRole', error);
     return mapAssessmentRow(data);
+  }
+
+  async saveAssessmentFeedback(
+    userId: string,
+    rating: 'helpful' | 'unhelpful',
+    comment: string,
+    locale: Locale
+  ) {
+    const latest = await this.getLatestAssessment(userId);
+    if (!latest) return null;
+
+    const timestamp = nowIso();
+    const { data, error } = await this.client
+      .from('job_coach_assessment_feedback')
+      .upsert(
+        [{
+          user_id: userId,
+          assessment_id: latest.id,
+          rating,
+          comment,
+          locale,
+          created_at: timestamp,
+          updated_at: timestamp,
+        }],
+        { onConflict: 'user_id,assessment_id' }
+      )
+      .select('*')
+      .single();
+
+    this.throwIfError('saveAssessmentFeedback', error);
+    return mapAssessmentFeedbackRow(data);
+  }
+
+  async getAssessmentFeedback(userId: string) {
+    const { data, error } = await this.client
+      .from('job_coach_assessment_feedback')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    this.throwIfError('getAssessmentFeedback', error);
+    return data?.[0] ? mapAssessmentFeedbackRow(data[0]) : null;
+  }
+
+  async saveD1Waitlist(
+    userId: string,
+    selectedRoleId: RoleId,
+    contactConsent: boolean,
+    note: string,
+    locale: Locale
+  ) {
+    const latest = await this.getLatestAssessment(userId);
+    if (!latest) return null;
+
+    const timestamp = nowIso();
+    const { data, error } = await this.client
+      .from('job_coach_d1_waitlist')
+      .upsert(
+        [{
+          user_id: userId,
+          assessment_id: latest.id,
+          selected_role_id: selectedRoleId,
+          contact_consent: contactConsent,
+          note,
+          locale,
+          created_at: timestamp,
+          updated_at: timestamp,
+        }],
+        { onConflict: 'user_id,assessment_id' }
+      )
+      .select('*')
+      .single();
+
+    this.throwIfError('saveD1Waitlist', error);
+    return mapD1WaitlistRow(data);
+  }
+
+  async getD1Waitlist(userId: string) {
+    const { data, error } = await this.client
+      .from('job_coach_d1_waitlist')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    this.throwIfError('getD1Waitlist', error);
+    return data?.[0] ? mapD1WaitlistRow(data[0]) : null;
+  }
+
+  async saveFunnelEvent(
+    userId: string,
+    eventName: string,
+    properties: Record<string, Json>,
+    locale: Locale
+  ) {
+    const timestamp = nowIso();
+    const { data, error } = await this.client
+      .from('job_coach_funnel_events')
+      .insert({
+        user_id: userId,
+        event_name: eventName,
+        properties,
+        locale,
+        created_at: timestamp,
+      })
+      .select('*')
+      .single();
+
+    this.throwIfError('saveFunnelEvent', error);
+    return mapFunnelEventRow(data);
+  }
+
+  async getFunnelSummary() {
+    const [eventsResponse, feedbackResponse, waitlistResponse] = await Promise.all([
+      this.client.from('job_coach_funnel_events').select('*').order('created_at', { ascending: true }),
+      this.client.from('job_coach_assessment_feedback').select('*').order('created_at', { ascending: true }),
+      this.client.from('job_coach_d1_waitlist').select('*').order('created_at', { ascending: true }),
+    ]);
+
+    this.throwIfError('getFunnelSummary.events', eventsResponse.error);
+    this.throwIfError('getFunnelSummary.feedback', feedbackResponse.error);
+    this.throwIfError('getFunnelSummary.waitlist', waitlistResponse.error);
+
+    return buildFunnelSummary(
+      (eventsResponse.data || []).map(mapFunnelEventRow),
+      (feedbackResponse.data || []).map(mapAssessmentFeedbackRow),
+      (waitlistResponse.data || []).map(mapD1WaitlistRow)
+    );
+  }
+
+  async savePublicShare(
+    userId: string,
+    input: {
+      assessmentId: string;
+      publicId: string;
+      firstName: string;
+      locale: Locale;
+      roleId: RoleId;
+      roleName: LocalizedText;
+      roleSummary: LocalizedText;
+      dimensionSnapshot: AssessmentResult['dimensionSnapshot'];
+      confidenceBand: AssessmentResult['confidenceBand'];
+    }
+  ) {
+    const latest = await this.getLatestAssessment(userId);
+    if (!latest || latest.id !== input.assessmentId) return null;
+
+    const existing = await this.getPublicShare(input.publicId);
+    const timestamp = nowIso();
+    const { data, error } = await this.client
+      .from('job_coach_public_shares')
+      .upsert(
+        [{
+          id: existing?.id,
+          user_id: userId,
+          assessment_id: input.assessmentId,
+          public_id: existing?.publicId || input.publicId,
+          first_name: input.firstName,
+          locale: input.locale,
+          role_id: input.roleId,
+          role_name: input.roleName,
+          role_summary: input.roleSummary,
+          dimension_snapshot: input.dimensionSnapshot,
+          confidence_band: input.confidenceBand,
+          visit_count: existing?.visitCount || 0,
+          created_at: existing?.createdAt || timestamp,
+          updated_at: timestamp,
+          last_visited_at: existing?.lastVisitedAt || null,
+        }],
+        { onConflict: 'user_id,assessment_id' }
+      )
+      .select('*')
+      .single();
+
+    this.throwIfError('savePublicShare', error);
+    return mapPublicShareRow(data);
+  }
+
+  async getPublicShare(publicId: string) {
+    const { data, error } = await this.client
+      .from('job_coach_public_shares')
+      .select('*')
+      .eq('public_id', publicId)
+      .limit(1);
+
+    this.throwIfError('getPublicShare', error);
+    return data?.[0] ? mapPublicShareRow(data[0]) : null;
+  }
+
+  async recordPublicShareVisit(publicId: string) {
+    const share = await this.getPublicShare(publicId);
+    if (!share) return null;
+
+    const { data, error } = await this.client
+      .from('job_coach_public_shares')
+      .update({
+        visit_count: share.visitCount + 1,
+        last_visited_at: nowIso(),
+        updated_at: nowIso(),
+      })
+      .eq('public_id', publicId)
+      .select('*')
+      .single();
+
+    this.throwIfError('recordPublicShareVisit', error);
+    return mapPublicShareRow(data);
+  }
+
+  async getShareStats() {
+    const { data, error } = await this.client
+      .from('job_coach_public_shares')
+      .select('visit_count');
+
+    this.throwIfError('getShareStats', error);
+    const totalShares = data?.length || 0;
+    const totalVisits =
+      data?.reduce((sum, item) => sum + Number((item as { visit_count?: number }).visit_count || 0), 0) || 0;
+    return {
+      totalShares,
+      totalVisits,
+      visitRate: totalShares > 0 ? totalVisits / totalShares : 0,
+    };
   }
 
   async getOrCreateResume(
@@ -1258,6 +1856,72 @@ function buildDashboardStats(snapshot: Awaited<ReturnType<ProductDB['getDashboar
     },
     plan: snapshot.plan,
     planProgress,
+  };
+}
+
+function buildFunnelSummary(
+  events: FunnelEventRecord[],
+  feedback: AssessmentFeedbackRecord[],
+  waitlist: D1WaitlistRecord[]
+): FunnelSummary {
+  const eventsByName = events.reduce<Record<string, number>>((acc, event) => {
+    acc[event.eventName] = (acc[event.eventName] || 0) + 1;
+    return acc;
+  }, {});
+
+  const totalEvents = events.length;
+  const assessmentStarts = eventsByName.assessment_start || 0;
+  const assessmentCompletes = eventsByName.assessment_complete || 0;
+  const resultsViewed = eventsByName.results_viewed || 0;
+  const resumeClicks = eventsByName.cta_resume_clicked || 0;
+  const practiceClicks = eventsByName.cta_practice_clicked || 0;
+  const questionsAnsweredByIndex = events.reduce<Record<string, number>>((acc, event) => {
+    if (event.eventName !== 'question_answered') {
+      return acc;
+    }
+
+    const indexValue = event.properties.question_index;
+    const index =
+      typeof indexValue === 'number' && Number.isFinite(indexValue)
+        ? String(Math.trunc(indexValue))
+        : null;
+
+    if (index) {
+      acc[index] = (acc[index] || 0) + 1;
+    }
+
+    return acc;
+  }, {});
+
+  const completionRate = assessmentStarts > 0 ? assessmentCompletes / assessmentStarts : 0;
+
+  const helpfulFeedback = feedback.filter((item) => item.rating === 'helpful').length;
+  const unhelpfulFeedback = feedback.filter((item) => item.rating === 'unhelpful').length;
+  const totalFeedback = feedback.length;
+
+  const consented = waitlist.filter((item) => item.contactConsent).length;
+
+  return {
+    totalEvents,
+    eventsByName,
+    assessmentStarts,
+    assessmentCompletes,
+    resultsViewed,
+    questionsAnsweredByIndex,
+    completionRate,
+    ctaSplit: {
+      resume: resumeClicks,
+      practice: practiceClicks,
+    },
+    feedback: {
+      helpful: helpfulFeedback,
+      unhelpful: unhelpfulFeedback,
+      total: totalFeedback,
+    },
+    waitlist: {
+      total: waitlist.length,
+      consented,
+    },
   };
 }
 
