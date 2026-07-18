@@ -1,6 +1,6 @@
 'use client';
 
-import type { StoredUser } from '@/lib/client-session';
+import { getStoredUser, type StoredUser } from '@/lib/client-session';
 
 type AnalyticsProperties = Record<string, string | number | boolean | null | undefined>;
 
@@ -42,7 +42,10 @@ export async function captureProductEvent(
   const posthog = await getPostHog();
   posthog?.capture(eventName, properties);
 
-  if (typeof window !== 'undefined') {
+  // The first-party funnel store requires a registered user (the events table
+  // has a NOT NULL user_id FK), so anonymous events must not be mirrored there
+  // — PostHog owns the anonymous portion of the funnel via its own device ids.
+  if (typeof window !== 'undefined' && getStoredUser()) {
     void fetch('/api/analytics/events', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
