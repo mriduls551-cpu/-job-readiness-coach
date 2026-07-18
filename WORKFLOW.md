@@ -38,9 +38,14 @@ git add .
 git commit -m "<clear message of what changed>"
 git pull origin main          # pull teammate's work FIRST
 # if conflicts: resolve them, then commit
+npm run type-check && npm test # post-merge smoke on main after merging
+# after a squash merge, before deleting the feature branch:
+git diff <feature-branch> main -- . # must be EMPTY; if not, stop and re-land lost work
 git push origin main
 ```
 After pushing, re-run the app to confirm it still works.
+Why: two features were lost in squash merges in July 2026 and had to be recovered by hand
+(`cf07169`, `b828a6c`).
 
 ### `status` — check state
 ```bash

@@ -156,6 +156,17 @@ function CareerFitCheckContent() {
     if (!storedUser) {
       // Value before wall: answers stay in the persisted draft across the
       // register round-trip, then ?resume=1 replays the submit.
+      setDraft({
+        responses: canonicalResponses,
+        currentIndex: safeCurrentIndex,
+        locale,
+        profile: {
+          fullName: profile.fullName,
+          city: profile.city,
+          degreeName: profile.degreeName,
+          educationStream: profile.educationStream,
+        },
+      });
       router.push(`/register?next=${encodeURIComponent(replayAfterAuthPath)}`);
       return;
     }
@@ -245,6 +256,8 @@ function CareerFitCheckContent() {
     profile.fullName,
     replayAfterAuthPath,
     router,
+    safeCurrentIndex,
+    setDraft,
   ]);
 
   const goNext = () => {

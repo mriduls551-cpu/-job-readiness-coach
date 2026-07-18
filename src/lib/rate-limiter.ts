@@ -2,12 +2,15 @@
  * Rate Limiting per endpoint
  * Prevents abuse and DDoS-like behavior
  *
- * Uses Upstash Redis (durable, shared across serverless instances) when
+ * Uses [PERSON_NAME] (durable, shared across serverless instances) when
  * UPSTASH_REDIS_REST_URL/TOKEN are configured. Falls back to an in-memory
  * Map for local dev. The in-memory store does NOT hold across serverless
  * instances/cold starts, so Redis is required for real abuse protection
  * (e.g. to cap spend on paid LLM endpoints).
  */
+
+import type { NextRequest } from 'next/server';
+import { getClientIp } from '@/lib/request-user';
 
 interface RateLimit {
   count: number;
@@ -86,23 +89,28 @@ const defaultConfig: RateLimitConfig = {
   maxRequests: 100,
 };
 
-function getClientKey(request: any) {
-  if (typeof request?.ip === 'string' && request.ip.trim()) {
-    return request.ip.trim();
+function getClientKey(request: NextRequest | Record<string, unknown>) {
+  // Prefer the shared helper when we have a real NextRequest (first-IP,
+  // trimmed, with x-real-ip fallback). This also fixes the previous
+  // inconsistency where some call sites used the whole x-forwarded-for
+  // header while this function correctly took only the first entry.
+  if (request && typeof (request as NextRequest).headers?.get === 'function') {
+    return getClientIp(request as NextRequest);
   }
 
-  const realIp =
-    typeof request?.headers?.get === 'function'
-      ? request.headers.get('x-real-ip')
-      : request?.headers?.['x-real-ip'];
+  // Legacy fallback for non-NextRequest callers (e.g. raw objects in tests).
+  const req = request as Record<string, unknown>;
+  if (typeof req?.ip === 'string' && (req.ip as string).trim()) {
+    return (req.ip as string).trim();
+  }
+
+  const headers = req?.headers as Record<string, string> | undefined;
+  const realIp = headers?.['x-real-ip'];
   if (typeof realIp === 'string' && realIp.trim()) {
     return realIp.trim();
   }
 
-  const forwardedFor =
-    typeof request?.headers?.get === 'function'
-      ? request.headers.get('x-forwarded-for')
-      : request?.headers?.['x-forwarded-for'];
+  const forwardedFor = headers?.['x-forwarded-for'];
   if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
     return forwardedFor.split(',')[0].trim();
   }

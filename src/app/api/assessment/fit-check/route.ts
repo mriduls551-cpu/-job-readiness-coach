@@ -7,7 +7,7 @@ import {
   resolveAssessmentScoringExperiment,
 } from '@/lib/assessment-experiments';
 import { getDB } from '@/lib/db';
-import { getRequestLocale, resolveRequestUserId } from '@/lib/request-user';
+import { getClientIp, getRequestLocale, resolveRequestUserId } from '@/lib/request-user';
 import {
   AssessmentValidationError,
   ROLE_ORDER,
@@ -144,10 +144,7 @@ export async function POST(request: NextRequest) {
       return error('Authentication required', 401);
     }
 
-    const clientIp =
-      request.headers.get('x-forwarded-for') ||
-      request.headers.get('x-real-ip') ||
-      'unknown';
+    const clientIp = getClientIp(request);
     const limitCheck = await assessmentLimiter.check(`${userId}:${clientIp}`);
     if (limitCheck.limited) {
       const response = error(

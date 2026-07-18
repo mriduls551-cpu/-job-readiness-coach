@@ -114,7 +114,7 @@ export default function HomeReferencePage() {
 
   const currentCopy = copy[locale];
   const currentFocus = currentCopy.focus[focus];
-  const primaryHref = user ? '/dashboard' : '/register?next=%2Fcareer-fit-check';
+  const primaryHref = user ? '/dashboard' : '/career-fit-check';
   const secondaryHref = user ? '/dashboard' : '/login';
 
   const changeLocale = (nextLocale: Locale) => {
