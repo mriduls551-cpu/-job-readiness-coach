@@ -10,17 +10,46 @@
  *   - Results page shows at least one role card
  */
 
-import { expect, test } from 'playwright/test';
+import { expect, type Page, test } from 'playwright/test';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
 
+async function answerFitCheckToRegisterGate(page: Page) {
+  await page.goto(`${BASE_URL}/career-fit-check`);
+  await expect(page.getByRole('radio').first()).toBeVisible({ timeout: 8000 });
+
+  for (let step = 0; step < 12; step++) {
+    if (page.url().includes('/register')) break;
+
+    const option = page.getByRole('radio').first();
+    const optionCount = await option.count();
+    if (optionCount === 0) break;
+
+    await option.click();
+    await expect(option).toHaveAttribute('aria-checked', 'true');
+
+    const questionCounter = page.getByText(/Question \d+ of \d+/);
+    const questionBefore = await questionCounter.textContent();
+    const actionButton = page.locator('section.route-shell button.btn-primary');
+    await expect(actionButton).toBeEnabled();
+    const actionLabel = await actionButton.innerText();
+
+    await actionButton.press('Enter');
+
+    if (/See my top matches/i.test(actionLabel)) {
+      await page.waitForURL(/\/register/, { timeout: 20000 });
+      break;
+    }
+    await expect(questionCounter).not.toHaveText(questionBefore || '', { timeout: 5000 });
+  }
+}
+
 test.describe('Career Fit Check — core flow', () => {
-  test('can navigate to fit check from landing page', async ({ page }) => {
+  test('landing page exposes the fit check as the primary entry point', async ({ page }) => {
     await page.goto(BASE_URL);
-    const ctaLink = page.getByRole('link', { name: /start|fit check|career fit|try it/i }).first();
+    const ctaLink = page.getByRole('link', { name: /find my best-fit roles/i });
     await expect(ctaLink).toBeVisible();
-    await ctaLink.click();
-    await expect(page).toHaveURL(/career-fit-check/);
+    await expect(ctaLink).toHaveAttribute('href', '/career-fit-check');
   });
 
   test('fit check page renders first question', async ({ page }) => {
@@ -35,64 +64,32 @@ test.describe('Career Fit Check — core flow', () => {
     // Click the first available option
     const firstOption = page.locator('[data-option], button[data-value], .selection-option').first();
     await firstOption.click();
-    const nextBtn = page.getByRole('button', { name: /next|continue|आगे/i });
+    const nextBtn = page.locator('section.route-shell button.btn-primary');
     await expect(nextBtn).toBeEnabled();
   });
 
-  test('can complete all questions and reach results', async ({ page }) => {
-    await page.goto(`${BASE_URL}/career-fit-check`);
+  test('can complete all questions and reach the save-results account gate', async ({ page }) => {
+    await answerFitCheckToRegisterGate(page);
 
-    // Keep picking the first option and advancing until we land on /results
-    for (let step = 0; step < 12; step++) {
-      const currentUrl = page.url();
-      if (currentUrl.includes('/results')) break;
-
-      // Pick first selectable option
-      const option = page
-        .locator('.selection-option, [data-option], [role="radio"]')
-        .first();
-
-      // If no options found, we may already be on results
-      const optionCount = await option.count();
-      if (optionCount === 0) break;
-
-      await option.click();
-      await page.waitForTimeout(100);
-
-      const nextBtn = page.getByRole('button', { name: /next|continue|आगे/i });
-      const hasNext = await nextBtn.count();
-      if (hasNext > 0 && await nextBtn.isEnabled()) {
-        await nextBtn.click();
-        await page.waitForURL(/career-fit-check|results/, { timeout: 5000 });
-      }
-    }
-
-    await expect(page).toHaveURL(/results/, { timeout: 8000 });
+    await expect(page).toHaveURL(/\/register\?next=%2Fcareer-fit-check%3Fresume%3D1/, {
+      timeout: 8000,
+    });
+    await expect(page.getByText(/save your answers, then see your realistic role matches/i)).toBeVisible();
   });
 
-  test('results page shows at least one role match card', async ({ page }) => {
-    // Shortcut: set sessionStorage/localStorage to simulate a completed assessment
-    await page.goto(`${BASE_URL}/career-fit-check`);
+  test('registering after the fit check resumes scoring and shows results', async ({ page }) => {
+    test.setTimeout(60000);
 
-    // Complete flow as above, then verify results
-    for (let step = 0; step < 12; step++) {
-      if (page.url().includes('/results')) break;
-      const option = page.locator('.selection-option, [data-option], [role="radio"]').first();
-      if (await option.count() === 0) break;
-      await option.click();
-      await page.waitForTimeout(100);
-      const nextBtn = page.getByRole('button', { name: /next|continue|आगे/i });
-      if (await nextBtn.count() > 0 && await nextBtn.isEnabled()) {
-        await nextBtn.click();
-        await page.waitForURL(/career-fit-check|results/, { timeout: 5000 });
-      }
-    }
+    await answerFitCheckToRegisterGate(page);
 
-    if (!page.url().includes('/results')) {
-      await page.goto(`${BASE_URL}/results`);
-    }
+    const suffix = Date.now();
+    await page.getByLabel(/full name/i).fill('Priya Test');
+    await page.getByLabel(/email address/i).fill(`priya.${suffix}@example.com`);
+    await page.getByLabel(/^password$/i).fill('Password123!');
+    await page.getByLabel(/confirm password/i).fill('Password123!');
+    await page.getByRole('button', { name: /^create account$/i }).click();
 
-    // Results page should have role cards / match cards
+    await expect(page).toHaveURL(/\/results/, { timeout: 30000 });
     const roleCard = page.locator('.match-card, [data-role-card], [data-testid*="role"]').first();
     await expect(roleCard).toBeVisible({ timeout: 6000 });
   });
@@ -101,7 +98,7 @@ test.describe('Career Fit Check — core flow', () => {
     await page.goto(`${BASE_URL}/career-fit-check`);
 
     // Switch to Hindi
-    const hiBtn = page.getByRole('button', { name: /HI|Hindi|Switch to Hindi/i }).first();
+    const hiBtn = page.getByRole('button', { name: 'हिंदी' }).first();
     await hiBtn.click();
 
     // The page should now contain Devanagari text
