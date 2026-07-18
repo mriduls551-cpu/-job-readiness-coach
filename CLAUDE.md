@@ -16,17 +16,21 @@ no paid certificates, no ads inside learning.
 4. `WORKFLOW.md` — team git workflow ("sync", "ship", "run", "status" commands)
 5. `assessment-engine-v2-spec.md`, `system-design.md`, `tech-debt.md` — reference
 
-## Current state (as of 2026-07-05)
-- Active branch: `feat/assessment-sprints-and-algorithm-fixes` (trust core landed, 15 suites / 168 tests green)
-- **Sprint 0 pending:** 3 items in `docs/code-review/2026-06-30-action-items.md`
-  (recordFeedback user-id filter, educationStreamBoosts benchmark check, double-submit guard in
-  `career-fit-check/page.tsx`) → then merge to `main` + deploy
+## Current state (as of 2026-07-18)
+- Active branch: `main`.
+- **Sprint 0 done:** the fit-check double-submit guard exists (`isSubmitting` in
+  `src/app/career-fit-check/page.tsx`) and assessment feedback is user-scoped
+  (`resolveRequestUserId` in `src/app/api/assessment/feedback/route.ts`).
+- Scoring engine version: `evidence-hybrid-v5` (`src/data/roles.seed.json`,
+  `algo-validation/BENCHMARK_RESULTS.json`).
+- Tests: 26 test files on disk by `src/**/__tests__/*` + `e2e/*.spec.ts`; latest `npm test`
+  run is green at 24 suites / 182 tests.
 - **Open strategic decision — Gate D1:** post-results journey = resume/jobs (PRD v1) vs
   learn-practice-earn tracks (GTM draft). Being settled by fake-door dual CTA + PostHog data
   (~200 results views), NOT debate. Don't pre-build either endgame.
 - Not built yet: share card, D1 CTAs, next-intl question copy, conversational mode, payments,
   learning/practice features.
-- Role universe: 11 core roles + ~30 adjacent (list only). Telemedicine coordinator retired.
+- Role catalog: 41 roles; current benchmark reachability is 36 top-1 reachable and 10 gated.
 - Auth is deferred — value before wall. v1's account-gated principle is dead.
 
 ## Stack
