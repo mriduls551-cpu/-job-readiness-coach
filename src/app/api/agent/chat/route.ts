@@ -9,7 +9,7 @@ import {
   isActiveRoleId,
   ROLE_DEFINITIONS,
 } from '@/lib/product';
-import { getRequestLocale, resolveRequestUserId } from '@/lib/request-user';
+import { getClientIp, getRequestLocale, resolveRequestUserId } from '@/lib/request-user';
 import type { RoleId } from '@/lib/product';
 import { getRateLimiter } from '@/lib/rate-limiter';
 
@@ -51,10 +51,7 @@ export async function POST(request: NextRequest) {
       return error('Authentication required', 401);
     }
 
-    const clientIp =
-      request.headers.get('x-forwarded-for') ||
-      request.headers.get('x-real-ip') ||
-      'unknown';
+    const clientIp = getClientIp(request);
     const limitCheck = await chatLimiter.check(`${userId}:${clientIp}`);
     if (limitCheck.limited) {
       const response = error(

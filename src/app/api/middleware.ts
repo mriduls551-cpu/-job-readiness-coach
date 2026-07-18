@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
+import { getClientIp } from '@/lib/request-user';
 
 function addSecurityHeaders(response: NextResponse): NextResponse {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -67,7 +68,7 @@ export async function withSecurityHeaders(
       requestId,
       method: request.method,
       path: request.nextUrl.pathname,
-      ip: request.headers.get('x-forwarded-for') || 'unknown',
+      ip: getClientIp(request),
     });
 
     try {

@@ -9,6 +9,7 @@ import { getDB } from '@/lib/db';
 import { createLocalSessionToken } from '@/lib/server-auth';
 import { createServerAuthClient, isSupabaseConfigured } from '@/lib/supabase';
 import { isLocalAuthEnabled } from '@/lib/auth-mode';
+import { getClientIp } from '@/lib/request-user';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email'),
@@ -52,10 +53,7 @@ function shouldUseSecureCookies(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const clientIp =
-      request.headers.get('x-forwarded-for') ||
-      request.headers.get('x-real-ip') ||
-      'unknown';
+    const clientIp = getClientIp(request);
 
     const limitCheck = await loginLimiter.check(clientIp);
     if (limitCheck.limited) {

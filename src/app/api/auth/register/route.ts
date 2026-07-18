@@ -8,6 +8,7 @@ import { createServerClient, isSupabaseConfigured } from '@/lib/supabase';
 import { isLocalAuthEnabled } from '@/lib/auth-mode';
 import { getRateLimiter } from '@/lib/rate-limiter';
 import { HttpStatus } from '@/types/api';
+import { getClientIp } from '@/lib/request-user';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -22,10 +23,7 @@ const registerLimiter = getRateLimiter({
 
 export async function POST(request: NextRequest) {
   try {
-    const clientIp =
-      request.headers.get('x-forwarded-for') ||
-      request.headers.get('x-real-ip') ||
-      'unknown';
+    const clientIp = getClientIp(request);
 
     const limitCheck = await registerLimiter.check(clientIp);
     if (limitCheck.limited) {
