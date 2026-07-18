@@ -1,0 +1,34 @@
+# Secrets and local config
+.env
+.env.*
+
+# Git metadata and local tool state
+.git/
+.claude/
+.codex/
+
+# Dependencies and build outputs
+node_modules/
+.next/
+coverage/
+dist/
+build/
+out/
+output/
+
+# Only block the most sensitive founder/internal context docs
+CLAUDE.md
+BUILD_PLAN.md
+PRODUCT_ROADMAP.md
+PRODUCT_MARKET_RESEARCH_BRIEF.md
+COMPLETE_USABILITY_AND_MARKET_RESEARCH.md
+USER_JOURNEY_WALKTHROUGH.md
+
+# Bulky audits, mockups, and screenshots that add little coding value
+product-design-audit/
+docs/qa/
+design-qa.md
+mockups.html
+
+# Local workstation artifacts
+.fuse_hidden*
