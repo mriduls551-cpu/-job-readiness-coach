@@ -11,19 +11,12 @@
  */
 
 import { expect, type Page, test } from 'playwright/test';
+import { syntheticClientIp } from './synthetic-client-ip';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
 const ANALYTICS_PATH = '/api/analytics/events';
 
-// The auth endpoints rate-limit by client IP (getClientIp reads the first
-// x-forwarded-for entry). Repeated local runs would trip the limiter, so each
-// run identifies as a fresh synthetic client instead of hammering one key.
-const RUN_IP = `10.${rand(254)}.${rand(254)}.${rand(254)}`;
-test.use({ extraHTTPHeaders: { 'x-forwarded-for': RUN_IP } });
-
-function rand(max: number) {
-  return 1 + Math.floor(Math.random() * max);
-}
+test.use({ extraHTTPHeaders: { 'x-forwarded-for': syntheticClientIp() } });
 
 async function answerCurrentQuestion(page: Page) {
   const option = page.getByRole('radio').first();

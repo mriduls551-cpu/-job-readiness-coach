@@ -11,8 +11,11 @@
  */
 
 import { expect, type Page, test } from 'playwright/test';
+import { syntheticClientIp } from './synthetic-client-ip';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
+
+test.use({ extraHTTPHeaders: { 'x-forwarded-for': syntheticClientIp() } });
 
 async function answerFitCheckToRegisterGate(page: Page) {
   await page.goto(`${BASE_URL}/career-fit-check`);
