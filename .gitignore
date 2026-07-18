@@ -77,3 +77,12 @@ results-*.json
 
 # Generated QA artifacts (screenshots, dev-server logs)
 /output
+/product-design-audit/2026-07-07-product-pass/
+
+# Playwright run output
+/test-results
+/playwright-report
+
+# Codex dev-loop runtime artifacts (pid/job files)
+/codex-dev-server.pid
+/codex-dev-server.job.id
