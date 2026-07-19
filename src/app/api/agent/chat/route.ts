@@ -82,6 +82,11 @@ export async function POST(request: NextRequest) {
 
     const role = body.roleId ? ROLE_DEFINITIONS[body.roleId] : null;
 
+    // The user's name never leaves our system: it has no coaching value, and
+    // the money covenant means we send third-party models only what improves
+    // the reply (city, degree, constraints).
+    const { fullName: _fullName, ...profileForModel } = body.profile ?? {};
+
     const openrouter = createOpenAI({
       baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
       apiKey: process.env.OPENROUTER_API_KEY,
@@ -108,7 +113,7 @@ export async function POST(request: NextRequest) {
                 role: 'system' as const,
                 content: JSON.stringify({
                   locale,
-                  profile: body.profile ? { locale, ...body.profile } : undefined,
+                  profile: body.profile ? { locale, ...profileForModel } : undefined,
                   selectedRole: role?.name[locale],
                 }),
               },

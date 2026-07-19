@@ -26,6 +26,14 @@ interface OpenRouterResponse {
   choices?: OpenRouterChoice[];
 }
 
+// The user's name never leaves our system — models get only the fields that
+// improve the reply (city, degree, constraints). Applies to every payload
+// built in this module.
+function sanitizeProfileForModel(profile: AssessmentProfile): Omit<AssessmentProfile, 'fullName'> {
+  const { fullName: _fullName, ...rest } = profile;
+  return rest;
+}
+
 function getBaseUrl() {
   return process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
 }
@@ -130,7 +138,7 @@ export class OpenRouterService {
           role: 'user' as const,
           content: JSON.stringify({
             locale,
-            profile,
+            profile: sanitizeProfileForModel(profile),
             matches: matches.map((match) => ({
               role: match.role.name[locale],
               summary: match.role.summary[locale],
@@ -208,7 +216,7 @@ export class OpenRouterService {
           role: 'system',
           content: JSON.stringify({
             locale,
-            profile: context.profile,
+            profile: sanitizeProfileForModel(context.profile),
             selectedRole: role?.name[locale],
           }),
         });
