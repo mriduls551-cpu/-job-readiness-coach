@@ -33,10 +33,17 @@ async function clickNext(page: Page) {
   return /See my top matches/i.test(actionLabel);
 }
 
+async function answerQuestionByOptionId(page: Page, optionId: string) {
+  const option = page.locator(`#${optionId}`);
+  await expect(option).toBeVisible({ timeout: 8000 });
+  await option.click();
+  await expect(option).toHaveAttribute('aria-checked', 'true');
+}
+
 /** Answers questions until the save-results register gate appears. */
 async function answerFitCheckToRegisterGate(page: Page, alreadyOnPage = false) {
   if (!alreadyOnPage) {
-    await page.goto(`${BASE_URL}/career-fit-check`);
+    await page.goto(`${BASE_URL}/career-fit-check`, { waitUntil: 'domcontentloaded' });
   }
 
   for (let step = 0; step < 12; step++) {
@@ -173,5 +180,41 @@ test.describe('Product lock — full journeys', () => {
 
     const response = await firstAnalyticsResponse;
     expect(response.status()).toBe(200);
+  });
+
+  test('4. credential coherence: MBBS desk-ops answers do not headline data entry', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    await page.goto(`${BASE_URL}/career-fit-check`);
+    await page.getByLabel(/full name/i).fill('Neeraj Menon');
+    await page.getByLabel(/education stream/i).selectOption('healthcare');
+    await page.getByLabel(/city/i).fill('Kozhikode');
+    await page.getByLabel(/degree/i).fill('MBBS');
+
+    for (const optionId of [
+      'r1_c',
+      'r2_b',
+      'r3_a',
+      'r4_c',
+      'r5_c',
+      'do_b1_a',
+      'do_b2_a',
+      'do_b3_a',
+      'do_b4_a',
+      'rf_back-office-operations',
+    ]) {
+      await answerQuestionByOptionId(page, optionId);
+      await clickNext(page);
+    }
+
+    await page.waitForURL(/\/register/, { timeout: 20000 });
+    await registerFreshUser(page, 'CredentialLock');
+    await expect(page).toHaveURL(/\/results/, { timeout: 30000 });
+
+    const roleHeadings = await page.locator('article.match-card h2').allInnerTexts();
+    expect(roleHeadings).toHaveLength(3);
+    expect(roleHeadings.join(' | ')).not.toMatch(/data entry|mis/i);
   });
 });

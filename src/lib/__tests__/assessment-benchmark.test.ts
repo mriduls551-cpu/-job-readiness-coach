@@ -178,7 +178,7 @@ describe('algorithm benchmark artifact', () => {
         },
         simpleNormalizedAdditive: metrics((responses) => rankSimpleAdditive(responses)),
         globallyWeightedContent: metrics((responses) => rankGlobalContent(responses)),
-        evidenceHybridV5: {
+        evidenceHybridV6: {
           ...hybridMetrics,
           topScoreAt99: hybridTopScores.filter((score) => score === 99).length,
           meanTopScore: hybridTopScores.reduce((sum, score) => sum + score, 0) / hybridTopScores.length,
@@ -192,11 +192,11 @@ describe('algorithm benchmark artifact', () => {
       'utf8'
     );
 
-    expect(output.models.evidenceHybridV5.topScoreAt99).toBeLessThan(
+    expect(output.models.evidenceHybridV6.topScoreAt99).toBeLessThan(
       output.models.frozenProductionV2.topScoreAt99
     );
-    expect(output.models.evidenceHybridV5.rolesInTop3).toBeGreaterThanOrEqual(10);
-    expect(output.models.evidenceHybridV5.rolesInTop1).toBeGreaterThanOrEqual(10);
+    expect(output.models.evidenceHybridV6.rolesInTop3).toBeGreaterThanOrEqual(10);
+    expect(output.models.evidenceHybridV6.rolesInTop1).toBeGreaterThanOrEqual(10);
     expect(output.catalogReachability.rolesInTopThreeOnWitnessPath).toBeGreaterThanOrEqual(35);
     expect(output.catalogReachability.rolesInTopThreeOnWitnessPath).toBeLessThanOrEqual(ROLE_ORDER.length);
   });

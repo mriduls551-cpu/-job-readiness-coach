@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-07-18T18:22:13.193Z",
-  "scoringVersion": "evidence-hybrid-v5",
+  "generatedAt": "2026-07-19T07:02:52.358Z",
+  "scoringVersion": "evidence-hybrid-v6",
   "warning": "Synthetic personas test structure only; these rates are not predictive validity.",
   "catalogReachability": {
     "roles": 41,
@@ -21,33 +21,33 @@
       "source": "CURRENT_SYSTEM_AUDIT.md baseline run on 2026-06-18"
     },
     "simpleNormalizedAdditive": {
-      "cases": 20,
-      "top1": 20,
-      "top3": 20,
+      "cases": 23,
+      "top1": 23,
+      "top3": 23,
       "top1Rate": 1,
       "top3Rate": 1,
       "rolesInTop1": 11,
       "rolesInTop3": 11
     },
     "globallyWeightedContent": {
-      "cases": 20,
-      "top1": 19,
-      "top3": 20,
-      "top1Rate": 0.95,
+      "cases": 23,
+      "top1": 22,
+      "top3": 23,
+      "top1Rate": 0.9565217391304348,
       "top3Rate": 1,
       "rolesInTop1": 10,
       "rolesInTop3": 22
     },
-    "evidenceHybridV5": {
-      "cases": 20,
-      "top1": 17,
-      "top3": 17,
-      "top1Rate": 0.85,
-      "top3Rate": 0.85,
+    "evidenceHybridV6": {
+      "cases": 23,
+      "top1": 20,
+      "top3": 20,
+      "top1Rate": 0.8695652173913043,
+      "top3Rate": 0.8695652173913043,
       "rolesInTop1": 14,
-      "rolesInTop3": 22,
+      "rolesInTop3": 24,
       "topScoreAt99": 0,
-      "meanTopScore": 80.65
+      "meanTopScore": 81.73913043478261
     }
   }
 }

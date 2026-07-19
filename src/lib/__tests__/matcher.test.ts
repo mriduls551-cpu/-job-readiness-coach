@@ -12,6 +12,8 @@ import {
   type RoleId,
 } from '@/lib/assessment-engine';
 import { MATCHING_CATALOG } from '@/lib/matcher/catalog';
+import { scoreEvidence } from '@/lib/matcher/scorer';
+import type { PersonEvidence } from '@/lib/matcher/types';
 
 const routes = {
   people: { r1: 'r1_a', r2: 'r2_a', r3: 'r3_c', r4: 'r4_a', r5: 'r5_a' },
@@ -93,6 +95,13 @@ describe('versioned matching catalog', () => {
   it('keeps market demand disabled while priors are unsourced', () => {
     expect(MATCHING_CATALOG.marketPolicy).toBe('disabled-until-sourced');
     expect(MATCHING_CATALOG.roles.every((role) => role.marketPrior.value === null)).toBe(true);
+  });
+
+  it('defines a typical education band for every expanded catalog role', () => {
+    for (const role of MATCHING_CATALOG.roles) {
+      expect(role.typicalEducationBand.min).toBeTruthy();
+      expect(role.typicalEducationBand.max).toBeTruthy();
+    }
   });
 });
 
@@ -225,6 +234,50 @@ describe('production constrained hybrid', () => {
     const result = scoreAssessment(lowNumbers, { educationStream: 'commerce' });
     expect(result.topRoles[0].roleId).not.toBe('accounting-finance-assistant');
     expect(result.topRoles.some((role) => role.eligibility === 'conditional')).toBe(false);
+  });
+
+  it('demotes roles far below a professional education level without removing them', () => {
+    const dataEntryPolicy = MATCHING_CATALOG.roles.find((role) => role.id === 'data-entry-mis');
+    expect(dataEntryPolicy?.typicalEducationBand.max).toBe('undergraduate');
+
+    const person: PersonEvidence = {
+      preferenceVector: [7, 1, 1, 9, 1, 3],
+      branchRoleScores: { 'data-entry-mis': 24 },
+      selectedAnswerCount: 1,
+      requiredAnswerCount: 1,
+      readiness: { numbers: 'high', dataAccuracy: 'high' },
+      educationStream: 'healthcare',
+      educationLevel: 'professional',
+      objectiveEvidence: { accuracy: 100, spreadsheet: 100 },
+    };
+
+    const result = scoreEvidence(person, MATCHING_CATALOG);
+    const dataEntry = result.rankedRoles.find((role) => role.roleId === 'data-entry-mis');
+
+    expect(dataEntry).toBeDefined();
+    expect(dataEntry?.eligibility).toBe('conditional');
+    expect(result.rankedRoles.map((role) => role.roleId)).toContain('data-entry-mis');
+    expect(result.rankedRoles.slice(0, 3).map((role) => role.roleId)).not.toContain('data-entry-mis');
+  });
+
+  it('does not credential-demote the directly selected finalist role', () => {
+    const person: PersonEvidence = {
+      preferenceVector: [7, 1, 1, 9, 1, 3],
+      branchRoleScores: { 'data-entry-mis': 24 },
+      selectedAnswerCount: 1,
+      requiredAnswerCount: 1,
+      readiness: { numbers: 'high', dataAccuracy: 'high' },
+      educationStream: 'healthcare',
+      educationLevel: 'professional',
+      directRolePreference: 'data-entry-mis',
+      objectiveEvidence: { accuracy: 100, spreadsheet: 100 },
+    };
+
+    const result = scoreEvidence(person, MATCHING_CATALOG);
+    const dataEntry = result.rankedRoles.find((role) => role.roleId === 'data-entry-mis');
+
+    expect(dataEntry?.eligibility).not.toBe('conditional');
+    expect(result.rankedRoles[0].roleId).toBe('data-entry-mis');
   });
 
   it('uses objective evidence without penalizing missing evidence', () => {

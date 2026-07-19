@@ -5,6 +5,7 @@ import {
   getNextQuestions,
   scoreAssessment,
 } from '@/lib/assessment-engine';
+import { MATCHING_CATALOG } from '@/lib/matcher/catalog';
 
 function completeAssessmentArbitrary() {
   const routingArbitrary = ASSESSMENT_QUESTIONS.reduce(
@@ -87,4 +88,39 @@ describe('assessment engine invariants', () => {
       }
     );
   });
+
+  it('keeps credential demotion non-excluding for professional-level personas', () => {
+    const lowBandRoleIds = new Set(
+      MATCHING_CATALOG.roles
+        .filter((role) => ['secondary', 'diploma'].includes(role.typicalEducationBand.max))
+        .map((role) => role.id)
+    );
+
+    fc.assert(
+      fc.property(completeAssessmentArbitrary(), (responses) => {
+        const result = scoreAssessment(
+          responses,
+          { degreeName: 'MBBS', educationStream: 'healthcare' },
+          'en'
+        );
+        const directRolePreference = responses.rf?.startsWith('rf_')
+          ? responses.rf.slice(3)
+          : null;
+
+        expect(Object.keys(result.allScores).sort()).toEqual([...ROLE_IDS].sort());
+
+        for (const match of result.topRoles) {
+          if (lowBandRoleIds.has(match.roleId)) {
+            expect(match.roleId).toBe(directRolePreference);
+          }
+        }
+      }),
+      {
+        numRuns: 75,
+        seed: 20260719,
+      }
+    );
+  });
 });
+
+const ROLE_IDS = MATCHING_CATALOG.roles.map((role) => role.id);

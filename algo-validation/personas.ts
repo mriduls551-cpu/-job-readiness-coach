@@ -141,4 +141,22 @@ export const PERSONAS: Persona[] = [
     routing:{r1:'r1_a',r2:'r2_a',r3:'r3_c',r4:'r4_b',r5:'r5_a'},
     branch:{b1:'pf_b1_b',b2:'pf_b2_b',b3:'pf_b3_b',b4:'pf_b4_b'},
     expectedCluster:'people-facing',expectedRole:'academic-counsellor' },
+
+  { id:21, name:'Dr. Neeraj Menon', city:'Kozhikode', blurb:'MBBS grad, likes structured remote healthcare support but not clerical-only work',
+    seed:{fullName:'Neeraj Menon',city:'Kozhikode',educationStream:'healthcare',degreeName:'MBBS'},
+    routing:{r1:'r1_a',r2:'r2_b',r3:'r3_d',r4:'r4_c',r5:'r5_a'},
+    branch:{b1:'pf_b1_a',b2:'pf_b2_a',b3:'pf_b3_d',b4:'pf_b4_a'},
+    expectedCluster:'people-facing',expectedRole:'customer-support' },
+
+  { id:22, name:'Aarav Sethi', city:'Delhi', blurb:'LLB grad, compliance-leaning, wants rule review over routine records',
+    seed:{fullName:'Aarav Sethi',city:'Delhi',educationStream:'law',degreeName:'LLB'},
+    routing:{r1:'r1_c',r2:'r2_b',r3:'r3_b',r4:'r4_c',r5:'r5_c'},
+    branch:{b1:'do_b1_c',b2:'do_b2_c',b3:'do_b3_c',b4:'do_b4_c'},
+    expectedCluster:'desk-ops',expectedRole:'legal-compliance-operations' },
+
+  { id:23, name:'Tanvi Kulkarni', city:'Pune', blurb:'B.Tech grad, analytical, strong spreadsheet and accuracy signals',
+    seed:{fullName:'Tanvi Kulkarni',city:'Pune',educationStream:'science',degreeName:'B.Tech'},
+    routing:{r1:'r1_d',r2:'r2_d',r3:'r3_a',r4:'r4_c',r5:'r5_b'},
+    branch:{b1:'an_b1_a',b2:'an_b2_a',b3:'an_b3_a',b4:'an_b4_a'},
+    expectedCluster:'analytical',expectedRole:'operations-analyst' },
 ];

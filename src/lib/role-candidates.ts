@@ -6,6 +6,14 @@ const localizedTextSchema = z.object({
   hi: z.string().min(2),
 });
 
+const educationLevelSchema = z.enum([
+  'secondary',
+  'diploma',
+  'undergraduate',
+  'postgraduate',
+  'professional',
+]);
+
 const candidateRoleSchema = z.object({
   id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   version: z.number().int().positive(),
@@ -15,6 +23,10 @@ const candidateRoleSchema = z.object({
   aliases: z.array(z.string().min(2)).min(1),
   requirements: z.array(z.string().min(2)).min(1),
   separatorSignals: z.array(z.string().min(2)).min(1),
+  typicalEducationBand: z.object({
+    min: educationLevelSchema,
+    max: educationLevelSchema,
+  }),
   objectiveSignals: z.array(
     z.enum([
       'communication',

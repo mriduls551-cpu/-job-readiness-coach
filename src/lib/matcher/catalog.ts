@@ -12,6 +12,14 @@ const vectorSchema = z.tuple([
   z.number().min(0).max(9),
 ]);
 
+const educationLevelSchema = z.enum([
+  'secondary',
+  'diploma',
+  'undergraduate',
+  'postgraduate',
+  'professional',
+]);
+
 const rolePolicySchema = z.object({
   id: z.string().min(1),
   version: z.number().int().positive(),
@@ -22,6 +30,10 @@ const rolePolicySchema = z.object({
   readiness: z.record(z.enum(['basic', 'strong'])),
   preferredEducationStreams: z.array(z.string()),
   educationStreamBoosts: z.array(z.string()).default([]),
+  typicalEducationBand: z.object({
+    min: educationLevelSchema,
+    max: educationLevelSchema,
+  }),
   objectiveSignals: z.array(z.enum([
     'communication',
     'accuracy',
@@ -123,6 +135,7 @@ function candidatePolicy(role: (typeof ROLE_CANDIDATES)[number]): RolePolicy {
     },
     preferredEducationStreams: [],
     educationStreamBoosts: [],
+    typicalEducationBand: role.typicalEducationBand,
     objectiveSignals: role.objectiveSignals,
     verificationRequirements: role.requirements,
     marketPrior: {

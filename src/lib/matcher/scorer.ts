@@ -13,6 +13,7 @@ import type {
   RolePolicy,
 } from './types';
 import { DEFAULT_ASSESSMENT_SCORING_CONFIG } from '@/lib/assessment-experiments';
+import { EDUCATION_LEVEL_ORDER } from './types';
 
 const GLOBAL_DIMENSION_WEIGHTS: DimensionVector = [1, 1, 1, 1, 1, 1];
 // Four discriminator questions contribute up to 12 points; the finalist
@@ -61,7 +62,20 @@ function readinessConflict(
     : 'This role uses detail-heavy records, while you reported low comfort.';
 }
 
-function evaluateEligibility(
+const CREDENTIAL_COHERENCE_REASON =
+  'This role typically hires below your education level; shown only because of your answers. / यह भूमिका आम तौर पर आपकी शिक्षा से नीचे के स्तर पर भर्ती करती है; इसे केवल आपके उत्तरों के कारण दिखाया गया है।';
+
+function credentialCoherenceConflict(person: PersonEvidence, role: RolePolicy): string | null {
+  if (!person.educationLevel || person.directRolePreference === role.id) return null;
+
+  const personLevelIndex = EDUCATION_LEVEL_ORDER.indexOf(person.educationLevel);
+  const maxLevelIndex = EDUCATION_LEVEL_ORDER.indexOf(role.typicalEducationBand.max);
+  if (personLevelIndex === -1 || maxLevelIndex === -1) return null;
+
+  return personLevelIndex - maxLevelIndex >= 2 ? CREDENTIAL_COHERENCE_REASON : null;
+}
+
+export function evaluateEligibility(
   person: PersonEvidence,
   role: RolePolicy
 ): { status: EligibilityStatus; reasons: string[]; adjustment: number } {
@@ -72,6 +86,8 @@ function evaluateEligibility(
     const conflict = readinessConflict(signal, level, person.readiness[signal]);
     if (conflict) reasons.push(conflict);
   }
+  const credentialConflict = credentialCoherenceConflict(person, role);
+  if (credentialConflict) reasons.push(credentialConflict);
 
   if (reasons.length > 0) {
     return { status: 'conditional', reasons, adjustment: 0.35 };

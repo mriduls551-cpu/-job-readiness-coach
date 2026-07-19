@@ -23,6 +23,28 @@ export type ObjectiveSignal =
 export type RequirementLevel = 'basic' | 'strong';
 export type EligibilityStatus = 'ready' | 'conditional' | 'insufficient-evidence';
 export type ConfidenceBand = 'high' | 'medium' | 'low';
+export type EducationStream =
+  | 'commerce'
+  | 'management'
+  | 'arts-humanities'
+  | 'science'
+  | 'healthcare'
+  | 'law'
+  | 'open';
+export type EducationLevel =
+  | 'secondary'
+  | 'diploma'
+  | 'undergraduate'
+  | 'postgraduate'
+  | 'professional';
+
+export const EDUCATION_LEVEL_ORDER: EducationLevel[] = [
+  'secondary',
+  'diploma',
+  'undergraduate',
+  'postgraduate',
+  'professional',
+];
 
 export interface ObjectiveEvidence {
   communication?: number;
@@ -47,6 +69,10 @@ export interface RolePolicy {
   // Streams that get scoringConfig.streamBoostFactor applied; inert while the
   // factor is 1 (control).
   educationStreamBoosts: string[];
+  typicalEducationBand: {
+    min: EducationLevel;
+    max: EducationLevel;
+  };
   objectiveSignals: ObjectiveSignal[];
   verificationRequirements: string[];
   marketPrior: {
@@ -75,7 +101,9 @@ export interface PersonEvidence {
     speaking?: string;
     dataAccuracy?: string;
   };
-  educationStream?: string;
+  educationStream?: EducationStream;
+  educationLevel?: EducationLevel;
+  directRolePreference?: string;
   objectiveEvidence?: ObjectiveEvidence;
 }
 
