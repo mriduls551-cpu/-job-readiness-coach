@@ -1,6 +1,6 @@
 {
   "catalogVersion": "2026-06-19.2",
-  "scoringVersion": "evidence-hybrid-v6",
+  "scoringVersion": "evidence-hybrid-v7",
   "marketPolicy": "disabled-until-sourced",
   "roles": [
     {
@@ -32,7 +32,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "sales-support",
@@ -63,7 +66,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "academic-counsellor",
@@ -94,7 +100,11 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "management",
+        "arts-humanities"
+      ]
     },
     {
       "id": "hr-coordinator",
@@ -127,7 +137,11 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "management",
+        "arts-humanities"
+      ]
     },
     {
       "id": "data-entry-mis",
@@ -160,7 +174,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "back-office-operations",
@@ -191,7 +208,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "operations-analyst",
@@ -210,10 +230,6 @@
         "dataAccuracy": "strong"
       },
       "preferredEducationStreams": [],
-      "educationStreamBoosts": [
-        "commerce",
-        "science"
-      ],
       "objectiveSignals": [
         "spreadsheet",
         "accuracy"
@@ -228,7 +244,11 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "commerce",
+        "science"
+      ]
     },
     {
       "id": "accounting-finance-assistant",
@@ -249,10 +269,6 @@
       "preferredEducationStreams": [
         "commerce"
       ],
-      "educationStreamBoosts": [
-        "commerce",
-        "science"
-      ],
       "objectiveSignals": [
         "accuracy",
         "spreadsheet"
@@ -267,7 +283,10 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "commerce"
+      ]
     },
     {
       "id": "digital-marketing-executive",
@@ -297,7 +316,12 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "management",
+        "arts-humanities",
+        "commerce"
+      ]
     },
     {
       "id": "content-writer",
@@ -326,7 +350,10 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "arts-humanities"
+      ]
     },
     {
       "id": "legal-compliance-operations",
@@ -348,9 +375,6 @@
         "law",
         "commerce"
       ],
-      "educationStreamBoosts": [
-        "law"
-      ],
       "objectiveSignals": [
         "accuracy",
         "writing"
@@ -365,7 +389,10 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "professional"
-      }
+      },
+      "streamRelevance": [
+        "law"
+      ]
     }
   ]
 }

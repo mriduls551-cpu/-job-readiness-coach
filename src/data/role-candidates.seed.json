@@ -43,7 +43,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "field-sales-executive",
@@ -79,7 +82,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "retail-sales-associate",
@@ -115,7 +121,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "retail-cashier",
@@ -152,7 +161,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "retail-store-operations-assistant",
@@ -188,7 +200,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "banking-sales-executive",
@@ -225,7 +240,11 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "commerce",
+        "management"
+      ]
     },
     {
       "id": "credit-processing-associate",
@@ -262,7 +281,10 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "commerce"
+      ]
     },
     {
       "id": "insurance-sales-associate",
@@ -298,7 +320,11 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "commerce",
+        "management"
+      ]
     },
     {
       "id": "microfinance-executive",
@@ -335,7 +361,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "gst-assistant",
@@ -372,7 +401,10 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "commerce"
+      ]
     },
     {
       "id": "recruitment-executive",
@@ -409,7 +441,11 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "management",
+        "arts-humanities"
+      ]
     },
     {
       "id": "payroll-employee-data-assistant",
@@ -446,7 +482,11 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "commerce",
+        "management"
+      ]
     },
     {
       "id": "logistics-operations-coordinator",
@@ -483,7 +523,11 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "management",
+        "commerce"
+      ]
     },
     {
       "id": "courier-operations-executive",
@@ -519,7 +563,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "warehouse-associate",
@@ -555,7 +602,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "diploma"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "supply-chain-executive",
@@ -592,7 +642,11 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "management",
+        "commerce"
+      ]
     },
     {
       "id": "it-helpdesk-associate",
@@ -629,7 +683,10 @@
       "typicalEducationBand": {
         "min": "diploma",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "science"
+      ]
     },
     {
       "id": "software-testing-assistant",
@@ -666,7 +723,10 @@
       "typicalEducationBand": {
         "min": "diploma",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "science"
+      ]
     },
     {
       "id": "web-development-associate",
@@ -702,7 +762,10 @@
       "typicalEducationBand": {
         "min": "diploma",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "science"
+      ]
     },
     {
       "id": "digital-cataloguer",
@@ -740,7 +803,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "merchant-relationship-executive",
@@ -777,7 +843,11 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "management",
+        "commerce"
+      ]
     },
     {
       "id": "junior-graphic-designer",
@@ -813,7 +883,10 @@
       "typicalEducationBand": {
         "min": "diploma",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "arts-humanities"
+      ]
     },
     {
       "id": "digital-content-developer",
@@ -850,7 +923,10 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "arts-humanities"
+      ]
     },
     {
       "id": "junior-video-editor",
@@ -886,7 +962,10 @@
       "typicalEducationBand": {
         "min": "diploma",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "arts-humanities"
+      ]
     },
     {
       "id": "hotel-front-office-associate",
@@ -923,7 +1002,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "food-beverage-service-associate",
@@ -959,7 +1041,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "diploma"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "housekeeping-associate",
@@ -995,7 +1080,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "diploma"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "kitchen-trainee",
@@ -1031,7 +1119,10 @@
       "typicalEducationBand": {
         "min": "secondary",
         "max": "diploma"
-      }
+      },
+      "streamRelevance": [
+        "open"
+      ]
     },
     {
       "id": "preschool-daycare-facilitator",
@@ -1067,7 +1158,10 @@
       "typicalEducationBand": {
         "min": "undergraduate",
         "max": "postgraduate"
-      }
+      },
+      "streamRelevance": [
+        "arts-humanities"
+      ]
     },
     {
       "id": "ev-service-technician",
@@ -1103,7 +1197,10 @@
       "typicalEducationBand": {
         "min": "diploma",
         "max": "undergraduate"
-      }
+      },
+      "streamRelevance": [
+        "science"
+      ]
     }
   ]
 }
