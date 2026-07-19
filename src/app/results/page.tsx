@@ -11,7 +11,7 @@ import { captureProductEvent } from '@/lib/analytics';
 import { AssessmentFeedbackCard } from '@/components/results/AssessmentFeedbackCard';
 import { ShareResultCard } from '@/components/results/ShareResultCard';
 import { ResultsDecisionFork } from '@/components/results/ResultsDecisionFork';
-import { getLocaleValue, type Locale, type RoleId } from '@/lib/product';
+import { getLocaleValue, type Locale, type RoleId, type RoleMatch } from '@/lib/product';
 import { useAppStore } from '@/lib/store';
 import { FullPageLoader } from '@/components/FullPageLoader';
 
@@ -21,6 +21,7 @@ export default function ResultsPage() {
   const locale: Locale = useAppStore((state) => state.locale);
   const [localeReady, setLocaleReady] = useState(false);
   const [selectedRoleId, setSelectedRoleId] = useState<RoleId | null>(null);
+  const [showDemotedShelf, setShowDemotedShelf] = useState(false);
   const { assessment, selectedRoleId: persistedSelectedRoleId, loading } = useAssessmentState();
   const hasTrackedResultsView = useRef(false);
 
@@ -42,6 +43,24 @@ export default function ResultsPage() {
       assessment.topRoles[0]
     );
   }, [assessment, selectedRoleId]);
+
+  const rankedRoles = assessment?.rankedRoles?.length
+    ? assessment.rankedRoles
+    : assessment?.topRoles || [];
+  const remainingRoles = rankedRoles.slice(3);
+  const educationDemotedRoles = remainingRoles.filter((match) => match.backgroundFit?.educationDemoted);
+  const strongBackgroundRoles = remainingRoles.filter(
+    (match) =>
+      !match.backgroundFit?.educationDemoted &&
+      match.eligibility !== 'conditional' &&
+      match.backgroundFit?.streamRelevant &&
+      match.backgroundFit?.levelCoherent
+  );
+  const alsoOpenRoles = remainingRoles.filter(
+    (match) =>
+      !match.backgroundFit?.educationDemoted &&
+      !strongBackgroundRoles.some((strongMatch) => strongMatch.roleId === match.roleId)
+  );
 
   const dimensionCards = assessment
     ? [
@@ -121,6 +140,34 @@ export default function ResultsPage() {
       </main>
     );
   }
+
+  const renderShelfRole = (match: RoleMatch) => (
+    <article className="step-panel" key={match.roleId}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-[var(--brand-ink)]">
+            {getLocaleValue(match.role.name, locale)}
+          </h3>
+          <p className="mt-1 text-sm text-[var(--ink-muted)]">
+            {getLocaleValue(match.role.salaryRange, locale)}
+          </p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--accent-ink)]">
+          {match.score}
+        </span>
+      </div>
+      <p className="mt-3 text-sm leading-7 text-[var(--ink-soft)]">
+        {match.rationale[locale]}
+      </p>
+      {match.eligibilityReasons.length > 0 ? (
+        <ul className="mt-3 space-y-1 text-sm leading-6 text-amber-950">
+          {match.eligibilityReasons.map((reason) => (
+            <li key={reason}>• {reason}</li>
+          ))}
+        </ul>
+      ) : null}
+    </article>
+  );
 
   return (
     <main className="section-shell">
@@ -268,6 +315,71 @@ export default function ResultsPage() {
                 </article>
               );
             })}
+
+            <section className="space-y-4">
+              <div>
+                <p className="eyebrow-copy">
+                  {locale === 'en'
+                    ? 'Strong fits for your background'
+                    : 'आपकी पृष्ठभूमि के लिए मजबूत विकल्प'}
+                </p>
+                <div className="mt-3 space-y-3">
+                  {strongBackgroundRoles.length > 0 ? (
+                    strongBackgroundRoles.map(renderShelfRole)
+                  ) : (
+                    <div className="step-panel text-sm text-[var(--ink-muted)]">
+                      {locale === 'en'
+                        ? 'Your top three already carry the strongest background-fit signals.'
+                        : 'आपके शीर्ष तीन विकल्पों में ही सबसे मजबूत background-fit संकेत हैं।'}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <p className="eyebrow-copy">
+                  {locale === 'en' ? 'Also open to you' : 'आपके लिए अन्य खुले विकल्प'}
+                </p>
+                <div className="mt-3 space-y-3">
+                  {alsoOpenRoles.length > 0 ? (
+                    alsoOpenRoles.map(renderShelfRole)
+                  ) : (
+                    <div className="step-panel text-sm text-[var(--ink-muted)]">
+                      {locale === 'en'
+                        ? 'No extra non-conditional roles are available beyond the stronger matches above.'
+                        : 'ऊपर के मजबूत विकल्पों के अलावा कोई अतिरिक्त non-conditional भूमिका उपलब्ध नहीं है।'}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <button
+                  aria-expanded={showDemotedShelf}
+                  className="flex w-full items-center justify-between gap-3 rounded-[1.2rem] border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm font-semibold text-amber-950"
+                  onClick={() => setShowDemotedShelf((value) => !value)}
+                  type="button"
+                >
+                  <span>
+                    {locale === 'en' ? 'Shown on request' : 'अनुरोध पर दिखाए गए विकल्प'}
+                  </span>
+                  <span>{showDemotedShelf ? '−' : '+'}</span>
+                </button>
+                {showDemotedShelf ? (
+                  <div className="mt-3 space-y-3">
+                    {educationDemotedRoles.length > 0 ? (
+                      educationDemotedRoles.map(renderShelfRole)
+                    ) : (
+                      <div className="step-panel text-sm text-[var(--ink-muted)]">
+                        {locale === 'en'
+                          ? 'No role was demoted for education fit in this result.'
+                          : 'इस परिणाम में शिक्षा-फिट के कारण कोई भूमिका नीचे नहीं की गई।'}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </section>
           </div>
 
           <aside className="space-y-5">
