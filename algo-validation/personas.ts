@@ -159,4 +159,22 @@ export const PERSONAS: Persona[] = [
     routing:{r1:'r1_d',r2:'r2_d',r3:'r3_a',r4:'r4_c',r5:'r5_b'},
     branch:{b1:'an_b1_a',b2:'an_b2_a',b3:'an_b3_a',b4:'an_b4_a'},
     expectedCluster:'analytical',expectedRole:'operations-analyst' },
+
+  { id:24, name:'Suman Devi', city:'Gaya', blurb:'12th-pass candidate, service-leaning and comfortable with customer-facing work',
+    seed:{fullName:'Suman Devi',city:'Gaya',educationStream:'open',degreeName:'12th pass'},
+    routing:{r1:'r1_a',r2:'r2_a',r3:'r3_c',r4:'r4_a',r5:'r5_a'},
+    branch:{b1:'pf_b1_a',b2:'pf_b2_a',b3:'pf_b3_a',b4:'pf_b4_a'},
+    expectedCluster:'people-facing',expectedRole:'customer-support' },
+
+  { id:25, name:'Nikhil Shah', city:'Ahmedabad', blurb:'B.Com grad, identical analytical answers should prefer commerce-relevant roles',
+    seed:{fullName:'Nikhil Shah',city:'Ahmedabad',educationStream:'commerce',degreeName:'B.Com'},
+    routing:{r1:'r1_d',r2:'r2_d',r3:'r3_a',r4:'r4_c',r5:'r5_b'},
+    branch:{b1:'an_b1_a',b2:'an_b2_a',b3:'an_b3_a',b4:'an_b4_a'},
+    expectedCluster:'analytical',expectedRole:'operations-analyst' },
+
+  { id:26, name:'Isha Rao', city:'Mysuru', blurb:'B.Tech grad, identical analytical answers should prefer science-relevant roles',
+    seed:{fullName:'Isha Rao',city:'Mysuru',educationStream:'science',degreeName:'B.Tech'},
+    routing:{r1:'r1_d',r2:'r2_d',r3:'r3_a',r4:'r4_c',r5:'r5_b'},
+    branch:{b1:'an_b1_a',b2:'an_b2_a',b3:'an_b3_a',b4:'an_b4_a'},
+    expectedCluster:'analytical',expectedRole:'operations-analyst' },
 ];

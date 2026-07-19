@@ -103,6 +103,21 @@ describe('versioned matching catalog', () => {
       expect(role.typicalEducationBand.max).toBeTruthy();
     }
   });
+
+  it('defines stream relevance for every expanded catalog role', () => {
+    for (const role of MATCHING_CATALOG.roles) {
+      expect(role.streamRelevance.length).toBeGreaterThan(0);
+    }
+    expect(MATCHING_CATALOG.roles.find((role) => role.id === 'gst-assistant')?.streamRelevance).toEqual([
+      'commerce',
+    ]);
+    expect(MATCHING_CATALOG.roles.find((role) => role.id === 'web-development-associate')?.streamRelevance).toEqual([
+      'science',
+    ]);
+    expect(MATCHING_CATALOG.roles.find((role) => role.id === 'customer-support')?.streamRelevance).toEqual([
+      'open',
+    ]);
+  });
 });
 
 describe('strict adaptive-path validation', () => {
@@ -280,6 +295,59 @@ describe('production constrained hybrid', () => {
     expect(result.rankedRoles[0].roleId).toBe('data-entry-mis');
   });
 
+  it('demotes roles far above a secondary education level without removing them', () => {
+    const person: PersonEvidence = {
+      preferenceVector: [6, 1, 1, 9, 1, 5],
+      branchRoleScores: { 'legal-compliance-operations': 24 },
+      selectedAnswerCount: 1,
+      requiredAnswerCount: 1,
+      readiness: { numbers: 'high', dataAccuracy: 'high' },
+      educationStream: 'open',
+      educationLevel: 'secondary',
+      objectiveEvidence: { accuracy: 100, writing: 100 },
+    };
+
+    const result = scoreEvidence(person, MATCHING_CATALOG);
+    const legal = result.rankedRoles.find((role) => role.roleId === 'legal-compliance-operations');
+
+    expect(legal).toBeDefined();
+    expect(legal?.eligibility).toBe('conditional');
+    expect(legal?.eligibilityReasons.join(' ')).toContain(
+      'This role typically asks for more formal education'
+    );
+    expect(result.rankedRoles.map((role) => role.roleId)).toContain('legal-compliance-operations');
+  });
+
+  it('uses stream relevance as a mild score nudge and keeps it inert without a stream', () => {
+    const person: PersonEvidence = {
+      preferenceVector: [9, 1, 1, 7, 1, 5],
+      branchRoleScores: {},
+      selectedAnswerCount: 1,
+      requiredAnswerCount: 1,
+      readiness: { numbers: 'high', dataAccuracy: 'high' },
+      educationLevel: 'undergraduate',
+      objectiveEvidence: { accuracy: 80, spreadsheet: 80 },
+    };
+
+    const noStream = scoreEvidence(person, MATCHING_CATALOG);
+    const commerce = scoreEvidence({ ...person, educationStream: 'commerce' }, MATCHING_CATALOG, {
+      finalistWeight: 24,
+      streamBoostFactor: 1.1,
+      streamMismatchFactor: 0.9,
+    });
+    const science = scoreEvidence({ ...person, educationStream: 'science' }, MATCHING_CATALOG, {
+      finalistWeight: 24,
+      streamBoostFactor: 1.1,
+      streamMismatchFactor: 0.9,
+    });
+
+    expect(noStream.rankedRoles).toEqual(scoreEvidence(person, MATCHING_CATALOG).rankedRoles);
+    expect(commerce.rankedRoles.find((role) => role.roleId === 'accounting-finance-assistant')?.score)
+      .toBeGreaterThan(
+        science.rankedRoles.find((role) => role.roleId === 'accounting-finance-assistant')?.score || 0
+      );
+  });
+
   it('uses objective evidence without penalizing missing evidence', () => {
     const withoutCheck = scoreAssessment(analyst);
     const withCheck = scoreAssessment(analyst, {
@@ -387,6 +455,8 @@ describe('question and catalog coverage', () => {
     for (let index = 0; index < 10; index += 1) scoreAssessment(customer);
     const started = Date.now();
     for (let index = 0; index < 250; index += 1) scoreAssessment(customer);
-    expect(Date.now() - started).toBeLessThan(5000);
+    // Phase 1 shelves intentionally materialize the full 41-role ranking, not
+    // only the top-three cards. Keep this bounded to 100ms/assessment in Jest.
+    expect(Date.now() - started).toBeLessThan(25000);
   });
 });

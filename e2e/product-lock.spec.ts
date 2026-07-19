@@ -187,6 +187,7 @@ test.describe('Product lock — full journeys', () => {
   }) => {
     test.setTimeout(90_000);
 
+    await page.setExtraHTTPHeaders({ 'x-forwarded-for': syntheticClientIp() });
     await page.goto(`${BASE_URL}/career-fit-check`);
     await page.getByLabel(/full name/i).fill('Neeraj Menon');
     await page.getByLabel(/education stream/i).selectOption('healthcare');
@@ -216,5 +217,46 @@ test.describe('Product lock — full journeys', () => {
     const roleHeadings = await page.locator('article.match-card h2').allInnerTexts();
     expect(roleHeadings).toHaveLength(3);
     expect(roleHeadings.join(' | ')).not.toMatch(/data entry|mis/i);
+  });
+
+  test('5. curation shelves: 12th-pass journey shows shelves with request shelf collapsed', async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(90_000);
+
+    const curationClientIp =
+      testInfo.project.name === 'Mobile Chrome' ? '10.240.19.12' : '10.240.19.11';
+    await page.context().setExtraHTTPHeaders({ 'x-forwarded-for': curationClientIp });
+    await page.goto(`${BASE_URL}/career-fit-check`);
+    await page.getByLabel(/full name/i).fill('Suman Devi');
+    await page.getByLabel(/education stream/i).selectOption('open');
+    await page.getByLabel(/city/i).fill('Gaya');
+    await page.getByLabel(/degree/i).fill('12th pass');
+
+    for (const optionId of [
+      'r1_a',
+      'r2_a',
+      'r3_c',
+      'r4_a',
+      'r5_a',
+      'pf_b1_a',
+      'pf_b2_a',
+      'pf_b3_a',
+      'pf_b4_a',
+      'rf_customer-support',
+    ]) {
+      await answerQuestionByOptionId(page, optionId);
+      await clickNext(page);
+    }
+
+    await page.waitForURL(/\/register/, { timeout: 20000 });
+    await registerFreshUser(page, 'CurationLock');
+    await expect(page).toHaveURL(/\/results/, { timeout: 30000 });
+
+    await expect(page.getByText(/strong fits for your background/i)).toBeVisible();
+    await expect(page.getByText(/also open to you/i)).toBeVisible();
+    const shownOnRequestToggle = page.getByRole('button', { name: /shown on request/i });
+    await expect(shownOnRequestToggle).toBeVisible();
+    await expect(shownOnRequestToggle).toHaveAttribute('aria-expanded', 'false');
   });
 });

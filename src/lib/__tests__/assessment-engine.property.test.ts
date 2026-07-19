@@ -121,6 +121,130 @@ describe('assessment engine invariants', () => {
       }
     );
   });
+
+  it('keeps stream relevance and education demotion non-excluding across full rankings', () => {
+    fc.assert(
+      fc.property(completeAssessmentArbitrary(), (responses) => {
+        const result = scoreAssessment(
+          responses,
+          { degreeName: '12th pass', educationStream: 'open' },
+          'en'
+        );
+
+        expect(result.rankedRoles.map((role) => role.roleId).sort()).toEqual([...ROLE_IDS].sort());
+        expect(Object.keys(result.allScores).sort()).toEqual([...ROLE_IDS].sort());
+      }),
+      {
+        numRuns: 75,
+        seed: 20260720,
+      }
+    );
+  });
+
+  it('leaves rankings inert when no education stream or level signal exists', () => {
+    fc.assert(
+      fc.property(completeAssessmentArbitrary(), (responses) => {
+        const emptyProfile = scoreAssessment(responses, {}, 'en');
+        const unknownDegreeProfile = scoreAssessment(
+          responses,
+          { degreeName: 'unclear credential text' },
+          'en'
+        );
+
+        expect(unknownDegreeProfile.rankedRoles).toEqual(emptyProfile.rankedRoles);
+        expect(unknownDegreeProfile.topRoles).toEqual(emptyProfile.topRoles);
+        expect(unknownDegreeProfile.allScores).toEqual(emptyProfile.allScores);
+      }),
+      {
+        numRuns: 75,
+        seed: 20260721,
+      }
+    );
+  });
+
+  it('never applies new education demotions to the finalist-selected role', () => {
+    const secondaryToLegal = scoreAssessment(
+      {
+        r1: 'r1_c',
+        r2: 'r2_b',
+        r3: 'r3_b',
+        r4: 'r4_c',
+        r5: 'r5_c',
+        b1: 'do_b1_c',
+        b2: 'do_b2_c',
+        b3: 'do_b3_c',
+        b4: 'do_b4_c',
+        rf: 'rf_legal-compliance-operations',
+      },
+      { degreeName: '12th pass', educationStream: 'open' },
+      'en'
+    );
+    const professionalToDataEntry = scoreAssessment(
+      {
+        r1: 'r1_c',
+        r2: 'r2_b',
+        r3: 'r3_a',
+        r4: 'r4_c',
+        r5: 'r5_c',
+        b1: 'do_b1_a',
+        b2: 'do_b2_a',
+        b3: 'do_b3_a',
+        b4: 'do_b4_a',
+        rf: 'rf_data-entry-mis',
+      },
+      { degreeName: 'MBBS', educationStream: 'healthcare' },
+      'en'
+    );
+
+    const legal = secondaryToLegal.rankedRoles.find(
+      (role) => role.roleId === 'legal-compliance-operations'
+    );
+    const dataEntry = professionalToDataEntry.rankedRoles.find((role) => role.roleId === 'data-entry-mis');
+
+    expect(legal?.eligibility).not.toBe('conditional');
+    expect(legal?.backgroundFit.educationDemoted).toBe(false);
+    expect(dataEntry?.eligibility).not.toBe('conditional');
+    expect(dataEntry?.backgroundFit.educationDemoted).toBe(false);
+  });
+
+  it('keeps secondary candidates away from advanced education bands unless directly requested', () => {
+    const advancedBandRoleIds = new Set(
+      MATCHING_CATALOG.roles
+        .filter((role) => {
+          const minIndex = EDUCATION_LEVEL_RANK[role.typicalEducationBand.min];
+          return minIndex - EDUCATION_LEVEL_RANK.secondary >= 2;
+        })
+        .map((role) => role.id)
+    );
+
+    fc.assert(
+      fc.property(completeAssessmentArbitrary(), (responses) => {
+        const result = scoreAssessment(
+          responses,
+          { degreeName: '12th pass', educationStream: 'open' },
+          'en'
+        );
+        const directRolePreference = responses.rf?.startsWith('rf_') ? responses.rf.slice(3) : null;
+
+        for (const match of result.topRoles) {
+          if (advancedBandRoleIds.has(match.roleId)) {
+            expect(match.roleId).toBe(directRolePreference);
+          }
+        }
+      }),
+      {
+        numRuns: 75,
+        seed: 20260722,
+      }
+    );
+  });
 });
 
 const ROLE_IDS = MATCHING_CATALOG.roles.map((role) => role.id);
+const EDUCATION_LEVEL_RANK = {
+  secondary: 0,
+  diploma: 1,
+  undergraduate: 2,
+  postgraduate: 3,
+  professional: 4,
+} as const;
