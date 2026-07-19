@@ -64,15 +64,20 @@ function readinessConflict(
 
 const CREDENTIAL_COHERENCE_REASON =
   'This role typically hires below your education level; shown only because of your answers. / यह भूमिका आम तौर पर आपकी शिक्षा से नीचे के स्तर पर भर्ती करती है; इसे केवल आपके उत्तरों के कारण दिखाया गया है।';
+const EDUCATION_UNDERQUALIFIED_REASON =
+  'This role typically asks for more formal education; your practical evidence matters more here. / यह भूमिका आम तौर पर अधिक औपचारिक शिक्षा मांगती है; यहां आपका व्यावहारिक प्रमाण ज्यादा मायने रखता है।';
 
 function credentialCoherenceConflict(person: PersonEvidence, role: RolePolicy): string | null {
   if (!person.educationLevel || person.directRolePreference === role.id) return null;
 
   const personLevelIndex = EDUCATION_LEVEL_ORDER.indexOf(person.educationLevel);
+  const minLevelIndex = EDUCATION_LEVEL_ORDER.indexOf(role.typicalEducationBand.min);
   const maxLevelIndex = EDUCATION_LEVEL_ORDER.indexOf(role.typicalEducationBand.max);
-  if (personLevelIndex === -1 || maxLevelIndex === -1) return null;
+  if (personLevelIndex === -1 || minLevelIndex === -1 || maxLevelIndex === -1) return null;
 
-  return personLevelIndex - maxLevelIndex >= 2 ? CREDENTIAL_COHERENCE_REASON : null;
+  if (personLevelIndex - maxLevelIndex >= 2) return CREDENTIAL_COHERENCE_REASON;
+  if (minLevelIndex - personLevelIndex >= 2) return EDUCATION_UNDERQUALIFIED_REASON;
+  return null;
 }
 
 export function evaluateEligibility(
@@ -91,26 +96,6 @@ export function evaluateEligibility(
 
   if (reasons.length > 0) {
     return { status: 'conditional', reasons, adjustment: 0.35 };
-  }
-
-  if (role.preferredEducationStreams.length > 0 && !person.educationStream) {
-    return {
-      status: 'insufficient-evidence',
-      reasons: ['A preferred education background was not provided; verify alternative qualifications in the job listing.'],
-      adjustment: 0.95,
-    };
-  }
-
-  if (
-    role.preferredEducationStreams.length > 0 &&
-    person.educationStream &&
-    !role.preferredEducationStreams.includes(person.educationStream)
-  ) {
-    return {
-      status: 'insufficient-evidence',
-      reasons: ['Your education stream is not the usual background for this role; relevant experience or training may still qualify.'],
-      adjustment: 0.95,
-    };
   }
 
   if (role.lifecycleStatus === 'gated') {
@@ -161,9 +146,9 @@ function educationStreamAdjustment(
   scoringConfig: AssessmentScoringConfig
 ): number {
   if (!person.educationStream) return 1;
-  return role.educationStreamBoosts.includes(person.educationStream)
-    ? scoringConfig.streamBoostFactor
-    : 1;
+  if (role.streamRelevance.includes('open')) return 1;
+  if (role.streamRelevance.includes(person.educationStream)) return scoringConfig.streamBoostFactor;
+  return person.directRolePreference === role.id ? 1 : scoringConfig.streamMismatchFactor;
 }
 
 function scoreRole(

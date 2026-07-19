@@ -20,6 +20,16 @@ const educationLevelSchema = z.enum([
   'professional',
 ]);
 
+const educationStreamSchema = z.enum([
+  'commerce',
+  'management',
+  'arts-humanities',
+  'science',
+  'healthcare',
+  'law',
+  'open',
+]);
+
 const rolePolicySchema = z.object({
   id: z.string().min(1),
   version: z.number().int().positive(),
@@ -29,7 +39,7 @@ const rolePolicySchema = z.object({
   preferenceTarget: vectorSchema,
   readiness: z.record(z.enum(['basic', 'strong'])),
   preferredEducationStreams: z.array(z.string()),
-  educationStreamBoosts: z.array(z.string()).default([]),
+  streamRelevance: z.array(educationStreamSchema).min(1),
   typicalEducationBand: z.object({
     min: educationLevelSchema,
     max: educationLevelSchema,
@@ -134,7 +144,7 @@ function candidatePolicy(role: (typeof ROLE_CANDIDATES)[number]): RolePolicy {
       ...(role.objectiveSignals.includes('accuracy') ? { dataAccuracy: 'basic' as const } : {}),
     },
     preferredEducationStreams: [],
-    educationStreamBoosts: [],
+    streamRelevance: role.streamRelevance,
     typicalEducationBand: role.typicalEducationBand,
     objectiveSignals: role.objectiveSignals,
     verificationRequirements: role.requirements,

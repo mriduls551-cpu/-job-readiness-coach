@@ -258,7 +258,7 @@ describe('scoring experiment assignment', () => {
         responses: completePeoplePath,
         profile: {},
         scoringVariant: 'lighter_finalist_v1',
-        scoringConfig: { finalistWeight: 0, streamBoostFactor: 99 },
+        scoringConfig: { finalistWeight: 0, streamBoostFactor: 99, streamMismatchFactor: 0.9 },
       })
     );
     const body = await response.json();

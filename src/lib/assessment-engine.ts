@@ -5,7 +5,13 @@ import {
 import { MATCHING_CATALOG } from '@/lib/matcher/catalog';
 import { buildPersonEvidence } from '@/lib/matcher/quiz-to-vector';
 import { scoreEvidence } from '@/lib/matcher/scorer';
-import type { ConfidenceBand, EligibilityStatus, ObjectiveEvidence } from '@/lib/matcher/types';
+import type {
+  ConfidenceBand,
+  EducationLevel,
+  EligibilityStatus,
+  ObjectiveEvidence,
+} from '@/lib/matcher/types';
+import { EDUCATION_LEVEL_ORDER } from '@/lib/matcher/types';
 import { ROLE_CANDIDATES } from '@/lib/role-candidates';
 
 // ─── Assessment Engine v4 ────────────────────────────────────────────────────
@@ -125,6 +131,11 @@ export interface RoleMatch {
   eligibilityReasons: string[];
   preferenceScore: number;
   demonstratedAbilityScore: number | null;
+  backgroundFit: {
+    streamRelevant: boolean;
+    levelCoherent: boolean;
+    educationDemoted: boolean;
+  };
 }
 
 export interface AssessmentResult {
@@ -137,6 +148,7 @@ export interface AssessmentResult {
   scoringVersion: string;
   catalogVersion: string;
   topRoles: RoleMatch[];
+  rankedRoles: RoleMatch[];
   allScores: Record<RoleId, number>;
   summary: LocalizedText;
   warning: LocalizedText | null;
@@ -956,6 +968,7 @@ export const ROLE_DEFINITIONS = Object.fromEntries(
       CANDIDATE_ROLE_DEFINITIONS[roleId],
   ])
 ) as Record<RoleId, RoleDefinition>;
+const ROLE_POLICY_BY_ID = new Map(MATCHING_CATALOG.roles.map((role) => [role.id, role]));
 
 // ─── Phase 1: Routing Questions ───────────────────────────────────────────────
 // Same 5 questions for every user. V2 mixes feasibility gates, job scenarios,
@@ -2136,6 +2149,25 @@ function applyScoringConfigToSelectedOptions(
   });
 }
 
+function isEducationDemotionReason(reason: string): boolean {
+  return (
+    reason.startsWith('This role typically hires below your education level') ||
+    reason.startsWith('This role typically asks for more formal education')
+  );
+}
+
+function isLevelCoherent(
+  educationLevel: EducationLevel | undefined,
+  band: { min: EducationLevel; max: EducationLevel }
+): boolean {
+  if (!educationLevel) return true;
+  const levelIndex = EDUCATION_LEVEL_ORDER.indexOf(educationLevel);
+  const minIndex = EDUCATION_LEVEL_ORDER.indexOf(band.min);
+  const maxIndex = EDUCATION_LEVEL_ORDER.indexOf(band.max);
+  if (levelIndex === -1 || minIndex === -1 || maxIndex === -1) return true;
+  return levelIndex - maxIndex < 2 && minIndex - levelIndex < 2;
+}
+
 export function scoreAssessment(
   responses: Record<string, string>,
   profileSeed: Partial<AssessmentProfile> = {},
@@ -2165,27 +2197,38 @@ export function scoreAssessment(
   const personEvidence = buildPersonEvidence(allSelected, profile, validated.requiredAnswerCount);
   const matching = scoreEvidence(personEvidence, MATCHING_CATALOG, scoringConfig);
 
-  const scoredRoles = matching.rankedRoles.map((evidence) => {
+  const scoredRoles = matching.rankedRoles.map((evidence, index) => {
     const roleId = evidence.roleId as RoleId;
     const role = ROLE_DEFINITIONS[roleId];
-    const rationaleSignals = allSelected
-      .map((option) => ({ signal: option.signal, alignment: signalAlignment(option, role) }))
-      .sort((left, right) => right.alignment - left.alignment)
-      .slice(0, 3)
-      .map((item) => item.signal);
-    return { ...evidence, roleId, role, rationaleSignals };
+    const policy = ROLE_POLICY_BY_ID.get(roleId);
+    const rationaleSignals =
+      index < 3
+        ? allSelected
+            .map((option) => ({ signal: option.signal, alignment: signalAlignment(option, role) }))
+            .sort((left, right) => right.alignment - left.alignment)
+            .slice(0, 3)
+            .map((item) => item.signal)
+        : [];
+    return { ...evidence, roleId, role, policy, rationaleSignals };
   });
 
   const allScores = Object.fromEntries(
     scoredRoles.map((item) => [item.roleId, item.score])
   ) as Record<RoleId, number>;
 
-  const topRoles = scoredRoles.slice(0, 3).map((item, index) => {
-    const rationale = buildRoleRationale(item.role, item.rationaleSignals, profile, locale);
+  const rankedRoles = scoredRoles.map((item, index) => {
+    const rationale =
+      index < 3 ? buildRoleRationale(item.role, item.rationaleSignals, profile, locale) : { ...item.role.summary };
     if (item.eligibility === 'insufficient-evidence') {
       rationale.en += ' Confirm the role-specific education and tool requirements before applying.';
       rationale.hi += ' आवेदन से पहले भूमिका की शिक्षा और उपकरण संबंधी आवश्यकताएं जांच लें।';
     }
+    const educationDemoted = item.eligibilityReasons.some(isEducationDemotionReason);
+    const streamRelevant =
+      !personEvidence.educationStream ||
+      !item.policy ||
+      item.policy.streamRelevance.includes('open') ||
+      item.policy.streamRelevance.includes(personEvidence.educationStream);
     return {
       roleId: item.roleId,
       role: item.role,
@@ -2197,8 +2240,16 @@ export function scoreAssessment(
       eligibilityReasons: item.eligibilityReasons,
       preferenceScore: item.preferenceScore,
       demonstratedAbilityScore: item.components.demonstratedAbility,
+      backgroundFit: {
+        streamRelevant,
+        levelCoherent: item.policy
+          ? isLevelCoherent(personEvidence.educationLevel, item.policy.typicalEducationBand)
+          : !educationDemoted,
+        educationDemoted,
+      },
     };
   });
+  const topRoles = rankedRoles.slice(0, 3);
 
   // Step 7: Dimension snapshot (6-dim, normalised 0-100).
   // Largest-remainder rounding so the six shares always sum to exactly 100 —
@@ -2261,6 +2312,7 @@ export function scoreAssessment(
     scoringVersion: matching.scoringVersion,
     catalogVersion: matching.catalogVersion,
     topRoles,
+    rankedRoles,
     allScores,
     summary,
     warning,

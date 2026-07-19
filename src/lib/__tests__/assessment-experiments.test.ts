@@ -128,10 +128,10 @@ describe('scoring config effect on the engine', () => {
       ASSESSMENT_SCORING_VARIANTS.lighter_finalist_v1
     );
 
-    // operations-analyst has educationStreamBoosts: [commerce, science]; under
-    // the boost variant a commerce-stream user should not see it score lower
-    // from the boost itself (the lighter finalist pulls the other way, so we
-    // assert on a role the finalist does not touch).
+    // Accounting/finance is commerce-relevant; under the boost variant a
+    // commerce-stream user should not see it score lower from stream relevance
+    // itself (the lighter finalist pulls the other way, so assert on a role
+    // the finalist does not touch).
     expect(boosted.allScores['accounting-finance-assistant']).toBeGreaterThanOrEqual(
       Math.floor(control.allScores['accounting-finance-assistant'] * 0.9)
     );

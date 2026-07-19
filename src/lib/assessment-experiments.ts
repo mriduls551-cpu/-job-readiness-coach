@@ -1,6 +1,7 @@
 export interface AssessmentScoringConfig {
   finalistWeight: number;
   streamBoostFactor: number;
+  streamMismatchFactor: number;
 }
 
 export const FIT_CHECK_SCORING_FLAG_KEY = 'fit_check_scoring_variant';
@@ -12,6 +13,7 @@ export const FIT_CHECK_SCORING_FLAG_KEY = 'fit_check_scoring_variant';
 export const DEFAULT_ASSESSMENT_SCORING_CONFIG: AssessmentScoringConfig = {
   finalistWeight: 24,
   streamBoostFactor: 1,
+  streamMismatchFactor: 0.9,
 };
 
 export const ASSESSMENT_SCORING_VARIANTS = {
@@ -24,6 +26,7 @@ export const ASSESSMENT_SCORING_VARIANTS = {
   lighter_finalist_v1: {
     finalistWeight: 8,
     streamBoostFactor: 1.1,
+    streamMismatchFactor: 0.9,
   },
 } as const satisfies Record<string, AssessmentScoringConfig>;
 

@@ -66,9 +66,7 @@ export interface RolePolicy {
   preferenceTarget: DimensionVector;
   readiness: Partial<Record<ReadinessSignal, RequirementLevel>>;
   preferredEducationStreams: string[];
-  // Streams that get scoringConfig.streamBoostFactor applied; inert while the
-  // factor is 1 (control).
-  educationStreamBoosts: string[];
+  streamRelevance: EducationStream[];
   typicalEducationBand: {
     min: EducationLevel;
     max: EducationLevel;
