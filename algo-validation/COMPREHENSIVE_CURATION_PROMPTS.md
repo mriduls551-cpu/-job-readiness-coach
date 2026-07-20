@@ -96,6 +96,21 @@ deviations with reasons, gate outputs). Leave the branch local. DO NOT push.
 
 ## PHASE 2 — Reachability repair (the 5 unreachable + 10 gated roles)
 
+> **DECISION LOCKED (2026-07-20) — founder approved:** Apply the witness-route fix to
+> all 5 unreachable roles (field-sales-executive, retail-sales-associate,
+> banking-sales-executive, insurance-sales-associate, microfinance-executive). Keep
+> insurance-sales-associate **gated** per existing policy. Do NOT open a broad review of
+> the other gates. The STEP 2 stop below is therefore already answered — proceed straight
+> to STEP 3 for these 5 roles, using the committed
+> `algo-validation/REACHABILITY_ANALYSIS.md` as the spec.
+>
+> **Baseline correction:** Phase 1 is now MERGED into `main` (`evidence-hybrid-v7`,
+> `streamRelevance`, min-side rule). The `feat/curation-phase2` branch has been reset to
+> that merged `main` — start from it as-is. The prior analysis was run against v6; re-run
+> `npm run benchmark:algorithm` first and confirm the 5 roles are still unreachable on v7
+> before fixing (the finding is witness-routing, expected to hold). Bump
+> scoringVersion only if you touch scoring — a witness-path/benchmark-only fix keeps v7.
+
 ```
 You are a senior engineer on "Job Readiness Coach". Read CLAUDE.md first — especially
 rule 5 (benchmark + fast-check invariants gate all scoring changes). Work on branch
@@ -132,6 +147,21 @@ Gates + algo-validation/CURATION_PHASE2_REPORT.md as in Phase 1. DO NOT push.
 ---
 
 ## PHASE 3 — India-wide catalog expansion (NCO-2015-guided)
+
+> **DECISION LOCKED (2026-07-20) — founder approved:** Implement the FULL +25 role
+> expansion (41 → 66) from the committed `algo-validation/ROLE_EXPANSION_PROPOSAL.md`.
+> The STEP 2 role-list approval below is therefore already answered — proceed to STEP 3
+> and build all 25 approved roles in 5 batches of ~5. Do NOT exceed 66 roles, and if the
+> finalist list becomes unscannable on mobile before batch 5, STOP and flag it (the
+> proposal warns the finalist UI is the limiting factor near ~75 roles).
+>
+> **Baseline correction:** run AFTER Phase 2 is merged. Phase 1 is already merged
+> (`evidence-hybrid-v7`, `streamRelevance`, min-side rule); the `feat/curation-phase3`
+> branch has been reset to merged `main`. Every new role MUST carry `streamRelevance`,
+> `typicalEducationBand`, and pass the credential-coherence + min-side rules — verify each
+> new role against an MBBS/12th-pass persona so the new roles inherit the same tier
+> discipline Phase 1 established. The proposal was written against v6; treat its data
+> shapes as the v7 target (streamRelevance, not the retired educationStreamBoosts).
 
 ```
 You are a senior engineer + labour-market researcher on "Job Readiness Coach". Read
